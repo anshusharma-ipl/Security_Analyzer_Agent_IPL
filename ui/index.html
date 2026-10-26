@@ -25,20 +25,13 @@
   <section class="panel" aria-labelledby="h-scan">
     <div class="hd"><h3 id="h-scan">New scan</h3></div>
     <div class="bd">
-      <div class="seg" id="srcTabs" role="tablist">
-        <button data-t="case" class="on" role="tab">Sample</button><button data-t="zip" role="tab">.zip file</button><button data-t="dir" role="tab">Folder</button>
+      <div id="drop" class="drop" tabindex="0" role="button" aria-label="Choose or drop your project">
+        <b>Drop your project here</b>
+        <span class="small muted">a folder or a .zip, with its tests included</span>
+        <span class="small muted">or click to choose a .zip</span>
+        <div class="small" id="pickedNote"></div>
       </div>
-      <div id="tab-case">
-        <label for="caseSel">Sample project</label><select id="caseSel"></select>
-        <div class="small muted" id="caseNote" style="margin-top:6px"></div>
-      </div>
-      <div id="tab-zip" hidden>
-        <label for="zipIn">A Python project as a .zip, with a tests folder</label><input type="file" id="zipIn" accept=".zip">
-      </div>
-      <div id="tab-dir" hidden>
-        <label for="dirIn">A project folder (source files only)</label><input type="file" id="dirIn" webkitdirectory multiple>
-        <div class="small muted" id="dirNote"></div>
-      </div>
+      <input type="file" id="zipIn" accept=".zip" hidden>
       <details class="plain">
         <summary>Rules and limits</summary>
         <label for="rulesIn">Your rules.json (optional)</label><input type="file" id="rulesIn" accept=".json,application/json">
@@ -99,7 +92,7 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let tab = "case", rulesText = null, jobId = null, timer = null, info = null;
+let rulesText = null, jobId = null, timer = null, info = null;
 let selFid = null, workTab = "findings";
 const srcCache = {};
 const decisions = {};   // finding_id -> {decision, reason, edited_patch_diff}
@@ -114,19 +107,35 @@ async function api(path, opts) {
 const post = (path, body) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
 
 /* ---------------- setup column ---------------- */
-document.querySelectorAll("#srcTabs button").forEach((b) => b.onclick = () => {
-  tab = b.dataset.t;
-  document.querySelectorAll("#srcTabs button").forEach((x) => x.classList.toggle("on", x === b));
-  ["case", "zip", "dir"].forEach((t) => $("tab-" + t).hidden = t !== tab);
+let picked = null;   // {zip: File} or {files: [{path, file}], name}
+const drop = $("drop");
+const showPicked = () => { $("pickedNote").textContent = !picked ? "" : picked.zip ? `Selected: ${picked.zip.name}` : `Selected folder: ${picked.name} (${picked.files.length} files)`; drop.classList.toggle("has", !!picked); };
+drop.onclick = () => $("zipIn").click();
+drop.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("zipIn").click(); } };
+$("zipIn").onchange = (e) => { const f = e.target.files[0]; picked = f ? { zip: f } : null; showPicked(); };
+["dragenter", "dragover"].forEach((n) => drop.addEventListener(n, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((n) => drop.addEventListener(n, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+async function walk(entry, prefix, out) {
+  if (entry.isFile) { const file = await new Promise((r, j) => entry.file(r, j)); out.push({ path: prefix + entry.name, file }); return; }
+  const rd = entry.createReader();
+  for (;;) {
+    const batch = await new Promise((r, j) => rd.readEntries(r, j));
+    if (!batch.length) break;
+    for (const c of batch) await walk(c, prefix + entry.name + "/", out);
+  }
+}
+drop.addEventListener("drop", async (e) => {
+  const it = e.dataTransfer.items && e.dataTransfer.items[0];
+  const entry = it && it.webkitGetAsEntry && it.webkitGetAsEntry();
+  try {
+    if (entry && entry.isDirectory) { const files = []; await walk(entry, "", files); picked = { files, name: entry.name }; }
+    else { const f = e.dataTransfer.files[0]; if (!f || !/\.zip$/i.test(f.name)) throw new Error("Drop a folder or a .zip file."); picked = { zip: f }; }
+    $("runErr").textContent = "";
+  } catch (err) { picked = null; $("runErr").textContent = err.message; }
+  showPicked();
 });
 api("/api/info").then((i) => {
   info = i;
-  $("caseSel").innerHTML = i.cases.map((c) => `<option value="${esc(c.id)}">${esc(c.id)}</option>`).join("");
-  const showNote = () => {
-    const c = i.cases.find((x) => x.id === $("caseSel").value);
-    $("caseNote").textContent = c ? c.category : "";
-  };
-  $("caseSel").onchange = showNote; showNote();
   $("rulesCard").innerHTML = i.rules.map((r) =>
     `<div style="margin-bottom:10px"><span class="pill ${r.severity === "high" ? "risk" : "wait"}">${esc(r.id)}</span> <span class="muted">${r.fix_allowed ? "fix proposed" : "reported only"}</span><div class="muted">${esc(r.detect)}</div></div>`).join("");
 }).catch((e) => $("runErr").textContent = e.message);
@@ -147,22 +156,20 @@ async function b64(file) {
   return btoa(s);
 }
 async function uploadProject() {
-  if (tab === "zip") {
-    const f = $("zipIn").files[0]; if (!f) throw new Error("Choose a .zip file first.");
-    const r = await api("/api/upload/zip", { method: "POST", body: f });
-    return { id: r.upload_id, label: f.name };
+  if (!picked) throw new Error("Drop your project folder or .zip first.");
+  if (picked.zip) {
+    const r = await api("/api/upload/zip", { method: "POST", body: picked.zip });
+    return { id: r.upload_id, label: picked.zip.name };
   }
-  const files = [...$("dirIn").files]; if (!files.length) throw new Error("Choose a folder first.");
   const out = []; let skipped = 0;
-  for (const f of files) {
-    const p = f.webkitRelativePath || f.name;
-    if (SKIP.test(p + "/") || !TEXT_EXT.test(p) || f.size > 1_000_000) { skipped++; continue; }
-    out.push({ path: p, b64: await b64(f) });
+  for (const { path, file } of picked.files) {
+    if (SKIP.test(path + "/") || !TEXT_EXT.test(path) || file.size > 1_000_000) { skipped++; continue; }
+    out.push({ path: picked.name + "/" + path, b64: await b64(file) });
   }
   if (!out.length) throw new Error("No source files found in that folder.");
-  $("dirNote").textContent = `${out.length} files sent, ${skipped} skipped (binary, large or tooling folders).`;
+  $("pickedNote").textContent = `Selected folder: ${picked.name}. ${out.length} files sent, ${skipped} skipped (binary, large or tooling folders).`;
   const r = await post("/api/upload/files", { files: out });
-  return { id: r.upload_id, label: (files[0].webkitRelativePath || "").split("/")[0] || "picked folder" };
+  return { id: r.upload_id, label: picked.name };
 }
 
 /* ---------------- model connection ---------------- */
@@ -197,8 +204,7 @@ $("runBtn").onclick = async () => {
     if (rulesText) body.rules_text = rulesText;
     body.use_model = { auditor: $("useAuditor").checked, investigator: $("useInvestigator").checked, fixer_validator: $("useFixer").checked };
     body.model_ack = $("mAck").checked;
-    if (tab === "case") body.case = $("caseSel").value;
-    else { const u = await uploadProject(); body.upload_id = u.id; body.label = u.label; }
+    const u = await uploadProject(); body.upload_id = u.id; body.label = u.label;
     for (const k in decisions) delete decisions[k];
     Object.keys(srcCache).forEach((k) => delete srcCache[k]);
     selFid = null; workTab = "findings";

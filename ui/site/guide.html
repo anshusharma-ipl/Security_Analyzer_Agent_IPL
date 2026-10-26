@@ -57,7 +57,7 @@
 <p>A live scan needs the console running on your own machine (or a server). The published site on GitHub Pages is read-only: it shows a recorded run and cannot scan anything or call a model.</p>
 <ol>
 <li><b>Start the console.</b> <code>pip install jsonschema</code>, then <code>python ui/server.py</code>, then open <code>http://127.0.0.1:8765</code>.</li>
-<li><b>Give it your code.</b> In <b>New scan</b> (left panel) pick <b>Zip</b> and upload your project as a .zip that includes its tests folder, or pick <b>Folder</b> and choose the project folder. Use <b>Sample project</b> to try one of the 21 test cases first. A rules file is optional; without one the approved default rules are used.</li>
+<li><b>Give it your code.</b> In <b>New scan</b>, drop your project folder (or a .zip) onto the box, or click it to choose a .zip. The project should include its tests. A rules file is optional; without one the approved default rules are used.</li>
 <li><b>Connect a model (optional).</b> In <b>Agents</b> enter the endpoint, model name and API key, press <b>Connect</b> then <b>Test</b>, tick which agents should use the model, and tick the box confirming masked code is sent to it. Skip this to use the offline stand-ins.</li>
 <li><b>Press Run scan.</b> The pipeline strip shows the seven steps. When it reaches the review desk, <b>approve, edit or reject</b> each proposed fix, then submit.</li>
 <li><b>Download the result.</b> The report (HTML, Markdown and JSON), the decision log and <code>fixes.patch</code> are on the run's page. Nothing is applied to your original files; a person applies <code>fixes.patch</code>.</li></ol>

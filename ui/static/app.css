@@ -195,3 +195,7 @@ a.card{text-decoration:none;color:inherit}a.card:hover{border-color:var(--brand)
 .panel{min-width:0}
 
 .item .body .md h3{font-size:14.5px;margin:12px 0 6px}.item .body .md h2{font-size:15px;margin:12px 0 6px}.item .body .md table{font-size:13px}
+
+.drop{display:flex;flex-direction:column;gap:4px;align-items:center;text-align:center;padding:22px 14px;border:2px dashed var(--line);border-radius:12px;cursor:pointer}
+.drop:hover,.drop.over,.drop:focus-visible{border-color:var(--brand);background:var(--sunk);outline:none}
+.drop.has{border-style:solid}
