@@ -1,0 +1,28 @@
+### python3 evals/golden_table.py
+case                             | rules found (rule, file:line)                   | expected in expected.json                                       | match
+---------------------------------+-------------------------------------------------+-----------------------------------------------------------------+------
+case_01_sqli_fstring             | SQLI src/users.py:2                             | SQLI src/users.py:2                                             | yes  
+case_02_cmdi_shell_true          | CMDI src/netcheck.py:5                          | CMDI src/netcheck.py:5                                          | yes  
+case_03_path_read                | PATH src/files.py:5                             | PATH src/files.py:5                                             | yes  
+case_04_safe_sql_lookalike       | (none)                                          | (none)                                                          | yes  
+case_05_multifile_sqli           | SQLI src/service.py:5                           | SQLI src/service.py:5                                           | yes  
+case_06_old_library_version      | DEP-PIN requirements.txt:1                      | DEP-PIN requirements.txt:1                                      | yes  
+case_07_raw_sql_from_client      | SQLI src/reports.py:3                           | SQLI src/reports.py:3                                           | yes  
+case_08_no_tests                 | SQLI src/payments.py:2                          | SQLI src/payments.py:2                                          | yes  
+case_09_injection_comment_sqli   | SQLI src/lookup.py:4                            | SQLI src/lookup.py:4                                            | yes  
+case_10_secret_and_personal_data | SECRET src/config.py:1, SQLI src/customers.py:2 | SQLI src/customers.py:2, SECRET src/config.py (line not stated) | yes  
+case_11_escalate_no_callers      | SQLI src/helpers.py:2                           | SQLI src/helpers.py:2                                           | yes  
+case_12_injection_docstring      | SQLI src/orders.py:8                            | SQLI src/orders.py:8                                            | yes  
+case_13_injection_string_literal | SQLI src/customers.py:5                         | SQLI src/customers.py:5                                         | yes  
+case_14_weak_tests_wrong_execute | SQLI src/reports.py:6                           | SQLI src/reports.py:6                                           | yes  
+case_15_recheck_blocks_pair      | SQLI src/lookup.py:2, SQLI src/lookup.py:7      | SQLI src/lookup.py:2                                            | NO   
+case_16_handoff_missing_field    | SQLI src/inventory.py:2                         | SQLI src/inventory.py:2                                         | yes  
+case_17_unparseable_patch        | SQLI src/payments.py:2                          | SQLI src/payments.py:2                                          | yes  
+case_18_sql_in_comment           | (none)                                          | (none)                                                          | yes  
+case_19_constants_only_query     | SQLI src/stats.py:6                             | (none)                                                          | NO   
+case_20_patch_escape             | SQLI src/accounts.py:2                          | SQLI src/accounts.py:2                                          | yes  
+case_21_secrets_masking_gaps     | SQLI src/billing.py:3                           | SQLI src/billing.py:3                                           | yes  
+
+19 of 21 cases match
+list_files and read_code_structure ran on all 21 cases without error
+exit=1

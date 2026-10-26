@@ -1,0 +1,26 @@
+### python3 -m unittest discover -s tests
+                                                    ~~~~~~~~^^^^^^
+NotADirectoryError: [Errno 20] Not a directory: '/tmp/saa-test-u2ifz9rj/proj/linkdir'
+
+======================================================================
+ERROR: test_a_link_that_leaves_the_project_is_refused (test_tools.TestReadFile.test_a_link_that_leaves_the_project_is_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/claude-0/-home-claude/ed7768e9-2e99-518a-8759-04f2fe97c3f3/scratchpad/work/repo/tests/test_tools.py", line 97, in <lambda>
+    self.addCleanup(lambda: os.path.isdir(link) and os.rmdir(link))
+                                                    ~~~~~~~~^^^^^^
+NotADirectoryError: [Errno 20] Not a directory: '/tmp/saa-test-59p5pxpy/proj/linkdir'
+
+======================================================================
+ERROR: test_a_bad_rules_file_and_a_link_out_of_the_project_are_refused (test_tools.TestRunSecurityRules.test_a_bad_rules_file_and_a_link_out_of_the_project_are_refused)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/claude-0/-home-claude/ed7768e9-2e99-518a-8759-04f2fe97c3f3/scratchpad/work/repo/tests/test_tools.py", line 97, in <lambda>
+    self.addCleanup(lambda: os.path.isdir(link) and os.rmdir(link))
+                                                    ~~~~~~~~^^^^^^
+NotADirectoryError: [Errno 20] Not a directory: '/tmp/saa-test-npz8egg7/proj/linkdir'
+
+----------------------------------------------------------------------
+Ran 149 tests in 47.086s
+
+FAILED (errors=5)

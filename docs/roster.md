@@ -1,6 +1,6 @@
 # Roster: single agent versus multi-agent, and what to do with the Auditor
 
-Status: PROPOSAL, waiting for the team's OK. Nothing here has been built.
+Status: DECIDED on 2026-10-27 by the project owner: **option (a), the Auditor stays an agent.** (Wording of this update was drafted by Claude from that decision; the owner should confirm it.) The original analysis for option (b) is kept in section 4 as the baseline for a recurring collapse test.
 Sources: `AGENTS.md`; `canvas.md` sections 6, 9, 10, 12, 13; `schemas/state.schema.json` (the `x-owner` of each field); the tools in `tools/`; the result of `python evals/golden_table.py` (11 of 11 golden cases matched with no AI model).
 If this file and `canvas.md` or `AGENTS.md` disagree, those two win until the team changes them.
 
@@ -21,7 +21,7 @@ One model gets all seven tools (`list_files`, `read_file`, `run_security_rules`,
 
 ## 2. The multi-agent version: roster
 
-Three agents and one plain-code orchestrator. Every handoff goes through the orchestrator; agents never call each other. This is the canvas design. Section 4 asks whether the Auditor row should stay.
+Three agents and one plain-code orchestrator. Every handoff goes through the orchestrator; agents never call each other. This is the canvas design. Section 4 records the decision to keep the Auditor row.
 
 | Agent | What it knows that no other agent knows | Tools: read | Tools: write | State fields it reads | State fields it writes | If it fails, what catches it |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -58,25 +58,31 @@ Each answer below is argued from the actual tools and the golden cases, not copi
 
 ---
 
-## 4. The Auditor: recommendation
+## 4. The Auditor: decision
 
-**Recommendation: option (b).** Replace the Auditor agent with `run_security_rules` plus a deterministic ranking, run as a plain-code scan step by the orchestrator.
+**Decision: option (a).** The Auditor stays an agent. The owner chose this on 2026-10-27, overriding the earlier recommendation to collapse it. What this changes:
+- The roster, the schema (`x-owner` of the six Auditor fields), the MCP profiles (`--agent auditor`) and `AGENTS.md` section 3 stay as built. No change to the code.
+- The Auditor is held to the evidence rule by the orchestrator, not by trust: it may only keep findings that `run_security_rules` returned, and `validate.py` still checks every `quoted_code`. In the model-backed version (`agents/model_agents.py`) an invented finding is dropped and logged as `unbacked_finding_dropped`.
+- The recheck that the Fixer asks for (`request_recheck`) stays a plain tool call that runs the rules again, under the Auditor's handoff in the log. It is not a model call.
+- **Keep the collapse test.** The earlier analysis below is the baseline: run the evals with the Auditor as an agent and as plain code (`make_agents(cfg, {"auditor": False})` in `agents/model_agents.py` keeps the offline scan) and compare high-severity recall, cost and handoffs. If a plain scan matches, bring the question back.
 
-Reasons:
+Original recommendation, kept for the record (option (b), not chosen). It proposed to replace the Auditor agent with `run_security_rules` plus a deterministic ranking, run as a plain-code scan step by the orchestrator.
+
+Reasons given then:
 - **The canvas says so itself.** Section 10: it stays an agent "only while AI-based rules and ranking are in scope. If the pilot used text-pattern rules only, collapse it into that tool plus a sort". Our pilot rules are SQLI, CMDI and PATH, and `AGENTS.md` section 2 puts AI-based detection out of the pilot.
 - **Option (a) has nothing to justify it.** The only candidates are (1) AI-based detection rules, which are out of scope, and (2) AI ranking by context, for example "reachable from a request handler, so first". That second job is exactly the Investigator's job (case_11), so an Auditor doing it duplicates the Investigator and ranks before the evidence exists.
 - **A model in the Auditor can only lose findings.** Every true finding is already found by the tool. A model that "judges" can only drop a real one, silently. High-severity recall has a gate of at least 90%, and the evidence rule already removes the unproven ones without a model.
 - **Cost and risk go down.** One fewer handoff in the step cap, no model call and no code sent to a model for the whole-project scan (up to 200 files), and no context that holds hostile file contents plus a model's ranking power.
 - **The recheck gets simpler.** `request_recheck` already calls `run_security_rules` directly. With the Auditor gone, "ask the Auditor" and the tool are the same thing (see open question 2).
 
-What (b) needs, if the team agrees:
+What (b) would have needed:
 - **Deterministic ranking.** Sort by severity from `rules.json` (high, medium, low), then by the rule's position in `rules.json`, then by file and line. Same input, same order, every run.
 - **Evidence step in code.** Keep a finding only if its `quoted_code` really appears at that file and line (the same check `validate.py` already does); otherwise put it in `dropped_findings` and log it.
 - **Schema change.** The Auditor-owned fields (`file_list`, `skipped_files`, `skipped_rules`, `candidate_findings`, `dropped_findings`, `recheck_results`) get `x-owner: orchestrator`, and `auditor` leaves the actor and agent lists.
 - **Confidence for rule matches.** The schema wants a number on every finding. The 0.70 gate applies to AI-alone findings only, so it does not apply. A constant must be agreed (open question 4).
 - **`AGENTS.md` update.** Section 3 says the Auditor is "kept for now; test removing it after the evals". Choosing (b) now changes that team decision, so it needs your OK.
 
-### Roster (a): keep the Auditor as an agent
+### Roster (a): keep the Auditor as an agent (chosen)
 
 | Name | Kind | Tools | Writes |
 | --- | --- | --- | --- |
@@ -87,7 +93,7 @@ What (b) needs, if the team agrees:
 
 Justification it would need: AI-based rules or AI ranking, neither of which is in the pilot. Handoffs per run: 1 audit, plus per finding 1 investigate and 1 or 2 fix attempts.
 
-### Roster (b): scan step in code (recommended)
+### Roster (b): scan step in code (not chosen)
 
 | Name | Kind | Tools | Writes |
 | --- | --- | --- | --- |
@@ -102,7 +108,7 @@ Handoffs per run: per finding 1 investigate and 1 or 2 fix attempts; the audit i
 
 ---
 
-## 5. The chosen design (option b)
+## 5. The chosen design (option a)
 
 ```mermaid
 flowchart TD
@@ -114,7 +120,7 @@ flowchart TD
     subgraph ORCH["Workflow orchestrator: plain code, NOT an agent. Owns order, caps, handoff log, approvals, decision log, report"]
         S1["1. Validate rules.json"]
         S2["2. Make the temporary copy and hash the originals"]
-        S3["3. Scan step in code: list_files, run_security_rules, evidence check, deterministic ranking"]
+        S3["3. Hand the whole project to the Auditor"]
         S4["4. For each ranked finding: hand to Investigator, then to Fixer and Validator"]
         S5["5. Write the proposal to review_queue.json and wait"]
         S6["6. verify_originals"]
@@ -122,15 +128,18 @@ flowchart TD
         S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
     end
 
+    AUD["Auditor agent<br/>decides: which rule matches are reportable, and their rank<br/>MCP --agent auditor: list_files, read_file, run_security_rules"]
     INV["Investigator agent<br/>decides: cause and fix approach, or hand to a person<br/>MCP --agent investigator: read_file, read_code_structure"]
     FIX["Fixer and Validator agent<br/>decides: recommend keep, retry or reject<br/>MCP --agent fixer-validator: apply_patch, run_tests, request_recheck"]
 
+    S3 -- "job in, result out" --> AUD
+    AUD -- "file_list, candidate_findings, dropped_findings" --> S3
     S4 -- "job in, result out" --> INV
     INV -- "investigations" --> S4
     S4 -- "job in, result out" --> FIX
     FIX -- "baseline_tests, fix_attempts" --> S4
 
-    S3 -. "reads" .-> ORIG
+    AUD -. "reads" .-> ORIG
     S2 -. "creates" .-> COPY
     INV -. "reads" .-> ORIG
     FIX -. "writes" .-> COPY
@@ -146,8 +155,8 @@ Agents never call each other: the arrows go only between an agent and the orches
 ## 6. Open questions for the team
 
 1. **The Fixer cannot read the file it patches.** `AGENTS.md` section 4 gives the Fixer & Validator `apply_patch`, `run_tests` and `request_recheck`, and no `read_file`. To write a unified diff it needs the lines it changes. Options: the orchestrator passes the relevant masked lines as a data field with the job, or `read_file` is added to the Fixer's tools (a change to the permissions table). Not decided here.
-2. **`request_recheck` does not use an Auditor.** The canvas says the Fixer "asks the Auditor to run the rules again". In the code, the tool calls `run_security_rules` itself, and `state.schema.json` still lists `recheck_results` as Auditor-owned. Option (b) makes the code and the wording agree. Under option (a) the schema, the tool and the handoff job list would need an explicit Auditor re-check job.
-3. **`AGENTS.md` says the Auditor is "kept for now; test removing it after the evals".** Option (b) removes it before the evals, with the evidence in section 4 (11 of 11 golden cases matched with the tool alone). If the team prefers to keep the decision as written, choose (a) and test removal later.
+2. **`request_recheck` does not use an Auditor.** The canvas says the Fixer "asks the Auditor to run the rules again". In the code, the tool calls `run_security_rules` itself, and `state.schema.json` still lists `recheck_results` as Auditor-owned. With option (a) chosen, either keep it as a plain tool call and say so in the canvas wording (the current behaviour, and what the model-backed version does), or add an explicit Auditor re-check job. Still to settle.
+3. **Settled:** the Auditor stays (option a). `AGENTS.md` section 3 now says so, and the removal test is a recurring eval, not a one-off.
 4. **Confidence for rule-matched findings without a model.** One documented constant, or a value by rule. The 0.70 gate does not apply. A value of 1.0 would claim more than we know.
 
-Waiting for your OK on: option (a) or (b), and how to settle questions 1 to 4.
+Decided: option (a). Still open: questions 1, 2 and 4.

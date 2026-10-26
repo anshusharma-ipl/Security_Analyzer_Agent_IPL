@@ -1,0 +1,12 @@
+### python3 tools/mcp_server.py --check
+auditor          ok   lists only its tools
+auditor          ok   calls run_security_rules
+auditor          ok   refuses read_code_structure
+investigator     ok   lists only its tools
+investigator     ok   calls read_code_structure
+investigator     ok   refuses list_files
+fixer-validator  ok   lists only its tools
+fixer-validator  ok   calls request_recheck
+fixer-validator  ok   refuses list_files
+check passed
+exit=0

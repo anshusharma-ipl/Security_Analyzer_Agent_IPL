@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Security Analyzer Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="topbar"><div class="in">
+  <a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>Security Analyzer</a>
+  <nav class="nav" aria-label="Main">
+    <a href="/" aria-current="page">Scan</a><a href="/docs/guide.html">Guide</a><a href="/docs/md/PRD.html">PRD</a><a href="/docs/cost.html">Cost</a><a href="/docs/canvas.html">Canvas</a><a href="/docs/prompts.html">How it was built</a><a href="/docs/golden.html">Test cases</a><a href="/docs/documents.html">Documents</a>
+  </nav>
+  <span class="mode" id="modeLabel">Offline stand-in agents</span>
+</div></header>
+
+<div class="page">
+<div class="notice"><span><b>Run trusted code only.</b> To check a fix, the project's own tests run on this computer, in a temporary copy. Your files are never changed. Use the sample cases or fake data until the model endpoint is approved.</span></div>
+
+<div class="console">
+<aside class="side">
+  <section class="panel" aria-labelledby="h-scan">
+    <div class="hd"><h3 id="h-scan">New scan</h3></div>
+    <div class="bd">
+      <div class="seg" id="srcTabs" role="tablist">
+        <button data-t="case" class="on" role="tab">Sample</button><button data-t="zip" role="tab">.zip file</button><button data-t="dir" role="tab">Folder</button>
+      </div>
+      <div id="tab-case">
+        <label for="caseSel">Sample project</label><select id="caseSel"></select>
+        <div class="small muted" id="caseNote" style="margin-top:6px"></div>
+      </div>
+      <div id="tab-zip" hidden>
+        <label for="zipIn">A Python project as a .zip, with a tests folder</label><input type="file" id="zipIn" accept=".zip">
+      </div>
+      <div id="tab-dir" hidden>
+        <label for="dirIn">A project folder (source files only)</label><input type="file" id="dirIn" webkitdirectory multiple>
+        <div class="small muted" id="dirNote"></div>
+      </div>
+      <details class="plain">
+        <summary>Rules and limits</summary>
+        <label for="rulesIn">Your rules.json (optional)</label><input type="file" id="rulesIn" accept=".json,application/json">
+        <div class="small muted" id="rulesNote"></div>
+        <label for="fileCap">Most files to scan</label><input type="number" id="fileCap" min="1" max="1000" value="200">
+        <label for="retries">Retries per fix</label><input type="number" id="retries" min="0" max="3" value="1">
+      </details>
+      <button class="btn primary block" id="runBtn" style="margin-top:18px">Run scan</button>
+      <div class="err" id="runErr" role="alert"></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-agents">
+    <div class="hd"><h3 id="h-agents">Agents</h3><a class="small" href="/docs/guide.html#model">How to connect a model</a></div>
+    <div class="bd">
+      <div class="small muted" id="modelState">Offline stand-ins. No AI model is called.</div>
+      <details class="plain" id="modelDet">
+        <summary>Connect a model</summary>
+        <p class="small muted" style="margin-top:8px">Anthropic Messages API format. The key stays in this server's memory and is never saved or shown again.</p>
+        <label for="mEndpoint">Endpoint</label><input type="text" id="mEndpoint">
+        <label for="mName">Model name</label><input type="text" id="mName">
+        <label for="mKey">API key</label><input type="password" id="mKey" autocomplete="off">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+          <button class="btn sm primary" id="mConnect">Connect</button><button class="btn sm" id="mEnv" hidden>Use .env</button>
+          <button class="btn sm" id="mTest" hidden>Test</button><button class="btn sm" id="mClear" hidden>Disconnect</button>
+        </div>
+        <div class="small" id="mMsg" style="margin-top:8px"></div>
+      </details>
+      <div id="mUse" hidden style="margin-top:14px">
+        <b class="small">Use the model for</b>
+        <div class="check"><input type="checkbox" id="useAuditor"><label class="inline" for="useAuditor">Auditor</label></div>
+        <div class="check"><input type="checkbox" id="useInvestigator"><label class="inline" for="useInvestigator">Investigator</label></div>
+        <div class="check"><input type="checkbox" id="useFixer"><label class="inline" for="useFixer">Fixer and Validator</label></div>
+        <div class="check"><input type="checkbox" id="mAck"><label class="inline" for="mAck">I understand masked code is sent to this endpoint. Fake data only until compliance signs off.</label></div>
+        <div class="small muted">Agents left unticked stay offline. Tests and re-checks always run as plain tools.</div>
+      </div>
+    </div>
+  </section>
+
+  <details class="panel" style="padding:14px 18px">
+    <summary>Rules in use</summary>
+    <div id="rulesCard" class="small" style="margin-top:10px"></div>
+  </details>
+</aside>
+
+<main id="main" aria-live="polite">
+  <section class="panel empty" id="idle">
+    <h2>Scan a project, then review each fix</h2>
+    <p>Pick a sample or upload your own code on the left and press <b>Run scan</b>.<br>The agents find weak spots, propose a fix, and test it in a temporary copy. You approve, edit or reject every fix. Nothing is applied for you.</p>
+    <p class="small"><a href="/docs/guide.html">Read how it works</a></p>
+  </section>
+</main>
+</div>
+</div>
+<div class="footer">Guides: <a href="/docs/guide.html">How it works and runs</a> · <a href="/docs/md/PRD.html">PRD</a> · <a href="/docs/cost.html">Cost</a> · <a href="/docs/canvas.html">Canvas</a> · <a href="/docs/prompts.html">How it was built</a> · <a href="/docs/golden.html">The 21 test cases</a> · <a href="/docs/documents.html">All project documents</a></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let tab = "case", rulesText = null, jobId = null, timer = null, info = null;
+let selFid = null, workTab = "findings";
+const srcCache = {};
+const decisions = {};   // finding_id -> {decision, reason, edited_patch_diff}
+let reviewer = "";
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || r.statusText);
+  return body;
+}
+const post = (path, body) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+
+/* ---------------- setup column ---------------- */
+document.querySelectorAll("#srcTabs button").forEach((b) => b.onclick = () => {
+  tab = b.dataset.t;
+  document.querySelectorAll("#srcTabs button").forEach((x) => x.classList.toggle("on", x === b));
+  ["case", "zip", "dir"].forEach((t) => $("tab-" + t).hidden = t !== tab);
+});
+api("/api/info").then((i) => {
+  info = i;
+  $("caseSel").innerHTML = i.cases.map((c) => `<option value="${esc(c.id)}">${esc(c.id)}</option>`).join("");
+  const showNote = () => {
+    const c = i.cases.find((x) => x.id === $("caseSel").value);
+    $("caseNote").textContent = c ? c.category : "";
+  };
+  $("caseSel").onchange = showNote; showNote();
+  $("rulesCard").innerHTML = i.rules.map((r) =>
+    `<div style="margin-bottom:10px"><span class="pill ${r.severity === "high" ? "risk" : "wait"}">${esc(r.id)}</span> <span class="muted">${r.fix_allowed ? "fix proposed" : "reported only"}</span><div class="muted">${esc(r.detect)}</div></div>`).join("");
+}).catch((e) => $("runErr").textContent = e.message);
+
+$("rulesIn").onchange = async (ev) => {
+  const f = ev.target.files[0];
+  if (!f) { rulesText = null; $("rulesNote").textContent = ""; return; }
+  rulesText = await f.text();
+  try { JSON.parse(rulesText); $("rulesNote").textContent = `Using ${f.name}. Step 1 of the scan validates it.`; }
+  catch { $("rulesNote").textContent = "That file is not valid JSON. The scan will stop at step 1."; }
+};
+
+const TEXT_EXT = /\.(py|txt|md|json|cfg|ini|toml|yaml|yml|csv|sql|sh|html|js|rst|in)$/i;
+const SKIP = /(^|\/)(\.git|node_modules|\.venv|venv|__pycache__|\.idea|dist|build)\//;
+async function b64(file) {
+  const buf = new Uint8Array(await file.arrayBuffer()); let s = "";
+  for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+async function uploadProject() {
+  if (tab === "zip") {
+    const f = $("zipIn").files[0]; if (!f) throw new Error("Choose a .zip file first.");
+    const r = await api("/api/upload/zip", { method: "POST", body: f });
+    return { id: r.upload_id, label: f.name };
+  }
+  const files = [...$("dirIn").files]; if (!files.length) throw new Error("Choose a folder first.");
+  const out = []; let skipped = 0;
+  for (const f of files) {
+    const p = f.webkitRelativePath || f.name;
+    if (SKIP.test(p + "/") || !TEXT_EXT.test(p) || f.size > 1_000_000) { skipped++; continue; }
+    out.push({ path: p, b64: await b64(f) });
+  }
+  if (!out.length) throw new Error("No source files found in that folder.");
+  $("dirNote").textContent = `${out.length} files sent, ${skipped} skipped (binary, large or tooling folders).`;
+  const r = await post("/api/upload/files", { files: out });
+  return { id: r.upload_id, label: (files[0].webkitRelativePath || "").split("/")[0] || "picked folder" };
+}
+
+/* ---------------- model connection ---------------- */
+function showModel(m) {
+  $("modelState").textContent = m.configured ? `Connected: ${m.model} (${m.source}).` : "Offline stand-ins. No AI model is called.";
+  $("modeLabel").textContent = m.configured ? `Model: ${m.model}` : "Offline stand-in agents";
+  $("mUse").hidden = !m.configured; $("mTest").hidden = !m.configured; $("mClear").hidden = !m.configured;
+  $("mEnv").hidden = !m.env_available;
+  $("mEndpoint").placeholder = m.default_endpoint; $("mName").placeholder = m.default_model;
+  if (!m.configured) ["useAuditor", "useInvestigator", "useFixer", "mAck"].forEach((i) => ($(i).checked = false));
+}
+async function modelCall(path, body) {
+  $("mMsg").textContent = "Working…";
+  try { return await post(path, body); } catch (e) { $("mMsg").textContent = e.message; return null; }
+}
+$("mConnect").onclick = async () => {
+  const r = await modelCall("/api/model", { endpoint: $("mEndpoint").value, model: $("mName").value, api_key: $("mKey").value });
+  $("mKey").value = ""; if (r) { showModel(r); $("mMsg").textContent = "Connected. Press Test to check it."; }
+};
+$("mEnv").onclick = async () => { const r = await modelCall("/api/model", { from_env: true }); if (r) { showModel(r); $("mMsg").textContent = "Connected from .env."; } };
+$("mClear").onclick = async () => { const r = await modelCall("/api/model/clear"); if (r) { showModel(r); $("mMsg").textContent = "Disconnected."; } };
+$("mTest").onclick = async () => {
+  const r = await modelCall("/api/model/test");
+  if (r) $("mMsg").textContent = r.ok ? `Works: ${r.model}, ${r.ms} ms, ${r.tokens_in}+${r.tokens_out} tokens.` : `Could not connect: ${r.error}`;
+};
+api("/api/model").then(showModel).catch(() => {});
+
+$("runBtn").onclick = async () => {
+  $("runErr").textContent = ""; $("runBtn").disabled = true;
+  try {
+    const body = { policy: { file_cap: +$("fileCap").value, max_retries: +$("retries").value } };
+    if (rulesText) body.rules_text = rulesText;
+    body.use_model = { auditor: $("useAuditor").checked, investigator: $("useInvestigator").checked, fixer_validator: $("useFixer").checked };
+    body.model_ack = $("mAck").checked;
+    if (tab === "case") body.case = $("caseSel").value;
+    else { const u = await uploadProject(); body.upload_id = u.id; body.label = u.label; }
+    for (const k in decisions) delete decisions[k];
+    Object.keys(srcCache).forEach((k) => delete srcCache[k]);
+    selFid = null; workTab = "findings";
+    const r = await post("/api/jobs", body);
+    jobId = r.job_id; $("idle")?.remove(); poll();
+  } catch (e) { $("runErr").textContent = e.message; $("runBtn").disabled = false; }
+};
+
+/* ---------------- polling ---------------- */
+function poll() {
+  clearTimeout(timer);
+  api("/api/jobs/" + jobId).then((v) => {
+    render(v);
+    if (!["waiting_for_review", "done", "stopped", "error"].includes(v.phase)) timer = setTimeout(poll, 900);
+    else $("runBtn").disabled = false;
+  }).catch((e) => { $("main").innerHTML = `<section class="panel"><div class="bd err">${esc(e.message)}</div></section>`; $("runBtn").disabled = false; });
+}
+
+/* ---------------- rendering ---------------- */
+const AGENT_NAME = { auditor: "Auditor", investigator: "Investigator", fixer_validator: "Fixer and Validator", orchestrator: "Orchestrator", person: "Person" };
+const chip = (a) => `<span class="agent ${esc(a)}">${esc(AGENT_NAME[a] || a)}</span>`;
+const STATUS = {
+  verified_awaiting_approval: ["Fix verified", "ok"], needs_a_person: ["Needs a person", "wait"],
+  rejected: ["Rejected", "risk"], not_processed: ["Not processed", ""],
+};
+function stepStates(v) {
+  const log = (v.state && v.state.audit_log) || [];
+  const has = (e) => log.some((x) => x.event === e);
+  const phase = v.phase;
+  const s = [
+    ["1", "Check rules", has("rules_validated")],
+    ["2", "Temporary copy", has("temporary_copy_made")],
+    ["3", "Audit", has("findings_ranked") || has("nothing_found")],
+    ["4", "Investigate and fix", has("review_queue_written")],
+    ["5", "You decide", has("fix_approved") || has("fix_edited") || has("fix_rejected") || (has("review_queue_written") && !has("waiting_for_person"))],
+    ["6", "Originals intact?", has("originals_verified")],
+    ["7", "Report", has("decision_log_written") && phase === "done"],
+  ];
+  const firstOpen = s.findIndex((x) => !x[2]);
+  return s.map((x, i) => {
+    let cls = x[2] ? "done" : "";
+    if (!x[2] && i === firstOpen) cls = phase === "waiting_for_review" && i === 4 ? "wait" : phase === "stopped" || phase === "error" ? "fail" : phase === "done" ? "done" : "now";
+    return { n: x[0], label: x[1], cls };
+  });
+}
+function render(v) {
+  window.curView = v;
+  const st = v.state || {}; const rq = v.review_queue; const rep = v.report;
+  const phase = { running: ["Running", ""], queued: ["Starting", ""], decided: ["Finishing", ""], waiting_for_review: ["Waiting for you", "wait"], done: ["Done", "ok"], stopped: ["Stopped", "risk"], error: ["Error", "risk"] }[v.phase] || [v.phase, ""];
+  const using = (v.model_used || []).length ? "model for " + v.model_used.map((a) => AGENT_NAME[a] || a).join(", ") : "offline stand-ins";
+  let h = `<section class="panel"><div class="hd"><div><h3>${esc(v.label)}</h3><div class="small faint">${esc(st.run_id || "")} · agents: ${esc(using)}</div></div>
+    <span class="pill ${phase[1]}">${["running", "queued", "decided"].includes(v.phase) ? '<span class="spin"></span>' : ""}${phase[0]}</span></div>
+    <div class="bd"><ol class="pipe">${stepStates(v).map((x) => `<li class="${x.cls}"><div class="dot">${x.cls === "done" ? "✓" : x.n}</div>${esc(x.label)}</li>`).join("")}</ol></div></section>`;
+  if (v.error) h += `<section class="panel" style="margin-top:16px"><div class="bd err"><b>The scan failed.</b> ${esc(v.error)}</div></section>`;
+  if (v.phase === "stopped") h += `<section class="panel" style="margin-top:16px"><div class="bd"><b style="color:var(--risk)">The scan was stopped.</b> ${esc(v.meta?.stop_reason || "")}<div class="small muted">A partial report is kept. Nothing was applied to your project.</div></div></section>`;
+  if (v.phase === "done" && rep) h += donePanel(v);
+  else if (v.phase === "done" && st.outcome === "safe_nothing_to_report") h += `<section class="panel" style="margin-top:16px"><div class="bd"><b>Nothing to report.</b> No rule matched with proof (file, line and code).</div></section>`;
+  h += workPanel(v);
+  const open = [...document.querySelectorAll("#main details[open]")].map((d) => d.dataset.k);
+  $("main").innerHTML = h;
+  document.querySelectorAll("#main details").forEach((d) => { if (open.includes(d.dataset.k)) d.open = true; });
+  wire(v); loadSources();
+}
+
+function workPanel(v) {
+  const rows = findingRows(v), st = v.state || {};
+  const tabs = [["findings", `Findings${rows.length ? " (" + rows.length + ")" : ""}`], ["trace", "Handoffs"], ["log", "Decision log"]];
+  let body = "";
+  if (workTab === "findings") body = rows.length ? desk(v, rows) : `<div class="empty">${["running", "queued"].includes(v.phase) ? "Looking for weak spots…" : "No findings."}</div>`;
+  else if (workTab === "trace") body = traceTable(st);
+  else body = logTable(st);
+  const waiting = v.phase === "waiting_for_review" && v.review_queue;
+  return `<section class="panel" style="margin-top:16px"><div class="tabs" role="tablist">${tabs.map((t) => `<button role="tab" data-wt="${t[0]}" class="${workTab === t[0] ? "on" : ""}">${t[1]}</button>`).join("")}</div>
+    ${body}${waiting && workTab === "findings" ? reviewBar(v) : ""}</section>`;
+}
+function desk(v, rows) {
+  if (!selFid || !rows.some((r) => r.finding_id === selFid)) selFid = (rows.find((r) => v.review_queue?.proposals.some((p) => p.finding_id === r.finding_id)) || rows[0]).finding_id;
+  const appr = Object.fromEntries((v.report?.approvals || []).map((a) => [a.finding_id, a]));
+  const waiting = v.phase === "waiting_for_review";
+  const list = rows.map((f) => {
+    const [label, cls] = statusOf(f, appr[f.finding_id]);
+    const d = decisions[f.finding_id]?.decision;
+    return `<button class="frow" role="option" data-sel="${esc(f.finding_id)}" aria-selected="${f.finding_id === selFid}">
+      <div class="t"><span>${esc(f.finding_id)} · ${esc(f.rule_id)}</span><span class="pill ${f.severity === "high" ? "risk" : "wait"}">${esc(f.severity)}</span></div>
+      <div class="small faint mono" style="margin-top:3px">${esc(f.file)}:${f.line}</div>
+      <div class="s"><span class="pill ${cls}">${esc(label)}</span>${waiting && d ? `<span class="pill info">${{ approved: "Approve", edited: "Edit", rejected: "Reject" }[d]}</span>` : ""}</div></button>`;
+  }).join("");
+  const cur = rows.find((r) => r.finding_id === selFid);
+  const canDecide = waiting && v.review_queue?.proposals.some((p) => p.finding_id === cur.finding_id);
+  return `<div class="desk"><div class="flist" role="listbox" aria-label="Findings">${list}</div><div class="fdet">${detail(cur, canDecide, appr[cur.finding_id])}</div></div>`;
+}
+function statusOf(f, approval) {
+  let [label, cls] = STATUS[f.status] || [f.status === "in_progress" ? "In progress" : f.status, ""];
+  if (approval && f.status === "verified_awaiting_approval") { label = approval.decision === "edited" ? "Edited and approved" : "Approved"; cls = "ok"; }
+  return [label, cls];
+}
+function detail(f, withDecision, approval) {
+  const [label, cls] = statusOf(f, approval);
+  const tc = f.traced_cause;
+  return `<h3>${esc(f.finding_id)} · ${esc(f.rule_id)} <span class="pill ${cls}">${esc(label)}</span><span class="pill ${f.severity === "high" ? "risk" : "wait"}">${esc(f.severity)}</span></h3>
+    <div class="small muted mono" style="margin-top:4px">${esc(f.file)}:${f.line}${approval ? ` · by ${esc(approval.reviewer)}` : ""}</div>
+    <div class="code src" data-file="${esc(f.file)}" data-line="${f.line}"><div class="small faint" style="padding:0 14px">Loading source…</div></div>
+    <dl class="kv">
+      ${f.reason ? `<dt>Why a person</dt><dd>${esc(f.reason)}</dd>` : ""}
+      ${tc ? `<dt>Cause</dt><dd>${esc(tc.explanation)}${tc.path ? `<div class="mono small faint">${tc.path.map(esc).join(" → ")}</div>` : ""}</dd>` : ""}
+      ${f.tests ? `<dt>Tests</dt><dd>${esc(f.tests.before)} before the fix, ${esc(f.tests.after ?? "not run")} after</dd>` : ""}
+      ${f.recheck ? `<dt>Re-check</dt><dd>${esc(f.recheck)}</dd>` : ""}
+      ${f.residual_risk ? `<dt>Remaining risk</dt><dd>${esc(f.residual_risk)}</dd>` : ""}
+      <dt>Confidence</dt><dd>${esc(f.confidence)}${f.detected_by ? " · found by " + esc(f.detected_by === "rule" ? "a rule" : f.detected_by) : ""}</dd>
+    </dl>
+    ${f.patch_diff ? `<h4 class="small muted" style="margin-top:16px">Proposed change (never applied to your project)</h4>${diffHtml(f.patch_diff)}` : ""}
+    ${withDecision ? decisionBox(f) : ""}`;
+}
+function findingRows(v) {
+  const rows = [];
+  if (v.report) v.report.findings.forEach((f) => rows.push({ ...f }));
+  else if (v.review_queue) {
+    v.review_queue.proposals.forEach((p) => rows.push({ ...p, status: "verified_awaiting_approval" }));
+    v.review_queue.also_reported.forEach((p) => rows.push({ ...p }));
+  } else if (v.state && v.state.candidate_findings) {
+    const status = Object.fromEntries((v.state.finding_status || []).map((r) => [r.finding_id, r]));
+    v.state.candidate_findings.forEach((c) => rows.push({ ...c, status: status[c.finding_id]?.status || "in_progress", reason: status[c.finding_id]?.reason }));
+  }
+  return rows.sort((a, b) => a.finding_id.localeCompare(b.finding_id));
+}
+function diffHtml(d) {
+  return '<pre class="diff">' + d.replace(/\n$/, "").split("\n").map((l) => {
+    const c = l.startsWith("+") && !l.startsWith("+++") ? "a" : l.startsWith("-") && !l.startsWith("---") ? "d" : "h";
+    return `<span class="${c}">${esc(l) || " "}</span>`; }).join("") + "</pre>";
+}
+function decisionBox(f) {
+  const d = decisions[f.finding_id] || {};
+  const radio = (val, text) => `<label><input type="radio" name="dec" value="${val}" ${d.decision === val ? "checked" : ""}> ${text}</label>`;
+  return `<div class="decide"><h4>Your decision</h4>
+    <div class="choice">${radio("approved", "Approve")}${radio("edited", "Edit the change")}${radio("rejected", "Reject")}</div>
+    <div id="editBox" ${d.decision === "edited" ? "" : "hidden"}><label for="editArea">Your own unified diff. It must apply, pass the tests, and re-check clear.</label>
+      <textarea id="editArea">${esc(d.edited_patch_diff ?? f.patch_diff ?? "")}</textarea></div>
+    <label for="reasonIn" id="reasonLabel">${d.decision && d.decision !== "approved" ? "Reason (required)" : "Reason (optional when approving)"}</label>
+    <input type="text" id="reasonIn" value="${esc(d.reason ?? "")}" maxlength="300"></div>`;
+}
+function reviewBar(v) {
+  const ps = v.review_queue.proposals, done = ps.filter((p) => decisions[p.finding_id]?.decision).length;
+  return `<div class="bar"><div><b>${done} of ${ps.length}</b> decided<div class="small muted">Approved fixes go into fixes.patch for you to apply.</div>
+      ${v.review_error ? `<div class="err">${esc(v.review_error)}</div>` : ""}<div class="err" id="subErr"></div></div>
+    <div class="who"><input type="text" id="who" placeholder="Your name" aria-label="Your name" value="${esc(reviewer)}" maxlength="80">
+      <button class="btn primary" id="submitReview" ${done === ps.length ? "" : "disabled"}>Finish review</button></div></div>`;
+}
+function traceTable(st) {
+  const hl = st.handoff_log || [], c = st.counters || {};
+  if (!hl.length) return `<div class="empty">No handoffs yet.</div>`;
+  return `<div class="bd"><p class="small muted">Every handoff goes through the orchestrator. Agents never call each other. Steps ${c.steps ?? 0} of ${st.input?.policy?.step_cap ?? 50} · AI calls ${c.ai_calls ?? 0} · tokens ${c.tokens?.input ?? 0} in, ${c.tokens?.output ?? 0} out.</p>
+   <div class="tw"><table><tr><th>#</th><th>Agent</th><th>Job</th><th>Finding</th><th>Result</th><th>Wrote</th></tr>
+   ${hl.map((x) => `<tr><td>${x.step}</td><td>${chip(x.agent)}</td><td>${esc(x.job)}</td><td>${esc(x.finding_id || "–")}</td><td>${esc(x.result)}</td><td class="mono">${esc((x.wrote || []).join(", "))}</td></tr>`).join("")}</table></div></div>`;
+}
+function logTable(st) {
+  const log = st.audit_log || [];
+  if (!log.length) return `<div class="empty">No log yet.</div>`;
+  return `<div class="bd"><div class="tw"><table><tr><th>#</th><th>Actor</th><th>Event</th><th>Finding</th><th>Detail</th></tr>
+   ${log.map((e) => `<tr><td>${e.seq}</td><td>${chip(e.actor)}</td><td class="mono">${esc(e.event)}</td><td>${esc(e.finding_id || "")}</td><td>${esc(e.detail)}</td></tr>`).join("")}</table></div></div>`;
+}
+function donePanel(v) {
+  const r = v.report, t = r.totals, st = v.state, ok = st.originals_unchanged;
+  const names = { "report.html": "Report (HTML)", "report.md": "report.md", "report.json": "report.json", "fixes.patch": "fixes.patch", "decision_log.json": "decision_log.json" };
+  return `<section class="panel" style="margin-top:16px"><div class="hd"><h3>Report</h3><span class="pill ${ok ? "ok" : "risk"}">${ok ? "Your files are unchanged" : "ORIGINAL FILES CHANGED"}</span></div><div class="bd">
+    <div class="tiles">${[["Found", t.found], ["Fixed and verified", t.fixed_and_verified], ["Needs a person", t.needs_a_person], ["Rejected", t.rejected], ["Not processed", t.remaining]]
+      .map((x) => `<div class="tile"><b>${x[1]}</b><span>${x[0]}</span></div>`).join("")}</div>
+    <div class="dl">${(v.downloads || []).map((n) => `<a class="btn sm ${n === "report.html" ? "primary" : ""}" href="/api/jobs/${jobId}/download/${n}" download>${esc(names[n] || n)}</a>`).join("")}
+      <a class="btn sm" href="/api/jobs/${jobId}/download/bundle.zip" download>Everything (.zip)</a></div>
+    <p class="small muted" style="margin:12px 0 0">${v.downloads?.includes("fixes.patch") ? "To apply the approved fixes, run <code>git apply fixes.patch</code> in your project folder." : "No fix was approved, so there is no patch file."}
+      Every original file was fingerprinted (SHA-256) before the run and checked again at the end. Sensitive items hidden before any model call: ${r.run.sensitive_items_hidden}.</p></div></section>`;
+}
+
+function wire(v) {
+  document.querySelectorAll("[data-wt]").forEach((b) => b.onclick = () => { workTab = b.dataset.wt; render(window.curView); });
+  document.querySelectorAll("[data-sel]").forEach((b) => b.onclick = () => { selFid = b.dataset.sel; render(window.curView); });
+  if (v.phase !== "waiting_for_review") return;
+  document.querySelectorAll('input[name="dec"]').forEach((r) => r.onchange = () => {
+    (decisions[selFid] ??= {}).decision = r.value; render(window.curView);
+  });
+  const reason = $("reasonIn"); if (reason) reason.oninput = () => (decisions[selFid] ??= {}).reason = reason.value;
+  const edit = $("editArea"); if (edit) edit.oninput = () => (decisions[selFid] ??= {}).edited_patch_diff = edit.value;
+  const who = $("who"); if (who) who.oninput = () => reviewer = who.value;
+  const btn = $("submitReview");
+  if (btn) btn.onclick = async () => {
+    $("subErr").textContent = ""; btn.disabled = true;
+    try {
+      const list = v.review_queue.proposals.map((p) => ({ finding_id: p.finding_id, reviewer, ...(decisions[p.finding_id] || {}) }));
+      await post(`/api/jobs/${jobId}/review`, { decisions: list });
+      poll();
+    } catch (e) { $("subErr").textContent = e.message; btn.disabled = false; }
+  };
+}
+
+/* ---------------- source viewer ---------------- */
+async function loadSources() {
+  for (const box of document.querySelectorAll(".src[data-file]")) {
+    const file = box.dataset.file, line = +box.dataset.line;
+    try {
+      if (!(file in srcCache)) srcCache[file] = (await api(`/api/jobs/${jobId}/file?path=${encodeURIComponent(file)}`)).text.split("\n");
+      const lines = srcCache[file]; const from = Math.max(1, line - 4), to = Math.min(lines.length, line + 4);
+      box.innerHTML = "";
+      for (let i = from; i <= to; i++) {
+        const d = document.createElement("div"); d.className = "ln" + (i === line ? " hit" : "");
+        const n = document.createElement("i"); n.textContent = i; const t = document.createElement("span"); t.textContent = lines[i - 1] || " ";
+        d.append(n, t); box.append(d);
+      }
+    } catch { box.innerHTML = '<div class="small faint" style="padding:0 14px">Source not available.</div>'; }
+  }
+}
+</script>
+</body>
+</html>

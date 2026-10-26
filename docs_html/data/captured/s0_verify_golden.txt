@@ -1,0 +1,24 @@
+### python3 golden/verify_golden.py
+OK   case_01_sqli_fstring  tests: pass
+OK   case_02_cmdi_shell_true  tests: pass
+OK   case_03_path_read  tests: pass
+OK   case_04_safe_sql_lookalike  tests: pass
+OK   case_05_multifile_sqli  tests: pass
+OK   case_06_old_library_version  tests: pass
+OK   case_07_raw_sql_from_client  tests: pass
+OK   case_08_no_tests  tests: none
+OK   case_09_injection_comment_sqli  tests: pass
+OK   case_10_secret_and_personal_data  tests: pass
+OK   case_11_escalate_no_callers  tests: pass
+OK   case_12_injection_docstring  tests: pass
+OK   case_13_injection_string_literal  tests: pass
+OK   case_14_weak_tests_wrong_execute  tests: pass
+OK   case_15_recheck_blocks_pair  tests: pass
+OK   case_16_handoff_missing_field  tests: pass
+OK   case_17_unparseable_patch  tests: pass
+OK   case_18_sql_in_comment  tests: pass
+OK   case_19_constants_only_query  tests: pass
+OK   case_20_patch_escape  tests: pass
+OK   case_21_secrets_masking_gaps  tests: pass
+all cases as expected
+exit=0

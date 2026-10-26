@@ -1,0 +1,133 @@
+### python3 validate.py
+Self checks
+  ok    all schemas valid, 7 tool schemas present, rule_id enum matches golden/rules.json, every state field has an owner
+
+input.schema.json
+  valid    ok       agents_md_defaults
+  valid    ok       smallest_allowed_values
+  valid    ok       with_step_and_token_caps
+  invalid  rejected missing_test_command  [schema]
+             - policy: 'test_command' is a required property
+  invalid  rejected confidence_gate_1.5  [schema]
+             - policy/confidence_gate: 1.5 is greater than the maximum of 1
+  invalid  rejected file_cap_is_text  [schema]
+             - policy/file_cap: '200' is not of type 'integer'
+
+rules.schema.json
+  valid    ok       golden_rules_json
+  valid    ok       one_rule
+  valid    ok       dep_pin_with_min_versions
+  invalid  rejected missing_fix_allowed  [schema]
+             - rules/0: 'fix_allowed' is a required property
+  invalid  rejected severity_critical  [schema]
+             - rules/0/severity: 'critical' is not one of ['low', 'medium', 'high']
+  invalid  rejected duplicate_rule_id  [code]
+             - rules/1/id: duplicate rule id 'SQLI'
+
+output.schema.json
+  valid    ok       case_01_verified_fix
+  valid    ok       case_10_fix_plus_secret
+  valid    ok       case_04_safe_nothing_to_report
+  invalid  rejected quoted_code_not_on_that_line  [code]
+             - findings/0/evidence/quoted_code: quoted_code does not appear at src/users.py line 2
+  invalid  rejected confidence_is_nan  [code]
+             - findings/0/confidence: confidence nan is not between 0 and 1
+  invalid  rejected patch_diff_leaves_the_copy  [code]
+             - findings/0/patch_diff: '+++ b/../outside.py' is outside the temporary copy
+
+tool_list_files.schema.json
+  valid    ok       listing
+  valid    ok       cut_short_by_cap
+  valid    ok       folder_not_found
+  invalid  rejected missing_file_cap  [schema]
+             - arguments: 'file_cap' is a required property
+  invalid  rejected listed_path_climbs_out  [schema]
+             - response/result/files/0: '../secret.txt' does not match '^(?![/\\\\])(?![A-Za-z]:)(?!(?:.*[/\\\\])?\\.\\.(?:[/\\\\]|$)).+$'
+  invalid  rejected failure_with_wrong_handling  [schema]
+             - response/error/handling: 'stop_run' was expected
+
+tool_read_file.schema.json
+  valid    ok       reads_a_file
+  valid    ok       empty_file
+  valid    ok       file_not_found_skips
+  invalid  rejected absolute_path  [schema]
+             - arguments/path: '/etc/passwd' does not match '^(?![/\\\\])(?![A-Za-z]:)(?!(?:.*[/\\\\])?\\.\\.(?:[/\\\\]|$)).+$'
+  invalid  rejected success_without_line_count  [schema]
+             - response/result: 'line_count' is a required property
+  invalid  rejected unknown_error_code  [schema]
+             - response/error/code: 'disk_on_fire' is not one of ['file_not_found', 'outside_project', 'not_text_file', 'permission_denied']
+
+tool_run_security_rules.schema.json
+  valid    ok       one_match
+  valid    ok       no_match_one_rule_skipped
+  valid    ok       all_rules_failed
+  invalid  rejected empty_file_list  [schema]
+             - arguments/files: [] should be non-empty
+  invalid  rejected quoted_code_has_two_lines  [schema]
+             - response/result/matches/0/quoted_code: 'a\nb' does not match '^[^\\r\\n]+$'
+  invalid  rejected match_on_line_0  [schema]
+             - response/result/matches/0/line: 0 is less than the minimum of 1
+
+tool_read_code_structure.schema.json
+  valid    ok       one_function
+  valid    ok       one_file_unparsed
+  valid    ok       parse_error_hands_over
+  invalid  rejected no_files  [schema]
+             - arguments/files: [] should be non-empty
+  invalid  rejected function_without_calls  [schema]
+             - response/result/functions/0: 'calls' is a required property
+  invalid  rejected failure_with_wrong_handling  [schema]
+             - response/error/handling: 'hand_to_person' was expected
+
+tool_apply_patch.schema.json
+  valid    ok       patch_inside_copy
+  valid    ok       second_patch_inside_copy
+  valid    ok       syntax_invalid_undone
+  invalid  rejected patch_leaves_the_copy  [code]
+             - arguments/patch_diff: '+++ b/../outside.py' is outside the temporary copy
+  invalid  rejected workspace_is_the_original  [code]
+             - arguments/patch_diff: workspace is the original folder; patches go to the temporary copy only
+  invalid  rejected failure_not_undone  [schema]
+             - response/error/change_undone: True was expected
+
+tool_run_tests.schema.json
+  valid    ok       tests_pass
+  valid    ok       tests_fail
+  valid    ok       no_tests
+  invalid  rejected pass_with_exit_1  [schema]
+             - response/result/exit_code: 0 was expected
+  invalid  rejected timeout_0  [schema]
+             - arguments/timeout_seconds: 0 is less than the minimum of 1
+  invalid  rejected unknown_error_code  [schema]
+             - response/error/code: 'out_of_coffee' is not one of ['workspace_not_found', 'outside_workspace', 'command_not_found', 'timeout']
+
+tool_request_recheck.schema.json
+  valid    ok       clear
+  valid    ok       not_clear_one_match
+  valid    ok       auditor_failed
+  invalid  rejected clear_but_matches_left  [schema]
+             - response/result/matches: [{'rule_id': 'SQLI', 'file': 'src/users.py', 'line': 2, 'quoted_code': 'query = f"SELECT id, name FROM users WHERE name = \'{name}\'"'}] is expecte...
+  invalid  rejected not_clear_but_no_matches  [schema]
+             - response/result/matches: [] should be non-empty
+  invalid  rejected no_files  [schema]
+             - arguments/files: [] should be non-empty
+
+state.schema.json
+  valid    ok       handoff_log_matches_steps
+  invalid  rejected handoff_log_shorter_than_steps  [code]
+             - handoff_log has 0 entries but counters/steps is 1
+  invalid  rejected handoff_log_agent_is_not_an_agent  [schema]
+             - handoff_log/0/agent: 'orchestrator' is not one of ['auditor', 'investigator', 'fixer_validator']
+  valid    ok       just_started
+  valid    ok       after_auditor
+  valid    ok       after_fixer
+  invalid  rejected bad_run_id_and_no_input  [schema]
+             - (root): 'input' is a required property
+             - run_id: '7' does not match '^run-[0-9]{3,}$'
+  invalid  rejected auditor_sets_a_status  [schema]
+             - candidate_findings/0: Additional properties are not allowed ('status' was unexpected)
+  invalid  rejected auditor_writes_fix_attempts  [code]
+             - auditor wrote 'fix_attempts', which is owned by fixer_validator
+
+69/69 payloads behaved as expected
+exit=0

@@ -127,7 +127,8 @@ def _with_guard(method):
 
 
 class Workflow:
-    def __init__(self, agents: dict | None = None, out_root: str | None = None) -> None:
+    def __init__(self, agents: dict | None = None, out_root: str | None = None, ai_model: dict | None = None) -> None:
+        self._ai_model_override = ai_model                 # {name, version, endpoint} when model-backed agents are used
         self.agents = agents or {"auditor": offline_agents.run_auditor,
                                  "investigator": offline_agents.run_investigator,
                                  "fixer_validator": offline_agents.run_fixer_validator}
@@ -202,7 +203,7 @@ class Workflow:
             "input": {"source_folder": os.path.abspath(source_folder), "rules_file": os.path.abspath(rules_file),
                       "policy": {**DEFAULT_POLICY, **(policy or {})}},
             "counters": {"steps": 0, "ai_calls": 0, "tokens": {"input": 0, "output": 0}, "elapsed_seconds": 0},
-            "handoff_log": [], "cap_hit": None, "ai_model": _ai_model(), "sensitive_items_hidden": 0,
+            "handoff_log": [], "cap_hit": None, "ai_model": self._ai_model_override or _ai_model(), "sensitive_items_hidden": 0,
             "finding_status": [], "approvals": [], "audit_log": [], "originals_unchanged": None,
         }
         self.meta = {"run_id": run_id, "phase": "running", "snapshots": 0, "elapsed_before": 0.0}

@@ -1,0 +1,5 @@
+.git
+out
+ui_data
+**/__pycache__
+.env

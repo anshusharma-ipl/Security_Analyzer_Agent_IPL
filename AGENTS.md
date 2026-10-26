@@ -15,7 +15,7 @@ Where the canvas said "to be measured", the team's later decisions are recorded 
 - AI-based detection rules are NOT in the pilot. The AI helps with judgement and fixes, not detection.
 
 ## 3. Roster (canvas section 10)
-- **Auditor**: applies all rules to the whole project, decides which findings have enough evidence, ranks them. Kept for now; test removing it after the evals.
+- **Auditor**: applies all rules to the whole project, decides which findings have enough evidence, ranks them. Stays an agent (owner decision, 2026-10-27; see `docs/roster.md` section 4). Re-run the "collapse" comparison (Auditor as agent versus plain scan) as a recurring eval.
 - **Investigator**: works out how untrusted input reaches one weak spot and which fix approach suits it, or hands to a person.
 - **Fixer & Validator**: writes the fix, runs tests, requests a re-check, decides keep, retry once, or reject.
 - **Workflow orchestrator**: plain code, NOT an agent. Owns order, limits, approvals, decision log, report. Every hand-off goes through it; agents never call each other.

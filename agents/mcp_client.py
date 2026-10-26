@@ -26,7 +26,8 @@ class McpClient:
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         self._request("initialize", {"protocolVersion": "2025-06-18"})
         self._send({"jsonrpc": "2.0", "method": "notifications/initialized"})
-        self.tools = [t["name"] for t in self._request("tools/list")["tools"]]
+        self.tool_defs = self._request("tools/list")["tools"]      # name, description, inputSchema (for a model)
+        self.tools = [t["name"] for t in self.tool_defs]
 
     def _send(self, message: dict) -> None:
         self._proc.stdin.write(json.dumps(message) + "\n")

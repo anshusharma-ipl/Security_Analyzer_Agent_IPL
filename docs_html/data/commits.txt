@@ -1,0 +1,79 @@
+df258472026-10-26 14:27:43 +0530Set up project: canvas, golden dataset, AGENTS.md, README
+d15c11f2026-10-26 14:27:46 +0530Add JSON Schemas for input, rules, output, state and the seven tools, with validate.py
+37c87342026-10-26 14:27:48 +0530Add the seven agent tools, orchestrator helpers, CLI and tests
+42c12242026-10-26 17:20:13 +0530Add MCP server (stdio JSON-RPC) exposing each agent only its own tools, with --check and tests
+0419f682026-10-26 18:07:09 +0530Add golden table script; PATH rule ignores joins of fixed strings only
+73c00d82026-10-26 18:51:41 +0530Add docs/roster.md (single vs multi-agent, Auditor options) and handoff_log in state schema
+fe661632026-10-26 22:33:25 +0530WIP: agent prompts, MCP client, offline stand-in agents, partial orchestrator (steps 1-4); read_file hides sensitive values; mcp_server runs as a script
+06006c72026-10-26 23:01:39 +0530Orchestrator steps 5-7: review queue, verify originals, report; CLI; review_queue schema (orchestrator tests still to write)
+a1359b12026-10-26 23:44:14 +0530Add containment guardrails in code, with tests and a demoTool ownership checked in the MCP client and logged by the orchestrator; writes
+or test runs outside the temporary copy stop the run with an alert; decision log
+masked and report/log scanned for leaks; forbidden commands, rules.json changes
+and non-approved endpoints refused. Also fixes a KeyError in step 7 when a run
+has no fix attempts.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+43fabbc2026-10-27 00:04:49 +0530Add decision guardrails in code, with tests and a demoDrop unproven findings one by one; gate AI-only findings below confidence_gate;
+stop the run when an agent repeats with no new state; write the full handoff
+package (canvas section 12) for every finding that needs a person. Fixes the
+Investigator's redesign check (case_07) and a KeyError building the queue.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+7053ecd2026-10-27 00:15:56 +0530Add evals harness on top of golden/ with section 14 metricsChecks every expected.json against schemas/, runs all cases end to end with a
+simulated reviewer (evals only), re-verifies each verified fix independently, and
+computes precision, recall, verified-fix success, false-fix rate, evidence
+coverage, regression pass rate, original-file writes and audit completeness.
+Records the rules-file version and model in every run; golden/ is hashed before
+and after and never changed. Percentages are directional at one case per type.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+9a5c5362026-10-27 00:36:36 +0530Add per-agent attribution, consistency check and an unrun judge to evalsEach failing check is attributed to the first pipeline stage that went wrong
+(Auditor, Investigator, Fixer & Validator); failures outside the agents are
+kept apart. --repeats compares decisions across runs and lists status flips.
+The judge answers only root cause, minimal patch and residual-risk accuracy,
+from masked text, and never changes a status. It does not run until a
+different judge model is approved in .env.
+
+Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>
+
+64143302026-10-27 00:52:30 +0530Add red-team cases 12-21 and a runner; no fixes appliedTen hostile inputs in golden/ (new folders only, existing cases untouched), each
+with an expected.json in the golden format. evals/redteam.py runs them, with
+misbehaving agents for cases 16, 17 and 20, and prints which canvas or AGENTS.md
+line each failure breaks and the smallest fix to propose. Eight attacks break the
+system, two hold. run_evals skips adversary cases; attribution now blames
+forbidden-patch and broken-code failures on the Fixer & Validator.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+9d822762026-10-27 01:08:32 +0530Add DEMO.md and demo helpers for approving and showing the traceRun order case_01, case_05, case_09, case_08 with exact commands, how to show the
+handoff trace and an independent originals-unchanged check, and how to reset.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+862267f2026-10-27 01:08:35 +0530Add cost model and Sonnet 5.5 token counting; prices left blankmeasure_handoffs.py measures handoffs per scan and sizes tokens per agent (proxy,
+or real claude-sonnet-5-5 counts with --count-tokens, guarded by an approved
+endpoint). cost_model.py writes docs/cost.md from docs/pricing.json, which has no
+values yet, so the monthly cost is not computed. Unmeasured items are listed.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+fd070ed2026-10-27 01:54:50 +0530Add kill_checks.py, one check per immediate kill criterion, and docs/PILOT.mdEight checks (original modified, write outside workspace, unapproved network host,
+unmasked secret, fix without approval, incomplete audit log, package change, commit/
+push/merge/deploy) run after every handoff and before the report; a hit stops the
+run, logs alert_kill_<criterion> and writes alert.json. One test per criterion
+triggers it on purpose. Forbidden test commands are now recorded in the client so
+the orchestrator sees attempts made inside the MCP server process. PILOT.md covers
+the canvas pilot, the comparison protocol, the confirmed review SLA and the
+rollback table. test_tools no longer checks red-team cases (12+), which are meant
+to break the rules until the proposed fixes are applied.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+c6f2a022026-10-27 02:02:56 +0530Make the time-cap test independent of machine speedThe test relied on a real 1-second cap and a 1.2-second sleep, so setup time under
+load could trip the cap before the audit ran. It now fakes the clock.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
