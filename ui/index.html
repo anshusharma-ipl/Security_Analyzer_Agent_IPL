@@ -14,7 +14,7 @@
   <nav class="nav" aria-label="Main">
     <a href="/" aria-current="page">Scan</a><a href="/docs/guide.html">Guide</a><a href="/docs/md/PRD.html">PRD</a><a href="/docs/cost.html">Cost</a><a href="/docs/canvas.html">Canvas</a><a href="/docs/prompts.html">How it was built</a><a href="/docs/golden.html">Test cases</a>
   </nav>
-  <span class="mode" id="modeLabel">Offline stand-in agents</span>
+  <span class="mode" id="modeLabel" hidden></span>
 </div></header>
 
 <div class="page">
@@ -47,7 +47,7 @@
   <section class="panel" aria-labelledby="h-agents">
     <div class="hd"><h3 id="h-agents">Agents</h3><a class="small" href="/docs/guide.html#model">How to connect a model</a></div>
     <div class="bd">
-      <div class="small muted" id="modelState">Offline stand-ins. No AI model is called.</div>
+      <div class="small muted" id="modelState">No model connected.</div>
       <details class="plain" id="modelDet">
         <summary>Connect a model</summary>
         <p class="small muted" style="margin-top:8px">Anthropic Messages API format. The key stays in this server's memory and is never saved or shown again.</p>
@@ -174,8 +174,8 @@ async function uploadProject() {
 
 /* ---------------- model connection ---------------- */
 function showModel(m) {
-  $("modelState").textContent = m.configured ? `Connected: ${m.model} (${m.source}).` : "Offline stand-ins. No AI model is called.";
-  $("modeLabel").textContent = m.configured ? `Model: ${m.model}` : "Offline stand-in agents";
+  $("modelState").textContent = m.configured ? `Connected: ${m.model} (${m.source}).` : "No model connected.";
+  $("modeLabel").textContent = m.configured ? `Model: ${m.model}` : ""; $("modeLabel").hidden = !m.configured;
   $("mUse").hidden = !m.configured; $("mTest").hidden = !m.configured; $("mClear").hidden = !m.configured;
   $("mEnv").hidden = !m.env_available;
   $("mEndpoint").placeholder = m.default_endpoint; $("mName").placeholder = m.default_model;
@@ -254,7 +254,7 @@ function render(v) {
   window.curView = v;
   const st = v.state || {}; const rq = v.review_queue; const rep = v.report;
   const phase = { running: ["Running", ""], queued: ["Starting", ""], decided: ["Finishing", ""], waiting_for_review: ["Waiting for you", "wait"], done: ["Done", "ok"], stopped: ["Stopped", "risk"], error: ["Error", "risk"] }[v.phase] || [v.phase, ""];
-  const using = (v.model_used || []).length ? "model for " + v.model_used.map((a) => AGENT_NAME[a] || a).join(", ") : "offline stand-ins";
+  const using = (v.model_used || []).length ? "model for " + v.model_used.map((a) => AGENT_NAME[a] || a).join(", ") : "no model";
   let h = `<section class="panel"><div class="hd"><div><h3>${esc(v.label)}</h3><div class="small faint">${esc(st.run_id || "")} · agents: ${esc(using)}</div></div>
     <span class="pill ${phase[1]}">${["running", "queued", "decided"].includes(v.phase) ? '<span class="spin"></span>' : ""}${phase[0]}</span></div>
     <div class="bd"><ol class="pipe">${stepStates(v).map((x) => `<li class="${x.cls}"><div class="dot">${x.cls === "done" ? "✓" : x.n}</div>${esc(x.label)}</li>`).join("")}</ol></div></section>`;
