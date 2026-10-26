@@ -31,6 +31,10 @@ class ContainmentViolation(Exception):
     """A safety boundary was crossed. The orchestrator stops the run and raises an alert."""
 
 
+class NetworkViolation(ContainmentViolation):
+    """A network host that is not the approved model endpoint was contacted (or asked for)."""
+
+
 class ToolNotAllowed(ValueError):
     """The agent asked for a tool it does not own. It gets an error; the run goes on."""
 
@@ -40,6 +44,11 @@ _events: list[tuple[str, str]] = []
 
 def record(event: str, detail: str) -> None:
     _events.append((event, detail))
+
+
+def peek_events() -> list[tuple[str, str]]:
+    """The recorded events, left in place (the orchestrator drains them into the decision log)."""
+    return list(_events)
 
 
 def drain_events() -> list[tuple[str, str]]:
@@ -67,6 +76,13 @@ def check_tool_call(agent: str, tool: str, arguments: dict) -> None:
         except SafetyError as exc:
             record("alert_write_outside_copy", f"{agent} called {tool} on {workspace!r}")
             raise ContainmentViolation(f"{tool} aimed outside the temporary copy: {exc}") from None
+    if tool == "run_tests":
+        # The tool refuses a forbidden command itself, but inside the MCP server's own process, where the orchestrator
+        # cannot see it. Record the attempt here, in the client every agent must use, so the kill checks can.
+        command = str(arguments.get("test_command", ""))
+        banned = forbidden_command(command)
+        if banned:
+            record("alert_forbidden_command", f"{banned}: {command[:80]}")
 
 
 # ------------------------------------------------------------------ never
@@ -108,10 +124,10 @@ def forbidden_command(command: str) -> str | None:
 def check_endpoint(url: str, approved: str) -> None:
     """Raise ContainmentViolation unless ``url`` is on the approved model endpoint (same scheme, host, port)."""
     if not approved or approved.lower() == "none":
-        raise ContainmentViolation("no model endpoint is approved, so no network host may be contacted")
+        raise NetworkViolation("no model endpoint is approved, so no network host may be contacted")
     want, got = urlsplit(approved), urlsplit(url)
     if (want.scheme, want.hostname, want.port) != (got.scheme, got.hostname, got.port):
-        raise ContainmentViolation(f"{got.hostname or url!r} is not the approved model endpoint")
+        raise NetworkViolation(f"{got.hostname or url!r} is not the approved model endpoint")
 
 
 # ------------------------------------------------------------------ privacy

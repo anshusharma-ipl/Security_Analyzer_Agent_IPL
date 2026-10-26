@@ -106,8 +106,17 @@ class TestContainment(ContainmentCase):
                     h.write("\n# tampered\n")
             return offline_agents.run_fixer_validator(job)
         flow, _ = self.run_flow("case_01_sqli_fstring", {"fixer_validator": careless_fixer})
-        self.assertEqual(flow.meta["phase"], "waiting_for_review")      # the change is not noticed until step 6
-        self.approve_all(flow)                                          # ... and then it stops the run
+        # the per-handoff kill check (kill_checks.py) notices at once, not at the end of the run
+        self.assertEqual(flow.meta["phase"], "stopped")
+        self.assertIn("alert_kill_original_modified", self.events(flow))
+        self.assertFalse(os.path.exists(os.path.join(flow.run_dir, "report.json")))
+
+        # a change made while the run waits for a person is caught by step 6, the end-of-run check
+        flow, project = self.run_flow("case_01_sqli_fstring")
+        self.assertEqual(flow.meta["phase"], "waiting_for_review")
+        with open(os.path.join(project, "src", "users.py"), "a", encoding="utf-8") as h:
+            h.write("\n# tampered while the review was open\n")
+        self.approve_all(flow)
         self.assertEqual(flow.meta["phase"], "stopped")
         self.assertIs(flow.state["originals_unchanged"], False)
         self.assertIn("alert_original_files_changed", self.events(flow))

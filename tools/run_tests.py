@@ -74,6 +74,7 @@ def run_tests(workspace: str, test_command: str, timeout_seconds: int) -> dict:
 
     banned = _containment.forbidden_command(test_command)
     if banned:
+        _containment.record("alert_forbidden_command", f"{banned}: {test_command[:80]}")
         return _schema.fail(TOOL, args, "outside_workspace", f"test_command refused: {banned}", HANDLING)
     try:
         argv = shlex.split(test_command)

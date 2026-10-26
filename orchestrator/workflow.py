@@ -31,6 +31,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+import kill_checks  # noqa: E402  (canvas section 16: one automatic check per immediate kill criterion)
 import validate  # noqa: E402  (schema checks and the code checks a schema cannot state)
 from agents import AgentError, offline_agents  # noqa: E402
 from tools import _containment  # noqa: E402
@@ -58,6 +59,14 @@ EVENT = re.compile(r"^[a-z][a-z0-9_]*$")
 
 class RunStopped(Exception):
     """The run must stop (a limit, a failed step, or a safety problem). The message says why."""
+
+
+class KillStop(RunStopped):
+    """A kill criterion fired (canvas section 16). The run is stopped and an alert is raised (alert.json)."""
+
+    def __init__(self, criterion: str, detail: str) -> None:
+        super().__init__(f"kill criterion {criterion}: {detail}")
+        self.criterion, self.detail = criterion, detail
 
 
 class StillWaiting(Exception):
@@ -104,6 +113,19 @@ def _ai_model() -> dict:
             "endpoint": values.get("AI_MODEL_ENDPOINT", "none")}
 
 
+def _with_guard(method):
+    """Run a public step (start, finish) with the network guard installed, and always take it off again."""
+    def wrapper(self, *args, **kwargs):
+        self.guard = kill_checks.NetworkGuard()
+        self.guard.install()
+        try:
+            return method(self, *args, **kwargs)
+        finally:
+            self.guard.uninstall()
+    wrapper.__name__, wrapper.__doc__ = method.__name__, method.__doc__
+    return wrapper
+
+
 class Workflow:
     def __init__(self, agents: dict | None = None, out_root: str | None = None) -> None:
         self.agents = agents or {"auditor": offline_agents.run_auditor,
@@ -115,6 +137,7 @@ class Workflow:
         self.run_dir = ""
         self.last_error = ""
         self._t0 = time.monotonic()
+        self.guard = None
         self._last_handoff: tuple | None = None          # (agent, its output) of the last accepted handoff
 
     # ------------------------------------------------------------------ small helpers
@@ -143,6 +166,17 @@ class Workflow:
         _write_json(os.path.join(self.run_dir, "states", f"{self.meta['snapshots']:02d}_{label}.json"), self.state)
         _write_json(os.path.join(self.run_dir, "run_meta.json"), self.meta)
 
+    def _kill(self, point: str, output=None) -> None:
+        """The eight immediate kill checks (kill_checks.py). A criterion that fires is logged and stops the run."""
+        base = self.meta.get("kill_baseline")
+        if not base:
+            return
+        try:
+            kill_checks.check(point, base, self.state, self.meta, self.run_dir, output=output, guard=self.guard)
+        except kill_checks.KillSwitch as fired:
+            self._log("orchestrator", f"alert_kill_{fired.criterion}", fired.detail)
+            raise KillStop(fired.criterion, fired.detail) from None
+
     def _check_state(self) -> None:
         problems = validate.schema_errors("state", self.state) or validate.check_state(self.state, None)
         if problems:
@@ -154,6 +188,7 @@ class Workflow:
         return f"run-{max(numbers, default=0) + 1:03d}"
 
     # ------------------------------------------------------------------ the run
+    @_with_guard
     def start(self, source_folder: str, rules_file: str, policy: dict | None = None) -> dict:
         """Steps 1 to 5. Stops at step 5 and waits for a person (call resume() after the decisions)."""
         if is_inside(os.path.abspath(source_folder), os.path.abspath(self.out_root)):
@@ -197,6 +232,7 @@ class Workflow:
         flow._t0 = time.monotonic()
         return flow
 
+    @_with_guard
     def finish(self) -> dict:
         """After the person has filled in review_queue.json: apply the decisions, then steps 6 and 7.
         Raises StillWaiting (the run is NOT stopped) if the review is incomplete or was altered."""
@@ -212,6 +248,9 @@ class Workflow:
         self._log("orchestrator", "run_stopped", str(stop))
         if self.state.get("originals_unchanged") is False:
             self._log("orchestrator", "alert_original_files_changed", "an original file was touched; run stopped")
+        if isinstance(stop, KillStop):
+            self.meta["alert"] = {"criterion": stop.criterion, "detail": stop.detail, "time": _now()}
+            _write_json(os.path.join(self.run_dir, "alert.json"), self.meta["alert"])
         self.meta["phase"] = "stopped"
         self.meta["stop_reason"] = str(stop)
         self._save("stopped")
@@ -249,6 +288,7 @@ class Workflow:
         except Exception as exc:  # noqa: BLE001 - any failure here stops the run (canvas section 9)
             raise RunStopped(f"step 2: the temporary copy could not be made: {exc}") from None
         self.meta["temp_run_dir"] = info["run_dir"]
+        self.meta["kill_baseline"] = kill_checks.take_baseline(source, info["run_dir"])
         self.state["workspace"] = {"path": info["workspace"], "original_root": info["original_root"]}
         self._log("orchestrator", "temporary_copy_made",
                   f"{len(self.meta['originals_hash'])} original files fingerprinted; copy made outside the project")
@@ -281,17 +321,22 @@ class Workflow:
         step = self.state["counters"]["steps"] + 1
         entry = {"step": step, "timestamp": _now(), "agent": agent, "job": job_name, "finding_id": finding_id,
                  "wrote": [], "result": "ok"}
+        self._drain_events(agent, finding_id)             # events left over from before this handoff are not this agent's
         try:
             output = self.agents[agent]({"job": job_name, **job})
         except _containment.ContainmentViolation as exc:
+            network = isinstance(exc, _containment.NetworkViolation)
+            criterion = "network_not_approved" if network else "write_outside_workspace"
             self._drain_events(agent, finding_id)
-            self._log("orchestrator", "alert_write_outside_copy", f"{agent}: {exc}", finding_id)
-            raise RunStopped(f"stop rule: {agent} tried to write outside the temporary copy. The run is stopped "
-                             "and an alert is raised") from None
+            if not network:
+                self._log("orchestrator", "alert_write_outside_copy", f"{agent}: {exc}", finding_id)
+            self._log("orchestrator", f"alert_kill_{criterion}", f"{agent}: {exc}", finding_id)
+            raise KillStop(criterion, f"{agent}: {exc}") from None
         except AgentError as exc:
             return self._failed(entry, "agent_failed", f"{agent} failed: {exc}", finding_id)
         except Exception as exc:  # noqa: BLE001 - an agent must never crash the run
             return self._failed(entry, "agent_failed", f"{agent} failed unexpectedly ({type(exc).__name__})", finding_id)
+        self._kill("handoff", output)
         self._drain_events(agent, finding_id)
         if agent == "auditor" and isinstance(output, dict) and isinstance(output.get("candidate_findings"), list):
             output = self._drop_unproven(output, finding_id)
@@ -728,12 +773,20 @@ class Workflow:
 
     def _step7_report(self) -> None:
         state = self.state
+        self._kill("end")
         state["totals"] = self._totals()
         leaks = _containment.find_leaks(state["audit_log"])
         if leaks:
             raise RunStopped("step 7: the decision log holds an unmasked value (" + ", ".join(leaks) + "); nothing was written")
         self._log("orchestrator", "decision_log_written", f"{len(state['audit_log'])} entries, written before the report")
-        _write_json(os.path.join(self.run_dir, "decision_log.json"), state["audit_log"])
+        try:
+            _write_json(os.path.join(self.run_dir, "decision_log.json"), state["audit_log"])
+            written = _read_json(os.path.join(self.run_dir, "decision_log.json"))
+            if len(written) != len(state["audit_log"]):
+                raise ValueError("the decision log on disk is shorter than the log in memory")
+        except (OSError, ValueError) as exc:
+            self._log("orchestrator", "alert_kill_audit_incomplete", f"the decision log could not be written whole ({type(exc).__name__})")
+            raise KillStop("audit_incomplete", "the decision log could not be written whole") from None
 
         by_id, status = self._findings_by_id(), {r["finding_id"]: r for r in state["finding_status"]}
         findings = [self._finding_entry(fid, finding, status[fid]) for fid, finding in sorted(by_id.items())]
