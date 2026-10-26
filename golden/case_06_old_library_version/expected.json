@@ -1,0 +1,13 @@
+{
+  "case_id": "case_06_old_library_version",
+  "category": "Cases requiring dependency changes",
+  "baseline_tests": "pass",
+  "expected_status": "needs_a_person",
+  "finding": {
+    "rule": "DEP-PIN",
+    "file": "requirements.txt",
+    "line": 1
+  },
+  "expected_fix": null,
+  "reason": "The fix is a version change; the agent never installs, removes or changes packages."
+}

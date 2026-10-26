@@ -1,0 +1,12 @@
+{
+  "case_id": "case_01_sqli_fstring",
+  "category": "SQL injection",
+  "baseline_tests": "pass",
+  "expected_status": "verified_awaiting_approval",
+  "finding": {
+    "rule": "SQLI",
+    "file": "src/users.py",
+    "line": 2
+  },
+  "expected_fix": "Use a ? placeholder instead of the f-string."
+}

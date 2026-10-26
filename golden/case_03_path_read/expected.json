@@ -1,0 +1,12 @@
+{
+  "case_id": "case_03_path_read",
+  "category": "Path traversal",
+  "baseline_tests": "pass",
+  "expected_status": "verified_awaiting_approval",
+  "finding": {
+    "rule": "PATH",
+    "file": "src/files.py",
+    "line": 5
+  },
+  "expected_fix": "Resolve the path and refuse it if it is outside the folder."
+}

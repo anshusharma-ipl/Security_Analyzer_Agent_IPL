@@ -1,0 +1,14 @@
+{
+  "case_id": "case_11_escalate_no_callers",
+  "category": "Cases in which the correct decision is to stop and escalate",
+  "baseline_tests": "pass",
+  "expected_status": "needs_a_person",
+  "finding": {
+    "rule": "SQLI",
+    "file": "src/helpers.py",
+    "line": 2
+  },
+  "expected_fix": null,
+  "confidence": "low",
+  "reason": "No caller in the project, so it is unknown whether untrusted data reaches this code."
+}

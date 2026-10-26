@@ -1,0 +1,8 @@
+{
+  "case_id": "case_04_safe_sql_lookalike",
+  "category": "Safe code that resembles vulnerable code",
+  "baseline_tests": "pass",
+  "expected_status": "safe_nothing_to_report",
+  "finding": null,
+  "expected_fix": null
+}

@@ -1,0 +1,12 @@
+{
+  "case_id": "case_02_cmdi_shell_true",
+  "category": "Command injection",
+  "baseline_tests": "pass",
+  "expected_status": "verified_awaiting_approval",
+  "finding": {
+    "rule": "CMDI",
+    "file": "src/netcheck.py",
+    "line": 5
+  },
+  "expected_fix": "Pass ['echo', 'checking', host] as a list with no shell."
+}

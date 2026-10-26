@@ -1,0 +1,44 @@
+{
+  "note": "Sample rules matching the golden cases. Replace with the team's real rules.json.",
+  "rules": [
+    {
+      "id": "SQLI",
+      "severity": "high",
+      "fix_allowed": true,
+      "detect": "SQL text built with an f-string, + or % from a variable, then run"
+    },
+    {
+      "id": "CMDI",
+      "severity": "high",
+      "fix_allowed": true,
+      "detect": "shell=True, os.system or os.popen with a command built from a variable"
+    },
+    {
+      "id": "PATH",
+      "severity": "high",
+      "fix_allowed": true,
+      "detect": "a user-given name joined onto a folder with no check that the result stays inside it"
+    },
+    {
+      "id": "SECRET",
+      "severity": "high",
+      "fix_allowed": false,
+      "detect": "a key or password written in the source"
+    },
+    {
+      "id": "WEAKHASH",
+      "severity": "medium",
+      "fix_allowed": false,
+      "detect": "MD5 or SHA1 used for passwords; approved fix is bcrypt"
+    },
+    {
+      "id": "DEP-PIN",
+      "severity": "medium",
+      "fix_allowed": false,
+      "detect": "a package pinned below the minimum version",
+      "min_versions": {
+        "requests": "2.31.0"
+      }
+    }
+  ]
+}

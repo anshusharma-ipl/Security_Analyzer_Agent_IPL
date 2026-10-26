@@ -1,0 +1,17 @@
+{
+  "case_id": "case_05_multifile_sqli",
+  "category": "Multi-file source-to-sink paths",
+  "baseline_tests": "pass",
+  "expected_status": "verified_awaiting_approval",
+  "finding": {
+    "rule": "SQLI",
+    "file": "src/service.py",
+    "line": 5
+  },
+  "expected_fix": "Use a ? placeholder in service.py and pass the value through db.py.",
+  "path_to_explain": [
+    "src/views.py",
+    "src/service.py",
+    "src/db.py"
+  ]
+}
