@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:security-analyzer-agent:schema:tool:apply_patch",
+  "title": "Tool apply_patch (canvas section 9)",
+  "description": "Used by: Fixer & Validator. Changes the temporary copy only. Applies a fix, checks that the changed files are still valid code, and undoes the change if they are not. Approved by: the rule's fix setting, then a person. If it fails: undo the change. validate.py also checks that every file in patch_diff is inside the temporary copy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tool", "arguments", "response"],
+  "properties": {
+    "tool": { "const": "apply_patch" },
+    "arguments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace", "patch_diff"],
+      "properties": {
+        "workspace": { "type": "string", "minLength": 1, "description": "The temporary copy. Never the original folder." },
+        "patch_diff": { "type": "string", "minLength": 1, "description": "A unified diff." }
+      }
+    },
+    "response": {
+      "type": "object",
+      "if": { "properties": { "ok": { "const": true } }, "required": ["ok"] },
+      "then": { "$ref": "#/$defs/success" },
+      "else": { "$ref": "#/$defs/failure" }
+    }
+  },
+  "$defs": {
+    "path": { "type": "string", "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?!(?:.*[/\\\\])?\\.\\.(?:[/\\\\]|$)).+$" },
+    "success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "result"],
+      "properties": {
+        "ok": { "const": true },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["applied", "files_changed", "syntax_valid"],
+          "properties": {
+            "applied": { "const": true },
+            "files_changed": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/path" } },
+            "syntax_valid": { "const": true }
+          }
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "error"],
+      "properties": {
+        "ok": { "const": false },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message", "handling", "change_undone"],
+          "properties": {
+            "code": { "enum": ["workspace_not_found", "outside_workspace", "patch_does_not_apply", "syntax_invalid"] },
+            "message": { "type": "string", "minLength": 1 },
+            "handling": { "const": "undo_change" },
+            "change_undone": { "const": true }
+          }
+        }
+      }
+    }
+  }
+}

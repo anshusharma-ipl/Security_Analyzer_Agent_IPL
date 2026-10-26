@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:security-analyzer-agent:schema:tool:run_tests",
+  "title": "Tool run_tests (canvas section 9)",
+  "description": "Used by: Fixer & Validator. Runs the project's own tests in the temporary copy; changes nothing. Approved by: the project team, which owns the tests and the test command. If it fails: the fix is not called verified, and a person is told. Exit 0 is pass, any other exit is fail, no tests run is none.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tool", "arguments", "response"],
+  "properties": {
+    "tool": { "const": "run_tests" },
+    "arguments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace", "test_command", "timeout_seconds"],
+      "properties": {
+        "workspace": { "type": "string", "minLength": 1 },
+        "test_command": { "type": "string", "minLength": 1 },
+        "timeout_seconds": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "response": {
+      "type": "object",
+      "if": { "properties": { "ok": { "const": true } }, "required": ["ok"] },
+      "then": { "$ref": "#/$defs/success" },
+      "else": { "$ref": "#/$defs/failure" }
+    }
+  },
+  "$defs": {
+    "success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "result"],
+      "properties": {
+        "ok": { "const": true },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome", "exit_code", "duration_seconds", "output_tail"],
+          "properties": {
+            "outcome": { "enum": ["pass", "fail", "none"] },
+            "exit_code": { "type": ["integer", "null"] },
+            "duration_seconds": { "type": "number", "minimum": 0 },
+            "output_tail": { "type": "string" }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "outcome": { "const": "pass" } }, "required": ["outcome"] },
+              "then": { "properties": { "exit_code": { "const": 0 } } }
+            },
+            {
+              "if": { "properties": { "outcome": { "const": "fail" } }, "required": ["outcome"] },
+              "then": { "properties": { "exit_code": { "type": "integer", "not": { "const": 0 } } } }
+            }
+          ]
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "error"],
+      "properties": {
+        "ok": { "const": false },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message", "handling"],
+          "properties": {
+            "code": { "enum": ["workspace_not_found", "outside_workspace", "command_not_found", "timeout"] },
+            "message": { "type": "string", "minLength": 1 },
+            "handling": { "const": "not_verified_tell_person" }
+          }
+        }
+      }
+    }
+  }
+}

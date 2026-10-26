@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:security-analyzer-agent:schema:input",
+  "title": "Run input (canvas section 11)",
+  "description": "What a person hands to the workflow orchestrator to start a run. Defaults are the AGENTS.md starting values; step_cap and token caps are optional here because AGENTS.md sets them but the input contract did not list them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_folder", "rules_file", "policy"],
+  "properties": {
+    "source_folder": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The project folder to scan. Read-only for the whole run."
+    },
+    "rules_file": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Path to rules.json. Validated with rules.schema.json at the start of every run."
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file_cap", "max_retries", "test_command", "ai_call_cap", "time_cap_seconds", "confidence_gate"],
+      "properties": {
+        "file_cap": { "type": "integer", "minimum": 1, "default": 200 },
+        "max_retries": { "type": "integer", "minimum": 0, "default": 1 },
+        "test_command": {
+          "type": "string",
+          "minLength": 1,
+          "default": "python -m unittest discover -s tests",
+          "description": "One command. Exit 0 is a pass, any other exit is a fail, no tests run means none."
+        },
+        "ai_call_cap": { "type": "integer", "minimum": 1, "default": 60 },
+        "time_cap_seconds": { "type": "integer", "minimum": 1, "default": 1200 },
+        "confidence_gate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.7,
+          "description": "Applies only to findings found by the AI alone."
+        },
+        "step_cap": { "type": "integer", "minimum": 1, "default": 50 },
+        "token_cap_input": { "type": "integer", "minimum": 1, "default": 400000 },
+        "token_cap_output": { "type": "integer", "minimum": 1, "default": 60000 }
+      }
+    }
+  }
+}

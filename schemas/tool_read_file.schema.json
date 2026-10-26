@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:security-analyzer-agent:schema:tool:read_file",
+  "title": "Tool read_file (canvas section 9)",
+  "description": "Used by: Auditor, Investigator. Reads only. Reads one source file. Approved by: the user, by choosing the folder. If it fails: skip the file and note it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tool", "arguments", "response"],
+  "properties": {
+    "tool": { "const": "read_file" },
+    "arguments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "path"],
+      "properties": {
+        "root": { "type": "string", "minLength": 1 },
+        "path": { "$ref": "#/$defs/path" }
+      }
+    },
+    "response": {
+      "type": "object",
+      "if": { "properties": { "ok": { "const": true } }, "required": ["ok"] },
+      "then": { "$ref": "#/$defs/success" },
+      "else": { "$ref": "#/$defs/failure" }
+    }
+  },
+  "$defs": {
+    "path": { "type": "string", "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?!(?:.*[/\\\\])?\\.\\.(?:[/\\\\]|$)).+$" },
+    "success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "result"],
+      "properties": {
+        "ok": { "const": true },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "content", "line_count"],
+          "properties": {
+            "path": { "$ref": "#/$defs/path" },
+            "content": { "type": "string" },
+            "line_count": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "error"],
+      "properties": {
+        "ok": { "const": false },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message", "handling"],
+          "properties": {
+            "code": { "enum": ["file_not_found", "outside_project", "not_text_file", "permission_denied"] },
+            "message": { "type": "string", "minLength": 1 },
+            "handling": { "const": "skip_file_and_note" }
+          }
+        }
+      }
+    }
+  }
+}

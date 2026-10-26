@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:security-analyzer-agent:schema:tool:list_files",
+  "title": "Tool list_files (canvas section 9)",
+  "description": "Used by: Auditor. Reads only. Lists the project's files, skipping folders such as version control and installed packages, up to the file cap. Approved by: the user, by choosing the folder. If it fails: stop and explain why.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tool", "arguments", "response"],
+  "properties": {
+    "tool": { "const": "list_files" },
+    "arguments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "file_cap"],
+      "properties": {
+        "root": { "type": "string", "minLength": 1 },
+        "file_cap": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "response": {
+      "type": "object",
+      "if": { "properties": { "ok": { "const": true } }, "required": ["ok"] },
+      "then": { "$ref": "#/$defs/success" },
+      "else": { "$ref": "#/$defs/failure" }
+    }
+  },
+  "$defs": {
+    "path": { "type": "string", "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?!(?:.*[/\\\\])?\\.\\.(?:[/\\\\]|$)).+$" },
+    "success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "result"],
+      "properties": {
+        "ok": { "const": true },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["files", "skipped_dirs", "truncated"],
+          "properties": {
+            "files": { "type": "array", "items": { "$ref": "#/$defs/path" } },
+            "skipped_dirs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "truncated": { "type": "boolean", "description": "True when the file cap cut the list short." }
+          }
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "error"],
+      "properties": {
+        "ok": { "const": false },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message", "handling"],
+          "properties": {
+            "code": { "enum": ["folder_not_found", "not_a_directory", "permission_denied"] },
+            "message": { "type": "string", "minLength": 1 },
+            "handling": { "const": "stop_run" }
+          }
+        }
+      }
+    }
+  }
+}

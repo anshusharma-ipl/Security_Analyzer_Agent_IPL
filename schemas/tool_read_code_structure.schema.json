@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:security-analyzer-agent:schema:tool:read_code_structure",
+  "title": "Tool read_code_structure (canvas section 9)",
+  "description": "Used by: Investigator. Reads only. Reads how the code is built (functions and what calls what) to trace how bad input reaches a weak spot. Approved by: built in. If it fails: hand the case to a person.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tool", "arguments", "response"],
+  "properties": {
+    "tool": { "const": "read_code_structure" },
+    "arguments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "files"],
+      "properties": {
+        "root": { "type": "string", "minLength": 1 },
+        "files": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/path" } }
+      }
+    },
+    "response": {
+      "type": "object",
+      "if": { "properties": { "ok": { "const": true } }, "required": ["ok"] },
+      "then": { "$ref": "#/$defs/success" },
+      "else": { "$ref": "#/$defs/failure" }
+    }
+  },
+  "$defs": {
+    "path": { "type": "string", "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?!(?:.*[/\\\\])?\\.\\.(?:[/\\\\]|$)).+$" },
+    "success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "result"],
+      "properties": {
+        "ok": { "const": true },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["functions", "unparsed_files"],
+          "properties": {
+            "functions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["file", "name", "start_line", "end_line", "calls"],
+                "properties": {
+                  "file": { "$ref": "#/$defs/path" },
+                  "name": { "type": "string", "minLength": 1 },
+                  "start_line": { "type": "integer", "minimum": 1 },
+                  "end_line": { "type": "integer", "minimum": 1 },
+                  "callers": {
+                    "type": "array",
+                    "description": "Optional. Functions in the requested files that call this one, matched by simple name. <module> means top-level code.",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["file", "function", "line"],
+                      "properties": {
+                        "file": { "$ref": "#/$defs/path" },
+                        "function": { "type": "string", "minLength": 1 },
+                        "line": { "type": "integer", "minimum": 1 }
+                      }
+                    }
+                  },
+                  "calls": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["name", "line"],
+                      "properties": {
+                        "name": { "type": "string", "minLength": 1 },
+                        "line": { "type": "integer", "minimum": 1 }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "unparsed_files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["file", "reason"],
+                "properties": {
+                  "file": { "$ref": "#/$defs/path" },
+                  "reason": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "error"],
+      "properties": {
+        "ok": { "const": false },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message", "handling"],
+          "properties": {
+            "code": { "enum": ["file_not_found", "outside_project", "parse_error"] },
+            "message": { "type": "string", "minLength": 1 },
+            "handling": { "const": "hand_to_person" }
+          }
+        }
+      }
+    }
+  }
+}

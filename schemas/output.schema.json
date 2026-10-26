@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:security-analyzer-agent:schema:output",
+  "title": "Run output (canvas sections 11 and 12)",
+  "description": "The report the orchestrator writes at the end of a run. Cross-checks JSON Schema cannot express (quoted_code at the file and line, patch_diff paths, totals arithmetic, rule_id versus rules.json) are in validate.py.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["outcome", "run", "totals", "findings", "approvals", "audit_log"],
+  "properties": {
+    "outcome": {
+      "enum": ["findings_reported", "safe_nothing_to_report"],
+      "description": "safe_nothing_to_report means no finding had proof, so findings is empty and every total is 0."
+    },
+    "run": { "$ref": "#/$defs/run" },
+    "totals": { "$ref": "#/$defs/totals" },
+    "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } },
+    "approvals": { "type": "array", "items": { "$ref": "#/$defs/approval" } },
+    "audit_log": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/auditEntry" } }
+  },
+  "if": {
+    "properties": { "outcome": { "const": "safe_nothing_to_report" } },
+    "required": ["outcome"]
+  },
+  "then": {
+    "properties": {
+      "findings": { "maxItems": 0 },
+      "totals": { "properties": { "found": { "const": 0 } } }
+    }
+  },
+  "else": {
+    "properties": { "findings": { "minItems": 1 } }
+  },
+  "$defs": {
+    "ruleId": {
+      "enum": ["SQLI", "CMDI", "PATH", "SECRET", "WEAKHASH", "DEP-PIN"],
+      "description": "Taken from the ids in golden/rules.json. validate.py fails if this list and the rules file drift apart."
+    },
+    "severity": { "enum": ["low", "medium", "high"] },
+    "path": { "type": "string", "minLength": 1, "description": "Relative to the project root." },
+    "line": { "type": "integer", "minimum": 1 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "timestamp": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+    "status": {
+      "enum": ["verified_awaiting_approval", "needs_a_person", "rejected", "not_processed"],
+      "description": "verified_awaiting_approval: fix ready, tests pass, re-check clear, a person decides. needs_a_person: the agent cannot or must not fix it (reason says why). rejected: the fix failed after the one retry. not_processed: a run cap stopped the run first."
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "line", "quoted_code"],
+      "properties": {
+        "file": { "$ref": "#/$defs/path" },
+        "line": { "$ref": "#/$defs/line" },
+        "quoted_code": {
+          "type": "string",
+          "pattern": "^[^\\r\\n]+$",
+          "description": "The code on that line. Secrets, emails and phone numbers are replaced by <SECRET_n>, <EMAIL_n>, <PHONE_n>."
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["finding_id", "rule_id", "file", "line", "severity", "evidence", "confidence", "detected_by", "status", "patch_diff", "tests", "recheck", "residual_risk"],
+      "properties": {
+        "finding_id": { "type": "string", "pattern": "^F[0-9]{3,}$" },
+        "rule_id": { "$ref": "#/$defs/ruleId" },
+        "file": { "$ref": "#/$defs/path" },
+        "line": { "$ref": "#/$defs/line" },
+        "severity": { "$ref": "#/$defs/severity" },
+        "evidence": { "$ref": "#/$defs/evidence" },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "detected_by": { "enum": ["rule", "ai_model"] },
+        "status": { "$ref": "#/$defs/status" },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Why a finding is not verified, for example: fix not allowed; no tests; needs redesign; cause unclear."
+        },
+        "traced_cause": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["explanation", "path"],
+          "properties": {
+            "explanation": { "type": "string", "minLength": 1 },
+            "path": { "type": "array", "items": { "$ref": "#/$defs/path" } }
+          }
+        },
+        "patch_diff": { "type": ["string", "null"] },
+        "tests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["before", "after"],
+          "properties": {
+            "before": { "enum": ["pass", "fail", "none"] },
+            "after": { "enum": ["pass", "fail", "none", null], "description": "null when no fix was tried." }
+          }
+        },
+        "recheck": { "enum": ["clear", "not_clear", "not_run"] },
+        "residual_risk": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "verified_awaiting_approval" } }, "required": ["status"] },
+          "then": {
+            "properties": {
+              "patch_diff": { "type": "string", "minLength": 1 },
+              "tests": { "properties": { "before": { "const": "pass" }, "after": { "const": "pass" } } },
+              "recheck": { "const": "clear" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "enum": ["needs_a_person", "rejected", "not_processed"] } }, "required": ["status"] },
+          "then": { "required": ["reason"] }
+        },
+        {
+          "if": { "properties": { "status": { "enum": ["needs_a_person", "not_processed"] } }, "required": ["status"] },
+          "then": { "properties": { "patch_diff": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "rejected" } }, "required": ["status"] },
+          "then": { "properties": { "patch_diff": { "type": "string", "minLength": 1 } } }
+        }
+      ]
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["found", "fixed_and_verified", "rejected", "needs_a_person", "remaining"],
+      "properties": {
+        "found": { "type": "integer", "minimum": 0, "description": "Findings with proof. Equals the sum of the four statuses." },
+        "fixed_and_verified": { "type": "integer", "minimum": 0, "description": "Count of verified_awaiting_approval." },
+        "rejected": { "type": "integer", "minimum": 0 },
+        "needs_a_person": { "type": "integer", "minimum": 0 },
+        "remaining": { "type": "integer", "minimum": 0, "description": "Count of not_processed." }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rules_file_version", "ai_model", "sensitive_items_hidden", "tokens"],
+      "properties": {
+        "rules_file_version": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "rules.json has no version field, so the version is the SHA-256 of the file's bytes."
+        },
+        "ai_model": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version", "endpoint"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "version": { "type": "string", "minLength": 1 },
+            "endpoint": { "type": "string", "minLength": 1 }
+          }
+        },
+        "sensitive_items_hidden": { "type": "integer", "minimum": 0 },
+        "tokens": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["input", "output"],
+          "properties": {
+            "input": { "type": "integer", "minimum": 0 },
+            "output": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["finding_id", "decision", "reason", "reviewer", "timestamp"],
+      "properties": {
+        "finding_id": { "type": "string", "pattern": "^F[0-9]{3,}$" },
+        "decision": { "enum": ["approved", "edited", "rejected"] },
+        "reason": { "type": "string" },
+        "reviewer": { "type": "string", "minLength": 1 },
+        "timestamp": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "auditEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seq", "timestamp", "actor", "event", "detail"],
+      "properties": {
+        "seq": { "type": "integer", "minimum": 1 },
+        "timestamp": { "$ref": "#/$defs/timestamp" },
+        "actor": { "enum": ["orchestrator", "auditor", "investigator", "fixer_validator", "person"] },
+        "event": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "description": "For example prompt_injection_attempt (golden case_09)." },
+        "finding_id": { "type": ["string", "null"], "pattern": "^F[0-9]{3,}$" },
+        "detail": { "type": "string" }
+      }
+    }
+  }
+}

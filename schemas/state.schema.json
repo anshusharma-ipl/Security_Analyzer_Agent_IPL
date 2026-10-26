@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:security-analyzer-agent:schema:state",
+  "title": "Shared run state (canvas sections 9 and 10)",
+  "description": "The shared state the workflow orchestrator and the three agents read and write. Every top-level field has exactly ONE writer, named in x-owner. Agents write only their own fields and RECOMMEND (for example fixable, decision); the orchestrator alone sets the final finding status, the totals, the approvals and the audit log. Agents never call each other: a result is written here and the orchestrator hands the next job on.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run_id", "input"],
+  "properties": {
+    "run_id": { "x-owner": "orchestrator", "type": "string", "pattern": "^run-[0-9]{3,}$" },
+    "input": { "x-owner": "orchestrator", "$ref": "urn:security-analyzer-agent:schema:input" },
+    "rules": { "x-owner": "orchestrator", "$ref": "urn:security-analyzer-agent:schema:rules", "description": "The rules file after it passed rules.schema.json." },
+    "rules_file_version": { "x-owner": "orchestrator", "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "workspace": {
+      "x-owner": "orchestrator",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "original_root"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1, "description": "The temporary copy. All writes go here." },
+        "original_root": { "type": "string", "minLength": 1, "description": "The original folder. Never written." }
+      }
+    },
+    "counters": {
+      "x-owner": "orchestrator",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["steps", "ai_calls", "tokens", "elapsed_seconds"],
+      "properties": {
+        "steps": { "type": "integer", "minimum": 0, "description": "Orchestrator-to-agent handoffs. Tool calls inside an agent are not steps." },
+        "ai_calls": { "type": "integer", "minimum": 0 },
+        "tokens": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["input", "output"],
+          "properties": {
+            "input": { "type": "integer", "minimum": 0 },
+            "output": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "elapsed_seconds": { "type": "number", "minimum": 0 }
+      }
+    },
+    "cap_hit": {
+      "x-owner": "orchestrator",
+      "enum": [null, "files", "steps", "ai_calls", "tokens_input", "tokens_output", "time"],
+      "description": "Which cap stopped the run, or null. A retry limit is per finding and shows in fix_attempts."
+    },
+    "ai_model": { "x-owner": "orchestrator", "$ref": "urn:security-analyzer-agent:schema:output#/$defs/run/properties/ai_model" },
+    "sensitive_items_hidden": { "x-owner": "orchestrator", "type": "integer", "minimum": 0 },
+    "finding_status": {
+      "x-owner": "orchestrator",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["finding_id", "status", "reason"],
+        "properties": {
+          "finding_id": { "type": "string", "pattern": "^F[0-9]{3,}$" },
+          "status": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/status" },
+          "reason": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "originals_unchanged": { "x-owner": "orchestrator", "type": ["boolean", "null"], "description": "Result of the end-of-run integrity check. null before it runs." },
+    "approvals": { "x-owner": "orchestrator", "type": "array", "items": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/approval" } },
+    "audit_log": { "x-owner": "orchestrator", "type": "array", "items": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/auditEntry" } },
+    "outcome": { "x-owner": "orchestrator", "enum": ["findings_reported", "safe_nothing_to_report"] },
+    "totals": { "x-owner": "orchestrator", "$ref": "urn:security-analyzer-agent:schema:output#/$defs/totals" },
+
+    "file_list": {
+      "x-owner": "auditor",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "skipped_dirs", "truncated"],
+      "properties": {
+        "files": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "skipped_dirs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "skipped_files": {
+      "x-owner": "auditor",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "reason"],
+        "properties": { "file": { "type": "string", "minLength": 1 }, "reason": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "skipped_rules": {
+      "x-owner": "auditor",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "reason"],
+        "properties": { "rule_id": { "type": "string", "minLength": 1 }, "reason": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "candidate_findings": {
+      "x-owner": "auditor",
+      "type": "array",
+      "description": "Findings that have proof, ranked. No status here: the orchestrator sets status in finding_status.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["finding_id", "rule_id", "file", "line", "severity", "evidence", "confidence", "detected_by", "rank"],
+        "properties": {
+          "finding_id": { "type": "string", "pattern": "^F[0-9]{3,}$" },
+          "rule_id": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/ruleId" },
+          "file": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/path" },
+          "line": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/line" },
+          "severity": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/severity" },
+          "evidence": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/evidence" },
+          "confidence": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/confidence" },
+          "detected_by": { "enum": ["rule", "ai_model"] },
+          "rank": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "dropped_findings": {
+      "x-owner": "auditor",
+      "type": "array",
+      "description": "Candidates dropped for missing proof. Logged, never counted in totals.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "file", "line", "reason"],
+        "properties": {
+          "rule_id": { "type": "string", "minLength": 1 },
+          "file": { "type": "string", "minLength": 1 },
+          "line": { "type": ["integer", "null"] },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "recheck_results": {
+      "x-owner": "auditor",
+      "type": "array",
+      "description": "Answers to request_recheck, written by the Auditor.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["finding_id", "attempt", "clear", "matches"],
+        "properties": {
+          "finding_id": { "type": "string", "pattern": "^F[0-9]{3,}$" },
+          "attempt": { "type": "integer", "minimum": 1, "maximum": 2 },
+          "clear": { "type": "boolean" },
+          "matches": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["rule_id", "file", "line", "quoted_code"],
+              "properties": {
+                "rule_id": { "type": "string", "minLength": 1 },
+                "file": { "type": "string", "minLength": 1 },
+                "line": { "type": "integer", "minimum": 1 },
+                "quoted_code": { "type": "string", "pattern": "^[^\\r\\n]+$" }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "investigations": {
+      "x-owner": "investigator",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["finding_id", "traced_cause", "fix_approach", "fixable", "handoff_reason"],
+        "properties": {
+          "finding_id": { "type": "string", "pattern": "^F[0-9]{3,}$" },
+          "traced_cause": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["explanation", "path"],
+            "properties": {
+              "explanation": { "type": "string", "minLength": 1 },
+              "path": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+            }
+          },
+          "fix_approach": { "type": ["string", "null"] },
+          "fixable": { "type": "boolean", "description": "A recommendation. False means hand to a person." },
+          "handoff_reason": { "type": ["string", "null"], "description": "Why a person must take over, for example cause unclear, needs redesign." }
+        },
+        "if": { "properties": { "fixable": { "const": false } }, "required": ["fixable"] },
+        "then": { "properties": { "handoff_reason": { "type": "string", "minLength": 1 } } }
+      }
+    },
+
+    "baseline_tests": {
+      "x-owner": "fixer_validator",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "exit_code"],
+      "properties": {
+        "outcome": { "enum": ["pass", "fail", "none"] },
+        "exit_code": { "type": ["integer", "null"] }
+      },
+      "description": "Tests on the untouched temporary copy, before any fix."
+    },
+    "fix_attempts": {
+      "x-owner": "fixer_validator",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["finding_id", "attempt", "patch_diff", "files_changed", "tests", "recheck", "decision", "residual_risk"],
+        "properties": {
+          "finding_id": { "type": "string", "pattern": "^F[0-9]{3,}$" },
+          "attempt": { "type": "integer", "minimum": 1, "maximum": 2, "description": "1 is the first try, 2 is the one retry (max_retries 1)." },
+          "patch_diff": { "type": ["string", "null"] },
+          "files_changed": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "tests": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["before", "after"],
+            "properties": {
+              "before": { "enum": ["pass", "fail", "none"] },
+              "after": { "enum": ["pass", "fail", "none", null] }
+            }
+          },
+          "recheck": { "enum": ["clear", "not_clear", "not_run"] },
+          "decision": { "enum": ["keep", "retry", "reject"], "description": "A recommendation to the orchestrator. A person approves, never this field." },
+          "residual_risk": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

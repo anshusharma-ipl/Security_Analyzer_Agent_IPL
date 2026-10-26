@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:security-analyzer-agent:schema:tool:request_recheck",
+  "title": "Tool request_recheck (canvas section 9)",
+  "description": "Used by: Fixer & Validator. Reads only (the Auditor uses its own tools). Asks the Auditor to run the rules again on the changed files and return the result. Approved by: built in. If it fails: the fix is not called verified.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tool", "arguments", "response"],
+  "properties": {
+    "tool": { "const": "request_recheck" },
+    "arguments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace", "files"],
+      "properties": {
+        "workspace": { "type": "string", "minLength": 1 },
+        "files": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/path" } }
+      }
+    },
+    "response": {
+      "type": "object",
+      "if": { "properties": { "ok": { "const": true } }, "required": ["ok"] },
+      "then": { "$ref": "#/$defs/success" },
+      "else": { "$ref": "#/$defs/failure" }
+    }
+  },
+  "$defs": {
+    "path": { "type": "string", "pattern": "^(?![/\\\\])(?![A-Za-z]:)(?!(?:.*[/\\\\])?\\.\\.(?:[/\\\\]|$)).+$" },
+    "success": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "result"],
+      "properties": {
+        "ok": { "const": true },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["clear", "files_checked", "matches"],
+          "properties": {
+            "clear": { "type": "boolean", "description": "True only when no rule matches remain in the changed files." },
+            "files_checked": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/path" } },
+            "matches": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["rule_id", "file", "line", "quoted_code"],
+                "properties": {
+                  "rule_id": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]*$" },
+                  "file": { "$ref": "#/$defs/path" },
+                  "line": { "type": "integer", "minimum": 1 },
+                  "quoted_code": { "type": "string", "pattern": "^[^\\r\\n]+$" }
+                }
+              }
+            }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "clear": { "const": true } }, "required": ["clear"] },
+              "then": { "properties": { "matches": { "maxItems": 0 } } },
+              "else": { "properties": { "matches": { "minItems": 1 } } }
+            }
+          ]
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ok", "error"],
+      "properties": {
+        "ok": { "const": false },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message", "handling"],
+          "properties": {
+            "code": { "enum": ["workspace_not_found", "outside_workspace", "rules_unavailable", "auditor_failed"] },
+            "message": { "type": "string", "minLength": 1 },
+            "handling": { "const": "not_verified" }
+          }
+        }
+      }
+    }
+  }
+}
