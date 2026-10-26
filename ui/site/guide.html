@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css"></head><body>
-<header class="topbar"><div class="in"><a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>Security Analyzer</a><nav class="nav" aria-label="Main"><a href="/">Scan</a><a href="/docs/guide.html" aria-current=page>Guide</a><a href="/docs/md/PRD.html">PRD</a><a href="/docs/cost.html">Cost</a><a href="/docs/canvas.html">Canvas</a><a href="/docs/prompts.html">How it was built</a><a href="/docs/golden.html">Test cases</a><a href="/docs/documents.html">Documents</a></nav></div></header>
+<header class="topbar"><div class="in"><a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>Security Analyzer</a><nav class="nav" aria-label="Main"><a href="/">Scan</a><a href="/docs/guide.html" aria-current=page>Guide</a><a href="/docs/md/PRD.html">PRD</a><a href="/docs/cost.html">Cost</a><a href="/docs/canvas.html">Canvas</a><a href="/docs/prompts.html">How it was built</a><a href="/docs/golden.html">Test cases</a></nav></div></header>
 <main class="doc">
 <h1>How the Security Analyzer works</h1>
 <p class="lede">It scans a Python project for weak spots, proposes a fix for each, tests the fix in a temporary copy, then waits for you to approve, edit or reject it. It never changes your files.</p>
@@ -53,7 +53,17 @@
 </ol>
 <p>The console you are using, and the optional model connection, were added afterwards. <a href="/docs/prompts.html">See each prompt and what it produced</a>.</p>
 
-<h2 id="run">How to run it</h2>
+<h2 id="live">Run a live scan, step by step</h2>
+<p>A live scan needs the console running on your own machine (or a server). The published site on GitHub Pages is read-only: it shows a recorded run and cannot scan anything or call a model.</p>
+<ol>
+<li><b>Start the console.</b> <code>pip install jsonschema</code>, then <code>python ui/server.py</code>, then open <code>http://127.0.0.1:8765</code>.</li>
+<li><b>Give it your code.</b> In <b>New scan</b> (left panel) pick <b>Zip</b> and upload your project as a .zip that includes its tests folder, or pick <b>Folder</b> and choose the project folder. Use <b>Sample project</b> to try one of the 21 test cases first. A rules file is optional; without one the approved default rules are used.</li>
+<li><b>Connect a model (optional).</b> In <b>Agents</b> enter the endpoint, model name and API key, press <b>Connect</b> then <b>Test</b>, tick which agents should use the model, and tick the box confirming masked code is sent to it. Skip this to use the offline stand-ins.</li>
+<li><b>Press Run scan.</b> The pipeline strip shows the seven steps. When it reaches the review desk, <b>approve, edit or reject</b> each proposed fix, then submit.</li>
+<li><b>Download the result.</b> The report (HTML, Markdown and JSON), the decision log and <code>fixes.patch</code> are on the run's page. Nothing is applied to your original files; a person applies <code>fixes.patch</code>.</li></ol>
+<p>From a terminal instead: <code>python -m orchestrator.cli run &lt;your-project-folder&gt; golden/rules.json</code>. With a model, set <code>AI_MODEL_ENDPOINT</code>, <code>AI_MODEL_NAME</code> and <code>ANTHROPIC_API_KEY</code> first and use the console's Agents panel to switch the agents on.</p>
+
+<h2 id="run">Other commands</h2>
 <p>You need Python 3.11 or newer and one package: <code>pip install jsonschema</code>.</p>
 <pre class="code" style="padding:12px 16px"><code>python ui/server.py              # then open http://127.0.0.1:8765
 python -m unittest discover -s tests
@@ -81,5 +91,5 @@ python kill_checks.py --run      # the eight kill-switch checks</code></pre>
 <li><b>Tests:</b> 146 of 151 pass. The five that fail test symbolic links and only run on Windows.</li>
 <li><b>Open:</b> a live model run, real reviewers, prices for the cost model, and the owner names in <code>docs/PILOT.md</code>.</li></ul>
 <p>The percentages come from about one case per type, so treat them as a direction, not a measurement.</p>
-<p><a href="/docs/documents.html">All project documents</a> · <a href="https://github.com/anshusharma-ipl/Security_Analyzer_Agent_IPL">Repository</a></p>
+<p>Written documents: <a href="/docs/md/PRD.html">PRD</a> · <a href="/docs/md/RUN_SUMMARY.html">Run summary</a> · <a href="/docs/md/DEPLOY.html">Deploy</a> · <a href="/docs/md/UX_REVIEW.html">UX review</a> · <a href="https://github.com/anshusharma-ipl/Security_Analyzer_Agent_IPL">Repository</a></p>
 </main></body></html>
