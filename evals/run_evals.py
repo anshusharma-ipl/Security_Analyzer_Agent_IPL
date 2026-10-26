@@ -28,6 +28,8 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
+import attribution  # noqa: E402
+import judge  # noqa: E402
 import validate  # noqa: E402
 from orchestrator.workflow import DEFAULT_POLICY, Workflow  # noqa: E402
 from tools._mask import Masker  # noqa: E402
@@ -399,11 +401,30 @@ def show(value, key: str) -> str:
 
 
 # --------------------------------------------------------------------------- main
+def signature(res: dict) -> tuple:
+    """What a run decided for a case: every reported finding's status, and whether the case passed."""
+    rows = tuple(sorted((f["rule_id"], f["file"], f["line"], f["status"]) for f in res["findings"]))
+    return rows, res["passed"]
+
+
+def unstable_cases(runs: list[list[dict]]) -> list[dict]:
+    """Cases whose decision differs between repeated runs (a status flip)."""
+    flips = []
+    for index, first in enumerate(runs[0]):
+        seen = [signature(batch[index]) for batch in runs]
+        if len(set(seen)) > 1:
+            flips.append({"case": first["case"], "decisions": [str(s[0]) + (" pass" if s[1] else " FAIL") for s in seen]})
+    return flips
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--cases", nargs="*", help="only these case folders (default: all)")
+    parser.add_argument("--repeats", type=int, default=2, help="runs per case, for the consistency check (default 2)")
     parser.add_argument("--keep", action="store_true", help="keep the temporary run folders")
     args = parser.parse_args(argv)
+    if args.repeats < 1:
+        parser.error("--repeats must be at least 1")
     sys.stdout.reconfigure(encoding="utf-8")
 
     names = sorted(n for n in os.listdir(GOLDEN) if n.startswith("case_"))
@@ -420,28 +441,37 @@ def main(argv=None) -> int:
         print(f"  {'ok  ' if not problems else 'FAIL'} {name}" + ("" if not problems else ": " + "; ".join(problems)))
 
     work = tempfile.mkdtemp(prefix="saa-evals-")
-    print(f"\nStep 2: end to end, one run per case (simulated reviewer approvals; nothing is applied to any original)")
-    results = []
+    runs: list[list[dict]] = []
+    print(f"\nStep 2: end to end, {args.repeats} run(s) per case (simulated reviewer approvals; nothing is applied)")
     try:
-        for name in names:
-            try:
-                res = run_case(name, work)
-            except Exception as exc:  # noqa: BLE001 - one broken case must not hide the others
-                res = {"case": name, "category": "?", "checks": [{"check": "run", "ok": False, "detail": f"{type(exc).__name__}: {exc}"}],
-                       "expected": {"expected_status": None}, "findings": [], "expected_findings": [], "verified": [],
-                       "audit": {"required": 1, "present": 0, "missing": ["run crashed"]}, "evidence": {"total": 0, "proven": 0},
-                       "original_writes": 0, "run": {}, "simulated_approvals": 0}
-            res["passed"] = all(c["ok"] for c in res["checks"])
-            results.append(res)
-            print(f"  {'PASS' if res['passed'] else 'FAIL'} {name}  ({res['category']})")
-            for c in res["checks"]:
-                if not c["ok"]:
-                    print(f"       - {c['check']}: {c['detail']}")
+        for rep in range(args.repeats):
+            batch = []
+            for name in names:
+                rep_work = os.path.join(work, f"rep{rep}")
+                try:
+                    res = run_case(name, rep_work)
+                except Exception as exc:  # noqa: BLE001 - one broken case must not hide the others
+                    res = {"case": name, "category": "?", "checks": [{"check": "run completed", "ok": False,
+                                                                      "detail": f"{type(exc).__name__}: {exc}"}],
+                           "expected": {"expected_status": None, "finding": None}, "findings": [], "expected_findings": [],
+                           "verified": [], "audit": {"required": 1, "present": 0, "missing": ["run crashed"]},
+                           "evidence": {"total": 0, "proven": 0}, "original_writes": 0, "run": {}, "simulated_approvals": 0}
+                res["passed"] = all(c["ok"] for c in res["checks"])
+                batch.append(res)
+                if rep == 0:
+                    print(f"  {'PASS' if res['passed'] else 'FAIL'} {name}  ({res['category']})")
+                    for c in res["checks"]:
+                        if not c["ok"]:
+                            print(f"       - {c['check']}: {c['detail']}")
+            runs.append(batch)
+            if rep > 0:
+                print(f"  repeat {rep + 1} done")
     finally:
         golden_after = tree_hash(GOLDEN)
         if not args.keep:
             shutil.rmtree(work, ignore_errors=True)
     golden_changed = golden_before != golden_after
+    results = runs[0]
     metrics = compute_metrics(results)
     if golden_changed:
         metrics["original_writes"] += 1
@@ -465,23 +495,67 @@ def main(argv=None) -> int:
           f"high expected {c['high_expected']}, found {c['high_found']}; verified labels {c['verified_labels']} "
           f"(wrong {c['wrong_verified_labels']}); cases expecting a fix {c['cases_expecting_a_fix']}, fixed correctly {c['cases_fixed_correctly']}")
 
+    print("\nFailures by agent (each failing case goes to the first stage that went wrong, in pipeline order)")
+    groups = attribution.group_by_agent(results)
+    for stage in attribution.ORDER:
+        cases = groups[stage]
+        print(f"  {stage}: {len(cases)} case(s)")
+        for case, first, rows_ in cases:
+            print(f"    {case}: {first['why']}")
+            for r in rows_:
+                if r is not first and r["stage"] != first["stage"]:
+                    print(f"        also [{r['stage']}] {r['check']}: {r['why']}")
+    if not any(groups.values()):
+        print("  none")
+
+    print(f"\nConsistency: {args.repeats} run(s) per case")
+    flips = unstable_cases(runs) if args.repeats > 1 else []
+    if args.repeats == 1:
+        print("  not measured: one run only (use --repeats 2 or more)")
+    elif not flips:
+        print("  no status flips across runs")
+    for flip in flips:
+        print(f"  FLIP {flip['case']}: " + " | ".join(flip["decisions"]))
+
+    print("\nJudge (judge only for root cause, minimal patch and residual-risk accuracy; it decides nothing else)")
+    items = [item for r in results for item in judge.items_from(r["findings"])]
+    agent_model = model
+    verdict = judge.run_judge(items, agent_model, judge.judge_config(), ask=None)
+    if verdict["ran"]:
+        for question, counts in verdict["summary"].items():
+            print(f"  {question:<14} " + "  ".join(f"{k} {v}" for k, v in counts.items()))
+    else:
+        print(f"  not run: {verdict['reason']}")
+        print(f"  items that would be judged: {len(items)} (root cause, patch, residual risk, from masked text only)")
+
     passed = sum(r["passed"] for r in results)
     gates_failed = sum(1 for row in rows if row["status"] == "FAIL")
-    print(f"\nCases: {passed}/{len(results)} passed.  Gates failed: {gates_failed}.  "
-          f"Time: {time.monotonic() - started:.0f}s.")
-    print("NOTE: with one case per type, every percentage above is directional only. A single case moves a rate by "
-          "several points, and the golden set is the quick check described in AGENTS.md section 7, not the pilot benchmark.")
+    failing_by_agent = {stage: len(groups[stage]) for stage in attribution.ORDER}
+    print("\nSummary")
+    print(f"  pass rate        : {passed}/{len(results)} cases ({passed / len(results) * 100:.0f}%)")
+    print(f"  metric gates     : {gates_failed} failed, {sum(1 for row in rows if row['status'] == 'PASS')} passed, "
+          f"{sum(1 for row in rows if row['status'] == 'not measurable')} not measurable")
+    print(f"  failures by agent: " + ", ".join(f"{k} {v}" for k, v in failing_by_agent.items()))
+    print(f"  unstable cases   : {len(flips) if args.repeats > 1 else 'not measured'}"
+          + (f" ({', '.join(f['case'] for f in flips)})" if flips else ""))
+    print(f"  judge scores     : " + ("not run (" + verdict["reason"] + ")" if not verdict["ran"] else "see above"))
+    print(f"  time             : {time.monotonic() - started:.0f}s")
+    print("NOTE: with one case per type every percentage is directional only. A single case moves a rate by several points.")
 
     record = {"rules_file_version": rules_version, "ai_model": model, "policy": DEFAULT_POLICY,
-              "golden_unchanged": not golden_changed, "directional": True, "metrics": metrics,
-              "gates": rows, "cases": [{k: r[k] for k in ("case", "category", "passed", "checks", "run", "simulated_approvals")}
-                                       for r in results]}
+              "golden_unchanged": not golden_changed, "directional": True, "repeats": args.repeats,
+              "metrics": metrics, "gates": rows, "attribution": {s: [{"case": c, "first": f, "all": a} for c, f, a in groups[s]]
+                                                                 for s in attribution.ORDER},
+              "unstable_cases": flips, "judge": verdict,
+              "cases": [{k: r[k] for k in ("case", "category", "passed", "checks", "run", "simulated_approvals")}
+                        for r in results]}
     out_dir = os.path.join(ROOT, "out", "evals")
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "last_eval.json"), "w", encoding="utf-8", newline="\n") as handle:
         json.dump(record, handle, indent=2, default=str)
     print(f"Eval record written to {os.path.join('out', 'evals', 'last_eval.json')}")
-    return 0 if (passed == len(results) and not gates_failed and not bad_expected and not golden_changed) else 1
+    clean = passed == len(results) and not gates_failed and not bad_expected and not golden_changed
+    return 0 if clean else 1
 
 
 if __name__ == "__main__":
