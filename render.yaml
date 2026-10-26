@@ -1,0 +1,12 @@
+# Render Blueprint: New > Blueprint > pick this repo. Set the secret values in the dashboard.
+services:
+  - type: web
+    name: security-analyzer
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    envVars:
+      - key: CONSOLE_TOKEN
+        generateValue: true
+      - key: CONSOLE_ALLOWED_HOSTS
+        sync: false   # your service host name, e.g. security-analyzer.onrender.com
