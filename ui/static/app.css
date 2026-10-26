@@ -190,3 +190,6 @@ a.card{text-decoration:none;color:inherit}a.card:hover{border-color:var(--brand)
 .ctoc a.part{font-weight:650;color:var(--ink);margin-top:10px}
 .canvas article{max-width:78ch}
 @media (max-width:900px){.canvas{grid-template-columns:1fr}.ctoc{position:static;max-height:none;flex-direction:row;flex-wrap:wrap;gap:6px}.ctoc a{background:var(--surface);border:1px solid var(--line)}}
+
+.console>*{min-width:0}
+.panel{min-width:0}
