@@ -1,0 +1,18 @@
+{
+  "model": "claude-sonnet-5-5",
+  "price_input_per_million": null,
+  "price_output_per_million": null,
+  "price_currency": null,
+  "engineer_hourly_rate": null,
+  "rate_currency": null,
+  "engineer_hours_per_scan_today": null,
+  "fx_rate_rate_currency_per_price_currency": null,
+  "overhead_multiplier": 3,
+  "days_per_month": 30,
+  "scans_per_day": [
+    5,
+    20,
+    100
+  ],
+  "note": "Fill the null values. fx_rate is only needed when the two currencies differ."
+}
