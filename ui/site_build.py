@@ -183,7 +183,7 @@ python kill_checks.py --run      # the eight kill-switch checks</code></pre>
 <ul>
 <li><b>Red team:</b> {held} of 10 attacks were stopped and {broke} broke the system. None of the {broke} is fixed yet.</li>
 <li><b>Kill switches:</b> all eight checks pass.</li>
-<li><b>Tests:</b> 144 of 149 pass. The five that fail test symbolic links and only run on Windows.</li>
+<li><b>Tests:</b> 146 of 151 pass. The five that fail test symbolic links and only run on Windows.</li>
 <li><b>Open:</b> a live model run, real reviewers, prices for the cost model, and the owner names in <code>docs/PILOT.md</code>.</li></ul>
 <p>The percentages come from about one case per type, so treat them as a direction, not a measurement.</p>
 <p><a href="/docs/documents.html">All project documents</a> · <a href="{REPO}">Repository</a></p>
@@ -205,6 +205,30 @@ def short(text: str, n: int = 190) -> str:
 def lines(text: str, n: int) -> str:
     rows = text.strip().split("\n")
     return "\n".join(rows[:n]) + (f"\n… ({len(rows) - n} more lines)" if len(rows) > n else "")
+
+
+def run_summary() -> tuple[str, dict]:
+    """docs/RUN_SUMMARY.md (your Claude Code runs): the intro text, and its sections keyed by number or subsection name."""
+    path = os.path.join(ROOT, "docs", "RUN_SUMMARY.md")
+    if not os.path.isfile(path):
+        return "", {}
+    text = open(path, encoding="utf-8").read()
+    parts = re.split(r"(?m)^## ", text)
+    intro = re.sub(r"(?m)^# .*\n", "", parts[0]).strip()
+    secs = {}
+    for part in parts[1:]:
+        title, _, body = part.partition("\n")
+        num = re.match(r"(\d+)\.", title)
+        if num:
+            secs[int(num.group(1))] = f"### {title}\n{body}".strip()
+        for sub in re.split(r"(?m)^### ", body)[1:]:
+            st, _, sb = sub.partition("\n")
+            secs[st.strip()] = f"### {st}\n{sb}".strip()
+    return intro, secs
+
+
+SUMMARY_INTRO, SUMMARY = run_summary()
+SUMMARY_MAP = {"4A": [1], "7A": [3], "7B": ["Consistency and judge"], "8": [4], "9": [5, 6], "10": [2]}
 
 
 def prompt_item(sid: str, s: dict) -> str:
@@ -229,6 +253,9 @@ def prompt_item(sid: str, s: dict) -> str:
             f"<tr><td>{e(a)}</td><td>{e(b)}</td></tr>" for a, b, c in P.KILL) + "</table></div>")
     if n.get("note"):
         out.append(f'<h4>Note</h4><p>{e(n["note"])}</p>')
+    mapped = [SUMMARY[k] for k in SUMMARY_MAP.get(sid, []) if k in SUMMARY]
+    if mapped:
+        out.append('<h4>From your run (docs/RUN_SUMMARY.md, commit c6f2a02)</h4><div class="md">' + "".join(render_md(m) for m in mapped) + "</div>")
     if commits:
         out.append(f'<h4>Commits</h4><p>{commits}</p>')
     for ch in n["commits"]:
@@ -243,6 +270,13 @@ def prompt_item(sid: str, s: dict) -> str:
     return "".join(out)
 
 
+def run_block() -> str:
+    if not SUMMARY_INTRO:
+        return ""
+    return ('<section class="panel" style="margin:18px 0 8px"><div class="hd"><h3>Results from your Claude Code runs</h3><a class="small" href="/docs/md/RUN_SUMMARY.html">Full run summary</a></div>'
+            f'<div class="bd md">{render_md(SUMMARY_INTRO)}</div></section>')
+
+
 def build_prompts() -> str:
     by_id = {}
     for s in P.steps:
@@ -254,7 +288,8 @@ def build_prompts() -> str:
         parts.append(f'<div class="phase">{e(name)}</div>' + "".join(prompt_item(i, by_id[i]) for i in ids))
     body = f"""<h1>How it was built</h1>
 <p class="lede">Fifteen prompts, run one at a time in Claude Code. Open a prompt to see what it does, the checks that go with it, and what came out.</p>
-<p class="small muted">Output comes from three places: your <code>status.md</code> and commit messages (the coding agent's own reports), documents it wrote into the repository, and commands re-run here against the repository so you can compare. Your original Claude Code transcripts are not in the repository, so they are not shown yet.</p>
+<p class="small muted">Output comes from four places: your run summary (<code>docs/RUN_SUMMARY.md</code>, from your Claude Code runs on commit c6f2a02), your <code>status.md</code> and commit messages, documents the coding agent wrote into the repository, and commands re-run here so you can compare. Re-runs here match your summary on every headline number. Raw Claude Code transcripts are not in the repository.</p>
+{run_block()}
 {"".join(parts)}
 <h2>The three agents' instructions</h2>
 <div class="cards">{"".join(f'<a class="card" href="/docs/md/{k}.html"><h3>{e(v["title"])}</h3><p>{e(short(v["plain"], 120))}</p></a>' for k, v in P.AGENT_TEXT.items() if k in ("auditor", "investigator", "fixer_validator"))}</div>
@@ -297,7 +332,7 @@ DOCS = [
     ("Decisions", [("AGENTS", "AGENTS.md", "The team spec: scope, roster, tools, limits"), ("roster", "docs/roster.md", "Single agent or several, and why the Auditor stays"), ("canvas", "canvas.md", "The original canvas: agents, tools, guardrails, quality bar, kill criteria"), ("cost", "docs/cost.md", "Cost model and its assumptions")]),
     ("Pilot", [("PILOT", "docs/PILOT.md", "Pilot setup, kill criteria, rollback and scale-up")]),
     ("Agent instructions", [("auditor", "agents/auditor.md", "What the Auditor is told"), ("investigator", "agents/investigator.md", "What the Investigator is told"), ("fixer_validator", "agents/fixer_validator.md", "What the Fixer and Validator is told")]),
-    ("Review", [("UX_REVIEW", "docs/UX_REVIEW.md", "UX review of the console and what changed"), ("status", "docs_html/data/status.md", "The coding agent's own build status report")]),
+    ("Review", [("RUN_SUMMARY", "docs/RUN_SUMMARY.md", "Results of every run on commit c6f2a02, from your Claude Code session"), ("UX_REVIEW", "docs/UX_REVIEW.md", "UX review of the console and what changed"), ("status", "docs_html/data/status.md", "The coding agent's own build status report")]),
 ]
 
 

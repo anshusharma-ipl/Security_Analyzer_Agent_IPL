@@ -193,3 +193,5 @@ a.card{text-decoration:none;color:inherit}a.card:hover{border-color:var(--brand)
 
 .console>*{min-width:0}
 .panel{min-width:0}
+
+.item .body .md h3{font-size:14.5px;margin:12px 0 6px}.item .body .md h2{font-size:15px;margin:12px 0 6px}.item .body .md table{font-size:13px}
