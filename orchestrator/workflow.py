@@ -33,6 +33,8 @@ if ROOT not in sys.path:
 
 import validate  # noqa: E402  (schema checks and the code checks a schema cannot state)
 from agents import AgentError, offline_agents  # noqa: E402
+from tools import _containment  # noqa: E402
+from tools._mask import Masker  # noqa: E402
 from tools._safety import SafetyError, is_inside  # noqa: E402
 from tools._schema import SchemaError  # noqa: E402
 from tools.apply_patch import apply_patch  # noqa: E402
@@ -124,6 +126,9 @@ class Workflow:
 
     def _log(self, actor: str, event: str, detail: str, finding_id: str | None = None) -> None:
         log = self.state["audit_log"]
+        masker = Masker()
+        detail = masker.line(detail)                      # a secret or personal value never reaches the log
+        self.state["sensitive_items_hidden"] += masker.hidden
         entry = {"seq": len(log) + 1, "timestamp": _now(), "actor": actor, "event": event, "detail": detail}
         if finding_id:
             entry["finding_id"] = finding_id
@@ -222,6 +227,10 @@ class Workflow:
             rules = json.loads(raw)
         except (OSError, ValueError) as exc:
             raise RunStopped(f"step 1: the rules file cannot be read: {exc}") from None
+        banned = _containment.forbidden_command(self.policy["test_command"])
+        if banned:
+            self._log("orchestrator", "alert_forbidden_command", f"test_command refused: {banned}")
+            raise RunStopped(f"step 1: test_command is not allowed: {banned}")
         problems = validate.schema_errors("rules", rules) or validate.check_rules(rules)
         if problems:
             raise RunStopped("step 1: the rules file is not valid: " + "; ".join(problems[:3]))
@@ -273,10 +282,16 @@ class Workflow:
                  "wrote": [], "result": "ok"}
         try:
             output = self.agents[agent]({"job": job_name, **job})
+        except _containment.ContainmentViolation as exc:
+            self._drain_events(agent, finding_id)
+            self._log("orchestrator", "alert_write_outside_copy", f"{agent}: {exc}", finding_id)
+            raise RunStopped(f"stop rule: {agent} tried to write outside the temporary copy. The run is stopped "
+                             "and an alert is raised") from None
         except AgentError as exc:
             return self._failed(entry, "agent_failed", f"{agent} failed: {exc}", finding_id)
         except Exception as exc:  # noqa: BLE001 - an agent must never crash the run
             return self._failed(entry, "agent_failed", f"{agent} failed unexpectedly ({type(exc).__name__})", finding_id)
+        self._drain_events(agent, finding_id)
         problem = self._accept(agent, output)
         if problem:
             return self._failed(entry, "invalid_output", f"{agent} output rejected: {problem}", finding_id)
@@ -297,6 +312,11 @@ class Workflow:
         self._check_state()
         self._save(f"{agent}_{job_name}" if finding_id is None else f"{agent}_{job_name}_{finding_id}")
         return output
+
+    def _drain_events(self, agent: str, finding_id: str | None) -> None:
+        """Blocked tool calls recorded by tools/_containment go into the decision log."""
+        for event, detail in _containment.drain_events():
+            self._log("orchestrator", event, detail, finding_id)
 
     def _failed(self, entry: dict, result: str, detail: str, finding_id: str | None) -> dict:
         entry["result"] = result
@@ -623,6 +643,10 @@ class Workflow:
         self._save("originals_verified")
         if not check["unchanged"]:
             raise RunStopped("step 6: an original file was changed. Stop rule: the run is stopped and an alert is raised")
+        with open(self.state["input"]["rules_file"], "rb") as handle:
+            if "sha256:" + hashlib.sha256(handle.read()).hexdigest() != self.state["rules_file_version"]:
+                self._log("orchestrator", "alert_rules_file_changed", "rules.json changed during the run; run stopped")
+                raise RunStopped("step 6: the rules file changed during the run. The run is stopped and an alert is raised")
 
     def _totals(self) -> dict:
         count = lambda s: sum(1 for r in self.state["finding_status"] if r["status"] == s)  # noqa: E731
@@ -632,6 +656,9 @@ class Workflow:
     def _step7_report(self) -> None:
         state = self.state
         state["totals"] = self._totals()
+        leaks = _containment.find_leaks(state["audit_log"])
+        if leaks:
+            raise RunStopped("step 7: the decision log holds an unmasked value (" + ", ".join(leaks) + "); nothing was written")
         self._log("orchestrator", "decision_log_written", f"{len(state['audit_log'])} entries, written before the report")
         _write_json(os.path.join(self.run_dir, "decision_log.json"), state["audit_log"])
 
@@ -639,8 +666,8 @@ class Workflow:
         findings = []
         for fid, finding in sorted(by_id.items()):
             row = status[fid]
-            attempts = [a for a in state["fix_attempts"] if a["finding_id"] == fid]
-            inv = next((i for i in state["investigations"] if i["finding_id"] == fid), None)
+            attempts = [a for a in state.get("fix_attempts", []) if a["finding_id"] == fid]
+            inv = next((i for i in state.get("investigations", []) if i["finding_id"] == fid), None)
             last = (self._verified_attempt(fid) if row["status"] == VERIFIED
                     else (attempts[-1] if attempts else None))
             entry = {"finding_id": fid, "rule_id": finding["rule_id"], "file": finding["file"],
@@ -666,6 +693,9 @@ class Workflow:
             "totals": state["totals"], "findings": findings, "approvals": state["approvals"],
             "audit_log": state["audit_log"],
         }
+        leaks = _containment.find_leaks(report)
+        if leaks:
+            raise RunStopped("step 7: the report holds an unmasked value (" + ", ".join(leaks) + "); nothing was written")
         problems = validate.schema_errors("output", report)
         if not problems:
             problems = validate.check_output(report, {"project_root": state["input"]["source_folder"],

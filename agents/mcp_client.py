@@ -7,6 +7,8 @@ import os
 import subprocess
 import sys
 
+from tools import _containment
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SERVER = os.path.join(ROOT, "tools", "mcp_server.py")
 
@@ -43,7 +45,13 @@ class McpClient:
 
     def call(self, name: str, arguments: dict) -> dict:
         """Call one tool. Returns {ok, result} or {ok: False, error}. A refusal by the schema or a
-        safety rule (plain text from the server) comes back as error code 'refused'."""
+        safety rule (plain text from the server) comes back as error code 'refused'. A tool the agent does not
+        own comes back as error code 'tool_not_allowed'; a write aimed outside the temporary copy raises
+        ContainmentViolation, which the orchestrator turns into a stopped run."""
+        try:
+            _containment.check_tool_call(self.agent, name, arguments)
+        except _containment.ToolNotAllowed as exc:
+            return {"ok": False, "error": {"code": "tool_not_allowed", "message": str(exc)}}
         result = self._request("tools/call", {"name": name, "arguments": arguments})
         text = result["content"][0]["text"]
         try:

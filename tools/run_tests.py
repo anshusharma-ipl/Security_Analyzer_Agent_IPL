@@ -23,6 +23,7 @@ import tempfile
 import time
 
 from . import _schema
+from . import _containment
 from ._mask import Masker
 from ._safety import SafetyError
 from ._workspace import require_temp_copy
@@ -71,6 +72,9 @@ def run_tests(workspace: str, test_command: str, timeout_seconds: int) -> dict:
     except SafetyError as exc:
         return _schema.fail(TOOL, args, "outside_workspace", str(exc), HANDLING)
 
+    banned = _containment.forbidden_command(test_command)
+    if banned:
+        return _schema.fail(TOOL, args, "outside_workspace", f"test_command refused: {banned}", HANDLING)
     try:
         argv = shlex.split(test_command)
     except ValueError as exc:

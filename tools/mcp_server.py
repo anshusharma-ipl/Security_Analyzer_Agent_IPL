@@ -27,15 +27,12 @@ if __package__ in (None, ""):  # started as a script: python tools/mcp_server.py
     __package__ = "tools"
     importlib.import_module("tools")  # makes the relative imports below resolve
 
+from . import _containment
 from ._safety import SafetyError
 from ._schema import SchemaError, validate_args
 from .cli import TOOLS
 
-AGENT_TOOLS = {
-    "auditor": ["list_files", "read_file", "run_security_rules"],
-    "investigator": ["read_file", "read_code_structure"],
-    "fixer-validator": ["apply_patch", "run_tests", "request_recheck"],
-}
+AGENT_TOOLS = _containment.AGENT_TOOLS
 
 DESCRIPTIONS = {
     "list_files": "List the project's files (read only, capped by file_cap).",
