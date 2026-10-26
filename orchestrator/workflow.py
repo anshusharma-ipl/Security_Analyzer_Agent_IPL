@@ -33,6 +33,8 @@ if ROOT not in sys.path:
 
 import validate  # noqa: E402  (schema checks and the code checks a schema cannot state)
 from agents import AgentError, offline_agents  # noqa: E402
+from tools._safety import SafetyError, is_inside  # noqa: E402
+from tools._schema import SchemaError  # noqa: E402
 from tools.apply_patch import apply_patch  # noqa: E402
 from tools.orchestrator_helpers import hash_originals, make_temp_copy, verify_originals  # noqa: E402
 from tools.read_file import read_file  # noqa: E402
@@ -54,6 +56,10 @@ EVENT = re.compile(r"^[a-z][a-z0-9_]*$")
 
 class RunStopped(Exception):
     """The run must stop (a limit, a failed step, or a safety problem). The message says why."""
+
+
+class StillWaiting(Exception):
+    """The review is not complete or not usable yet. The run is NOT stopped; fix review_queue.json and finish again."""
 
 
 class CapHit(Exception):
@@ -144,6 +150,9 @@ class Workflow:
     # ------------------------------------------------------------------ the run
     def start(self, source_folder: str, rules_file: str, policy: dict | None = None) -> dict:
         """Steps 1 to 5. Stops at step 5 and waits for a person (call resume() after the decisions)."""
+        if is_inside(os.path.abspath(source_folder), os.path.abspath(self.out_root)):
+            raise ValueError("the out folder is inside the project folder; the end-of-run check would see the "
+                             "report files as changes to the originals. Choose an out folder outside the project.")
         run_id = self._next_run_id()
         self.run_dir = os.path.join(self.out_root, run_id)
         os.makedirs(os.path.join(self.run_dir, "states"))
@@ -165,7 +174,30 @@ class Workflow:
             self._step2_temporary_copy()
             self._step3_audit()
             self._step4_findings()
-            self._step5_review_queue()
+            if self._step5_review_queue():
+                self._finish()          # nothing is waiting for a person, so go straight to steps 6 and 7
+        except RunStopped as stop:
+            self._stop(stop)
+        return self.state
+
+    @classmethod
+    def load(cls, run_dir: str, agents: dict | None = None) -> "Workflow":
+        """Re-open a run that is waiting for a person (a new process, a day later)."""
+        flow = cls(agents, out_root=os.path.dirname(os.path.abspath(run_dir)))
+        flow.run_dir = os.path.abspath(run_dir)
+        flow.state = _read_json(os.path.join(flow.run_dir, "state.json"))
+        flow.meta = _read_json(os.path.join(flow.run_dir, "run_meta.json"))
+        flow.meta["elapsed_before"] = flow.state["counters"]["elapsed_seconds"]   # waiting for a person is not run time
+        flow._t0 = time.monotonic()
+        return flow
+
+    def finish(self) -> dict:
+        """After the person has filled in review_queue.json: apply the decisions, then steps 6 and 7.
+        Raises StillWaiting (the run is NOT stopped) if the review is incomplete or was altered."""
+        if self.meta.get("phase") != "waiting_for_review":
+            raise RunStopped(f"this run is not waiting for a review (phase: {self.meta.get('phase')})")
+        try:
+            self._finish()
         except RunStopped as stop:
             self._stop(stop)
         return self.state
@@ -263,7 +295,7 @@ class Workflow:
         self.state["handoff_log"].append(entry)
         self._log(agent, f"{job_name}_done", "wrote " + ", ".join(entry["wrote"]), finding_id)
         self._check_state()
-        self._save(f"{step:02d}_{agent}_{job_name}" if finding_id is None else f"{step:02d}_{agent}_{job_name}_{finding_id}")
+        self._save(f"{agent}_{job_name}" if finding_id is None else f"{agent}_{job_name}_{finding_id}")
         return output
 
     def _failed(self, entry: dict, result: str, detail: str, finding_id: str | None) -> dict:
@@ -271,7 +303,7 @@ class Workflow:
         self.state["counters"]["steps"] = entry["step"]
         self.state["handoff_log"].append(entry)
         self._log("orchestrator", result, detail[:300], finding_id)
-        self._save(f"{entry['step']:02d}_{entry['agent']}_{result}")
+        self._save(f"{entry['agent']}_{result}")
         raise HandoffFailed(detail)
 
     def _accept(self, agent: str, output: object) -> str | None:
@@ -310,7 +342,9 @@ class Workflow:
                 problems.append(f"candidate_findings/{i}: {c['file']} cannot be read")
                 continue
             lines = shown["result"]["content"].splitlines()
-            if c["evidence"]["quoted_code"].strip() != (lines[c["line"] - 1].strip() if c["line"] <= len(lines) else ""):
+            shown_line = lines[c["line"] - 1].strip() if 1 <= c["line"] <= len(lines) else ""
+            same = lambda s: validate.PLACEHOLDER.sub(lambda m: m.group(0).split("_")[0] + ">", s.strip())  # noqa: E731
+            if same(c["evidence"]["quoted_code"]) != same(shown_line):
                 problems.append(f"candidate_findings/{i}: quoted_code is not at {c['file']} line {c['line']}")
         return problems
 
@@ -412,6 +446,9 @@ class Workflow:
             if tried["patch_diff"] and tried["tests"]["after"] == "pass" and tried["recheck"] == "clear" and clear:
                 self._status(fid, VERIFIED, None)
                 return
+            if not tried["patch_diff"]:                       # nothing was written, so a retry would be identical
+                self._status(fid, NEEDS_PERSON, "the fixer could not write a patch for this finding")
+                return
             reason_last = tried["residual_risk"]
             self._log("orchestrator", "fix_failed", f"attempt {attempt}: {reason_last}", fid)
             if attempt <= self.policy["max_retries"]:
@@ -441,3 +478,242 @@ class Workflow:
         self._log("orchestrator", "attempt_undone" if undone["ok"] else "attempt_undo_failed",
                   "the temporary copy was restored before the retry" if undone["ok"]
                   else "the failed attempt could not be undone: " + undone["error"]["message"][:120], finding["finding_id"])
+
+    # ------------------------------------------------------------------ step 5: the review queue
+    def _findings_by_id(self) -> dict:
+        return {c["finding_id"]: c for c in self.state.get("candidate_findings", [])}
+
+    def _verified_attempt(self, fid: str) -> dict:
+        """The kept attempt of a verified finding: the last one that passed tests and the re-check."""
+        return [a for a in self.state["fix_attempts"]
+                if a["finding_id"] == fid and a["patch_diff"] and a["tests"]["after"] == "pass"
+                and a["recheck"] == "clear"][-1]
+
+    def _step5_review_queue(self) -> bool:
+        """Write review_queue.json and wait. Returns True when nothing needs a person's decision."""
+        by_id = self._findings_by_id()
+        status = {r["finding_id"]: r for r in self.state["finding_status"]}
+        proposals, also = [], []
+        for fid, finding in sorted(by_id.items()):
+            row = status.get(fid)
+            if row is None:
+                continue
+            if row["status"] == VERIFIED:
+                attempt = self._verified_attempt(fid)
+                inv = next(i for i in self.state["investigations"] if i["finding_id"] == fid)
+                proposals.append({
+                    "finding_id": fid, "rule_id": finding["rule_id"], "severity": finding["severity"],
+                    "confidence": finding["confidence"], "file": finding["file"], "line": finding["line"],
+                    "evidence": finding["evidence"], "traced_cause": inv["traced_cause"],
+                    "patch_diff": attempt["patch_diff"], "tests": attempt["tests"], "recheck": attempt["recheck"],
+                    "residual_risk": attempt["residual_risk"],
+                    "decision": None, "reason": None, "reviewer": None, "edited_patch_diff": None})
+            else:
+                also.append({"finding_id": fid, "rule_id": finding["rule_id"], "file": finding["file"],
+                             "line": finding["line"], "status": row["status"], "reason": row["reason"]})
+        queue = {"run_id": self.state["run_id"],
+                 "note": "For each proposal set decision to approved, edited or rejected, and fill in reviewer and "
+                         "reason (reason is required for edited and rejected). For edited, also put your own "
+                         "unified diff in edited_patch_diff. Change nothing else. Nothing is applied automatically.",
+                 "proposals": proposals, "also_reported": also}
+        self._check_queue_schema(queue)
+        _write_json(os.path.join(self.run_dir, "review_queue.json"), queue)
+        self.meta["queue_digest"] = self._digest(queue)
+        self._log("orchestrator", "review_queue_written",
+                  f"{len(proposals)} proposals waiting for a person; {len(also)} findings need no decision")
+        if not proposals:
+            self._save("no_proposals")
+            return True
+        self.meta["phase"] = "waiting_for_review"
+        self._log("orchestrator", "waiting_for_person", "the run waits for approve / edit / reject; nothing is applied")
+        self._save("waiting_for_review")
+        return False
+
+    @staticmethod
+    def _digest(queue: dict) -> str:
+        """Fingerprint of everything in the queue EXCEPT the four decision fields, so an edit to a patch, a status
+        or the evidence is noticed."""
+        frozen = copy.deepcopy(queue)
+        for p in frozen["proposals"]:
+            for key in ("decision", "reason", "reviewer", "edited_patch_diff"):
+                p.pop(key, None)
+        frozen.pop("note", None)
+        return hashlib.sha256(json.dumps(frozen, sort_keys=True).encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _check_queue_schema(queue: dict) -> None:
+        problems = validate.schema_errors("review_queue", queue)
+        if problems:
+            raise StillWaiting("review_queue.json is not valid: " + "; ".join(problems[:3]))
+
+    # ------------------------------------------------------------------ after the person has decided
+    def _read_decisions(self) -> list[dict]:
+        path = os.path.join(self.run_dir, "review_queue.json")
+        try:
+            queue = _read_json(path)
+        except (OSError, ValueError) as exc:
+            raise StillWaiting(f"review_queue.json cannot be read: {exc}") from None
+        self._check_queue_schema(queue)
+        if queue["run_id"] != self.state["run_id"]:
+            raise StillWaiting("review_queue.json belongs to another run")
+        if self._digest(queue) != self.meta.get("queue_digest"):
+            raise StillWaiting("review_queue.json was changed outside the four decision fields "
+                               "(decision, reason, reviewer, edited_patch_diff); restore it and try again")
+        missing = [p["finding_id"] for p in queue["proposals"] if p["decision"] is None]
+        if missing:
+            raise StillWaiting("still waiting for a decision on: " + ", ".join(missing))
+        return queue["proposals"]
+
+    def _finish(self) -> None:
+        if self.meta.get("phase") == "waiting_for_review":
+            self._apply_decisions(self._read_decisions())
+        self._step6_verify_originals()
+        self._step7_report()
+
+    def _apply_decisions(self, proposals: list[dict]) -> None:
+        patches = []
+        for p in proposals:
+            fid, decision = p["finding_id"], p["decision"]
+            diff = p["patch_diff"]
+            if decision == "edited":
+                diff = self._recheck_edit(p)
+            self.state["approvals"].append({
+                "finding_id": fid, "decision": decision, "reason": p["reason"] or "", "reviewer": p["reviewer"],
+                "timestamp": _now()})
+            self._log("person", f"fix_{decision}", f"{p['reviewer']}: {p['reason'] or 'no reason given'}", fid)
+            if decision == "rejected":
+                self._status(fid, REJECTED, "a person rejected the fix: " + p["reason"])
+            else:
+                patches.append((fid, diff))
+        self.meta["approved_patches"] = patches
+        self.meta["phase"] = "decided"
+
+    def _recheck_edit(self, proposal: dict) -> str:
+        """A person's own diff is held to the same bar as ours: it applies, the tests pass, the re-check is clear.
+        It is tried on a FRESH temporary copy so it cannot be mixed up with the agent's fix."""
+        fid, diff = proposal["finding_id"], proposal["edited_patch_diff"]
+        fresh = make_temp_copy(self.state["input"]["source_folder"], self.state["input"]["rules_file"])
+        self.meta.setdefault("extra_run_dirs", []).append(fresh["run_dir"])
+        ws = fresh["workspace"]
+        problem = None
+        applied = apply_patch(ws, diff)["response"]
+        if not applied["ok"]:
+            problem = "the edited patch does not apply: " + applied["error"]["message"][:120]
+        else:
+            ran = run_tests(ws, self.policy["test_command"], TEST_TIMEOUT_SECONDS)["response"]
+            if not ran["ok"] or ran["result"]["outcome"] != "pass":
+                problem = "the tests do not pass with the edited patch"
+            else:
+                checked = request_recheck(ws, applied["result"]["files_changed"])["response"]
+                if not checked["ok"] or not checked["result"]["clear"]:
+                    problem = "the re-check is not clear with the edited patch"
+        if problem:
+            self._log("orchestrator", "edit_not_verified", problem, fid)
+            raise StillWaiting(f"{fid}: {problem}. Fix edited_patch_diff, or choose rejected, and finish again.")
+        self._log("orchestrator", "edit_verified", "the edited patch applies, the tests pass and the re-check is clear", fid)
+        return diff
+
+    # ------------------------------------------------------------------ step 6 and 7
+    def _step6_verify_originals(self) -> None:
+        check = verify_originals(self.state["input"]["source_folder"], self.meta["originals_hash"])
+        self.state["originals_unchanged"] = check["unchanged"]
+        self._log("orchestrator", "originals_verified" if check["unchanged"] else "originals_changed",
+                  "no original file was changed, added or removed" if check["unchanged"]
+                  else f"changed {check['changed']}, added {check['added']}, removed {check['removed']}")
+        self._save("originals_verified")
+        if not check["unchanged"]:
+            raise RunStopped("step 6: an original file was changed. Stop rule: the run is stopped and an alert is raised")
+
+    def _totals(self) -> dict:
+        count = lambda s: sum(1 for r in self.state["finding_status"] if r["status"] == s)  # noqa: E731
+        return {"found": len(self.state["finding_status"]), "fixed_and_verified": count(VERIFIED),
+                "rejected": count(REJECTED), "needs_a_person": count(NEEDS_PERSON), "remaining": count(NOT_PROCESSED)}
+
+    def _step7_report(self) -> None:
+        state = self.state
+        state["totals"] = self._totals()
+        self._log("orchestrator", "decision_log_written", f"{len(state['audit_log'])} entries, written before the report")
+        _write_json(os.path.join(self.run_dir, "decision_log.json"), state["audit_log"])
+
+        by_id, status = self._findings_by_id(), {r["finding_id"]: r for r in state["finding_status"]}
+        findings = []
+        for fid, finding in sorted(by_id.items()):
+            row = status[fid]
+            attempts = [a for a in state["fix_attempts"] if a["finding_id"] == fid]
+            inv = next((i for i in state["investigations"] if i["finding_id"] == fid), None)
+            last = (self._verified_attempt(fid) if row["status"] == VERIFIED
+                    else (attempts[-1] if attempts else None))
+            entry = {"finding_id": fid, "rule_id": finding["rule_id"], "file": finding["file"],
+                     "line": finding["line"], "severity": finding["severity"], "evidence": finding["evidence"],
+                     "confidence": finding["confidence"], "detected_by": finding["detected_by"],
+                     "status": row["status"],
+                     "patch_diff": last["patch_diff"] if last and row["status"] in (VERIFIED, REJECTED) else None,
+                     "tests": last["tests"] if last else {"before": state.get("baseline_tests", {}).get("outcome", "none"),
+                                                          "after": None},
+                     "recheck": last["recheck"] if last else "not_run",
+                     "residual_risk": (last["residual_risk"] if last else
+                                       "Nothing was changed, so the weak spot is still in the code.")}
+            if row["reason"]:
+                entry["reason"] = row["reason"]
+            if inv and inv["traced_cause"]:
+                entry["traced_cause"] = inv["traced_cause"]
+            findings.append(entry)
+
+        report = {
+            "outcome": state["outcome"],
+            "run": {"rules_file_version": state["rules_file_version"], "ai_model": state["ai_model"],
+                    "sensitive_items_hidden": state["sensitive_items_hidden"], "tokens": state["counters"]["tokens"]},
+            "totals": state["totals"], "findings": findings, "approvals": state["approvals"],
+            "audit_log": state["audit_log"],
+        }
+        problems = validate.schema_errors("output", report)
+        if not problems:
+            problems = validate.check_output(report, {"project_root": state["input"]["source_folder"],
+                                                      "workspace": state["workspace"]["path"]})
+        if problems:
+            _write_json(os.path.join(self.run_dir, "report_partial.json"), report)
+            raise RunStopped("step 7: the report did not pass validation, so only a partial report was written: "
+                             + "; ".join(problems[:3]))
+        _write_json(os.path.join(self.run_dir, "report.json"), report)
+        patches = self.meta.get("approved_patches", [])
+        if patches:
+            joined = "".join(diff if diff.endswith("\n") else diff + "\n" for _fid, diff in patches)
+            with open(os.path.join(self.run_dir, "fixes.patch"), "w", encoding="utf-8", newline="\n") as handle:
+                handle.write(joined)
+        with open(os.path.join(self.run_dir, "report.md"), "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(self._report_text(report, bool(patches)))
+        self.meta["phase"] = "done"
+        self._save("done")
+        for folder in [self.meta.get("temp_run_dir"), *self.meta.get("extra_run_dirs", [])]:
+            if folder:
+                shutil.rmtree(folder, ignore_errors=True)       # the temporary copies are no longer needed
+
+    @staticmethod
+    def _report_text(report: dict, has_patch: bool) -> str:
+        t = report["totals"]
+        lines = ["# Security Analyzer report", "",
+                 f"- outcome: **{report['outcome']}**",
+                 f"- rules file version: `{report['run']['rules_file_version']}`",
+                 f"- AI model: {report['run']['ai_model']['name']} (endpoint: {report['run']['ai_model']['endpoint']})",
+                 f"- sensitive items hidden: {report['run']['sensitive_items_hidden']}",
+                 f"- tokens: {report['run']['tokens']['input']} in, {report['run']['tokens']['output']} out",
+                 f"- totals: found {t['found']}, fixed and verified {t['fixed_and_verified']}, rejected {t['rejected']}, "
+                 f"needs a person {t['needs_a_person']}, remaining {t['remaining']}", ""]
+        for f in report["findings"]:
+            lines += [f"## {f['finding_id']} {f['rule_id']} {f['file']}:{f['line']} ({f['severity']}): {f['status']}",
+                      f"- evidence: `{f['evidence']['quoted_code']}`", f"- confidence: {f['confidence']} ({f['detected_by']})",
+                      f"- tests: before {f['tests']['before']}, after {f['tests']['after']}; re-check: {f['recheck']}"]
+            if f.get("reason"):
+                lines.append(f"- reason: {f['reason']}")
+            if f.get("traced_cause"):
+                lines.append(f"- traced cause: {f['traced_cause']['explanation']}")
+            lines.append(f"- residual risk: {f['residual_risk']}")
+            if f["patch_diff"]:
+                lines += ["", "```diff", f["patch_diff"].rstrip("\n"), "```"]
+            lines.append("")
+        lines.append("## Approvals")
+        lines += ([f"- {a['finding_id']}: {a['decision']} by {a['reviewer']} ({a['reason'] or 'no reason'})"
+                   for a in report["approvals"]] or ["- none"])
+        lines += ["", "Nothing was applied to the original folder." + (
+            " Approved fixes are in fixes.patch for a person to apply." if has_patch else ""), ""]
+        return "\n".join(lines)

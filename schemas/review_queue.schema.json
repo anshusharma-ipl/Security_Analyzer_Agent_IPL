@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:security-analyzer-agent:schema:review_queue",
+  "title": "Review queue (canvas sections 9 and 12)",
+  "description": "review_queue.json: the fixes waiting for a person. The orchestrator writes every field except the four decision fields; the person fills decision, reason, reviewer and (only for an edit) edited_patch_diff. Nothing is applied until every proposal has a decision. validate.py-style checks in the orchestrator also refuse a file whose other fields were changed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["run_id", "proposals", "also_reported"],
+  "properties": {
+    "run_id": { "type": "string", "pattern": "^run-[0-9]{3,}$" },
+    "note": { "type": "string" },
+    "proposals": { "type": "array", "items": { "$ref": "#/$defs/proposal" } },
+    "also_reported": {
+      "type": "array",
+      "description": "Findings that have no fix waiting (needs_a_person, rejected, not_processed). Shown for information; there is nothing to decide.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["finding_id", "rule_id", "file", "line", "status", "reason"],
+        "properties": {
+          "finding_id": { "type": "string", "pattern": "^F[0-9]{3,}$" },
+          "rule_id": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/ruleId" },
+          "file": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/path" },
+          "line": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/line" },
+          "status": { "enum": ["needs_a_person", "rejected", "not_processed"] },
+          "reason": { "type": ["string", "null"] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["finding_id", "rule_id", "severity", "confidence", "file", "line", "evidence", "traced_cause",
+                   "patch_diff", "tests", "recheck", "residual_risk",
+                   "decision", "reason", "reviewer", "edited_patch_diff"],
+      "properties": {
+        "finding_id": { "type": "string", "pattern": "^F[0-9]{3,}$" },
+        "rule_id": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/ruleId" },
+        "severity": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/severity" },
+        "confidence": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/confidence" },
+        "file": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/path" },
+        "line": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/line" },
+        "evidence": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/evidence" },
+        "traced_cause": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["explanation", "path"],
+          "properties": {
+            "explanation": { "type": "string", "minLength": 1 },
+            "path": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "patch_diff": { "type": "string", "minLength": 1 },
+        "tests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["before", "after"],
+          "properties": {
+            "before": { "enum": ["pass", "fail", "none"] },
+            "after": { "enum": ["pass", "fail", "none", null] }
+          }
+        },
+        "recheck": { "enum": ["clear", "not_clear", "not_run"] },
+        "residual_risk": { "type": "string", "minLength": 1 },
+        "decision": { "enum": [null, "approved", "edited", "rejected"], "description": "null until a person decides." },
+        "reason": { "type": ["string", "null"] },
+        "reviewer": { "type": ["string", "null"] },
+        "edited_patch_diff": { "type": ["string", "null"], "description": "Only for decision edited: the person's own unified diff, checked again by the orchestrator (patch applies, tests pass, re-check clear)." }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "decision": { "enum": ["approved", "edited", "rejected"] } }, "required": ["decision"] },
+          "then": { "properties": { "reviewer": { "type": "string", "minLength": 1 }, "reason": { "type": "string" } } },
+          "else": { "properties": { "reviewer": { "type": "null" }, "reason": { "type": "null" }, "edited_patch_diff": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "decision": { "enum": ["edited", "rejected"] } }, "required": ["decision"] },
+          "then": { "properties": { "reason": { "type": "string", "minLength": 1 } } }
+        },
+        {
+          "if": { "properties": { "decision": { "const": "edited" } }, "required": ["decision"] },
+          "then": { "properties": { "edited_patch_diff": { "type": "string", "minLength": 1 } } },
+          "else": { "properties": { "edited_patch_diff": { "type": "null" } } }
+        }
+      ]
+    }
+  }
+}

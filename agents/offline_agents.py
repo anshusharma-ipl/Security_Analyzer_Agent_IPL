@@ -229,9 +229,12 @@ def _sqli_patch(file: str, text: str, line_no: int) -> str | None:
     new_exec = lines[k][:found.start()] + f".execute({var}, {values})" + lines[k][found.end():]
     first = line_no - 1 if line_no > 1 else line_no
     body_lines = [" " + lines[i] for i in range(first - 1, line_no - 1)]
-    body_lines += ["-" + flagged, "+" + new_query]
-    body_lines += [" " + lines[i] for i in range(line_no, k)]
-    body_lines += ["-" + lines[k], "+" + new_exec]
+    if k == line_no:                                  # adjacent lines: one block, removals first (a normal diff)
+        body_lines += ["-" + flagged, "-" + lines[k], "+" + new_query, "+" + new_exec]
+    else:
+        body_lines += ["-" + flagged, "+" + new_query]
+        body_lines += [" " + lines[i] for i in range(line_no, k)]
+        body_lines += ["-" + lines[k], "+" + new_exec]
     old_len = sum(1 for b in body_lines if b[0] in " -")
     new_len = sum(1 for b in body_lines if b[0] in " +")
     return "\n".join([f"--- a/{file}", f"+++ b/{file}", f"@@ -{first},{old_len} +{first},{new_len} @@"] + body_lines) + "\n"
