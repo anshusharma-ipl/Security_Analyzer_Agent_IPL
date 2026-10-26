@@ -2,12 +2,15 @@
 
 The path must resolve (realpath) to a file inside the project. A symlink or junction
 that leaves the project is refused. Failures skip the file and are noted by the caller.
+Secrets, emails and phone numbers are replaced by <SECRET_n>, <EMAIL_n>, <PHONE_n> before the
+text leaves the tool (AGENTS.md: nothing sensitive reaches a model). Line numbers are unchanged.
 """
 from __future__ import annotations
 
 import os
 
 from . import _schema
+from ._mask import Masker
 from ._safety import SafetyError, resolve_inside
 
 TOOL = "read_file"
@@ -39,4 +42,7 @@ def read_file(root: str, path: str) -> dict:
     except UnicodeDecodeError:
         return _schema.fail(TOOL, args, "not_text_file", f"{path!r} is not valid UTF-8 text", HANDLING)
 
-    return _schema.ok(TOOL, args, {"path": path, "content": content, "line_count": len(content.splitlines())})
+    masker = Masker()
+    hidden_content = "".join(masker.line(part) for part in content.splitlines(keepends=True))
+    return _schema.ok(TOOL, args, {"path": path, "content": hidden_content, "line_count": len(content.splitlines()),
+                                   "sensitive_items_hidden": masker.hidden})

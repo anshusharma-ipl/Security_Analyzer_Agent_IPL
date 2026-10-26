@@ -39,7 +39,8 @@
           "properties": {
             "path": { "$ref": "#/$defs/path" },
             "content": { "type": "string" },
-            "line_count": { "type": "integer", "minimum": 0 }
+            "line_count": { "type": "integer", "minimum": 0 },
+            "sensitive_items_hidden": { "type": "integer", "minimum": 0, "description": "Optional. How many secrets, emails and phone numbers were replaced by placeholders in content." }
           }
         }
       }

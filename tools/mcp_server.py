@@ -15,12 +15,18 @@ MCP result with isError true. A traceback is never sent.
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import os
 import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if __package__ in (None, ""):  # started as a script: python tools/mcp_server.py --agent <name>
+    sys.path.insert(0, ROOT)
+    __package__ = "tools"
+    importlib.import_module("tools")  # makes the relative imports below resolve
+
 from ._safety import SafetyError
 from ._schema import SchemaError, validate_args
 from .cli import TOOLS
@@ -145,7 +151,7 @@ class _Client:
 
     def __init__(self, agent: str) -> None:
         self.proc = subprocess.Popen(
-            [sys.executable, "-m", "tools.mcp_server", "--agent", agent], cwd=ROOT, text=True, encoding="utf-8",
+            [sys.executable, os.path.join(ROOT, "tools", "mcp_server.py"), "--agent", agent], cwd=ROOT, text=True, encoding="utf-8",
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.next_id = 0
 

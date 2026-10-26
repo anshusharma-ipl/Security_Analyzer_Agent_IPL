@@ -150,6 +150,14 @@ class TestReadFile(Base):
         result = response(read_file(root, "src/a.py"))["result"]
         self.assertEqual((result["content"], result["line_count"]), ("one\ntwo\n", 2))
 
+    def test_secrets_emails_and_phones_are_hidden_and_lines_keep_their_numbers(self):
+        text = "x = 1\nAPI_KEY = \"abcd1234efgh5678\"\n# bob@example.test +91-90000-00001\ny = 2\n"
+        result = response(read_file(self.project({"c.py": text}), "c.py"))["result"]
+        for real in ("abcd1234efgh5678", "bob@example.test", "90000-00001"):
+            self.assertNotIn(real, result["content"])
+        self.assertEqual(result["content"].splitlines()[1], "API_KEY = \"<SECRET_1>\"")
+        self.assertEqual((result["line_count"], result["sensitive_items_hidden"]), (4, 3))
+
     def test_path_must_resolve_inside_the_project(self):
         root = self.project({"a.py": "x\n"})
         outside = os.path.join(os.path.dirname(root), "outside.txt")
