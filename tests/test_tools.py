@@ -215,6 +215,15 @@ class TestRunSecurityRules(Base):
             ("PATH", "path.py", 3), ("SECRET", "secret.py", 1), ("WEAKHASH", "weak.py", 3),
             ("DEP-PIN", "requirements.txt", 1)})
 
+    def test_path_rule_needs_a_non_literal_part_after_the_first(self):
+        root = self.project({
+            "fixed.py": "import os\ndef a(folder):\n    return os.path.join(folder, \"a.txt\")\n",
+            "named.py": "import os\ndef a(folder, name):\n    return os.path.join(folder, \"sub\", name)\n",
+            "guarded.py": "import os\ndef a(folder, name):\n    return os.path.realpath(os.path.join(folder, name))\n",
+        })
+        found, _ = self.found(root, ["fixed.py", "named.py", "guarded.py"])
+        self.assertEqual(found, {("PATH", "named.py", 3)})
+
     def test_every_golden_case_gives_exactly_the_expected_findings(self):
         for name in sorted(os.listdir(GOLDEN)):
             case = os.path.join(GOLDEN, name)

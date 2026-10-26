@@ -4,7 +4,7 @@ Implements the six rules in golden/rules.json deterministically. No AI model.
   SQLI      SQL text built from a variable (f-string, + or %), then run. Found with ast so a
             SQL-looking log message that is never run is not reported.
   CMDI      shell=True, or os.system / os.popen with a command built from a variable.
-  PATH      os.path.join with a variable and no realpath / resolve / commonpath check nearby.
+  PATH      os.path.join with a non-literal part after the first and no realpath / resolve / commonpath check nearby.
   SECRET    a key or password written as a literal in the source.
   WEAKHASH  MD5 or SHA1 used.
   DEP-PIN   a package pinned below rule["min_versions"] in requirements.txt.
@@ -105,11 +105,24 @@ def _sqli_lines(tree: ast.AST) -> list[int]:
 
 
 # --------------------------------------------------------------------------- the other rules
+def _variable_join_lines(tree: ast.AST) -> set[int]:
+    """Lines of os.path.join calls where a part after the first is not a fixed string. Joining only
+    fixed strings (os.path.join(folder, "a.txt")) puts no user-given name onto the folder."""
+    lines = set()
+    for node in ast.walk(tree):
+        f = node.func if isinstance(node, ast.Call) else None
+        if (isinstance(f, ast.Attribute) and f.attr == "join" and isinstance(f.value, ast.Attribute)
+                and f.value.attr == "path" and isinstance(f.value.value, ast.Name) and f.value.value.id == "os"
+                and any(not (isinstance(a, ast.Constant) and isinstance(a.value, str)) for a in node.args[1:])):
+            lines.add(node.lineno)
+    return lines
+
+
 def _version(text: str) -> tuple[int, ...]:
     return tuple(int(part) for part in text.split("."))
 
 
-def _line_rules(rule_id: str, lines: list[str]) -> list[int]:
+def _line_rules(rule_id: str, lines: list[str], joins: set[int] | None = None) -> list[int]:
     hits = []
     for number, line in enumerate(lines, 1):
         code = line.split("#", 1)[0] if rule_id != "SECRET" else line
@@ -117,7 +130,7 @@ def _line_rules(rule_id: str, lines: list[str]) -> list[int]:
             continue
         if rule_id == "CMDI" and (_CMDI_SHELL.search(code) or _CMDI_OS.search(code)):
             hits.append(number)
-        elif rule_id == "PATH" and _PATH_JOIN.search(code):
+        elif rule_id == "PATH" and _PATH_JOIN.search(code) and (joins is None or number in joins):
             window = "\n".join(lines[max(0, number - 3): number + 4])
             if not _PATH_GUARD.search(window):
                 hits.append(number)
@@ -195,7 +208,7 @@ def run_security_rules(root: str, rules_file: str, files: list[str]) -> dict:
                 elif rid == "SQLI":
                     hits = _sqli_lines(tree) if tree is not None else []
                 elif rid in ("CMDI", "PATH", "SECRET", "WEAKHASH"):
-                    hits = _line_rules(rid, lines)
+                    hits = _line_rules(rid, lines, _variable_join_lines(tree) if tree is not None else None)
                 else:
                     skipped_rules.setdefault(rid, "no pattern is implemented for this rule id")
                     continue
