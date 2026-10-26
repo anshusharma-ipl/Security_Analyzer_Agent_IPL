@@ -12,18 +12,27 @@
     "proposals": { "type": "array", "items": { "$ref": "#/$defs/proposal" } },
     "also_reported": {
       "type": "array",
-      "description": "Findings that have no fix waiting (needs_a_person, rejected, not_processed). Shown for information; there is nothing to decide.",
+      "description": "Findings that have no fix waiting (needs_a_person, rejected, not_processed). Shown for information; there is nothing to decide, but each carries the full handoff package (canvas section 12) so a person can take over.",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["finding_id", "rule_id", "file", "line", "status", "reason"],
+        "required": ["finding_id", "rule_id", "file", "line", "status", "reason", "severity", "confidence", "evidence",
+                     "traced_cause", "patch_diff", "tests", "recheck", "residual_risk"],
         "properties": {
           "finding_id": { "type": "string", "pattern": "^F[0-9]{3,}$" },
           "rule_id": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/ruleId" },
           "file": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/path" },
           "line": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/line" },
           "status": { "enum": ["needs_a_person", "rejected", "not_processed"] },
-          "reason": { "type": ["string", "null"] }
+          "reason": { "type": ["string", "null"] },
+          "severity": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/severity" },
+          "confidence": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/confidence" },
+          "evidence": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/evidence" },
+          "traced_cause": { "$ref": "#/$defs/proposal/properties/traced_cause" },
+          "patch_diff": { "type": ["string", "null"], "description": "The last patch tried (rejected), or null when none was written." },
+          "tests": { "$ref": "#/$defs/proposal/properties/tests" },
+          "recheck": { "$ref": "#/$defs/proposal/properties/recheck" },
+          "residual_risk": { "type": "string", "minLength": 1 }
         }
       }
     }

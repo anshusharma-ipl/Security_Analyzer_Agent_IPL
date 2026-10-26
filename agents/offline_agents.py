@@ -152,7 +152,9 @@ def _investigate(client: McpClient, job: dict) -> dict:
     flagged = lines[finding["line"] - 1] if 1 <= finding["line"] <= len(lines) else ""
 
     # A fragment of SQL (not a quoted value) is interpolated: a placeholder cannot replace it.
-    if rule == "SQLI" and re.search(r"(?<!['\"])\{\w+\}(?!['\"])", flagged):
+    opening = re.search(r"\bf([\"'])", flagged)
+    inner = "'" if opening is None or opening.group(1) == '"' else '"'     # a quoted value sits in the other quote
+    if rule == "SQLI" and re.search(rf"(?<!{inner})\{{\w+\}}(?!{inner})", flagged):
         return entry({"explanation": "A caller-supplied piece of SQL is put into the query as text, not a value.",
                       "path": [file]}, None, False,
                      "needs a redesign: the caller supplies part of the SQL itself, so a placeholder cannot "

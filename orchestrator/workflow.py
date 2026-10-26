@@ -115,6 +115,7 @@ class Workflow:
         self.run_dir = ""
         self.last_error = ""
         self._t0 = time.monotonic()
+        self._last_handoff: tuple | None = None          # (agent, its output) of the last accepted handoff
 
     # ------------------------------------------------------------------ small helpers
     @property
@@ -292,6 +293,13 @@ class Workflow:
         except Exception as exc:  # noqa: BLE001 - an agent must never crash the run
             return self._failed(entry, "agent_failed", f"{agent} failed unexpectedly ({type(exc).__name__})", finding_id)
         self._drain_events(agent, finding_id)
+        if agent == "auditor" and isinstance(output, dict) and isinstance(output.get("candidate_findings"), list):
+            output = self._drop_unproven(output, finding_id)
+        signature = self._signature(output)
+        if (agent, signature) == self._last_handoff:
+            self._log("orchestrator", "alert_loop_detected",
+                      f"{agent} was run twice in a row and gave the same result, so there is no new state", finding_id)
+            raise RunStopped(f"loop: {agent} ran twice in a row with no new state. The run is stopped")
         problem = self._accept(agent, output)
         if problem:
             return self._failed(entry, "invalid_output", f"{agent} output rejected: {problem}", finding_id)
@@ -306,12 +314,46 @@ class Workflow:
             event = note["event"] if EVENT.match(str(note.get("event", ""))) else "agent_note"
             self._log(agent, event, str(note.get("detail", ""))[:300], finding_id)
         entry["wrote"] = sorted(k for k in output if k not in ("notes", "usage"))
+        self._last_handoff = (agent, signature)
         self.state["counters"]["steps"] = step          # the step count and the handoff log move together
         self.state["handoff_log"].append(entry)
         self._log(agent, f"{job_name}_done", "wrote " + ", ".join(entry["wrote"]), finding_id)
         self._check_state()
         self._save(f"{agent}_{job_name}" if finding_id is None else f"{agent}_{job_name}_{finding_id}")
         return output
+
+    @staticmethod
+    def _signature(output: object) -> str:
+        """What an agent handed over, without the bookkeeping (usage, notes). Same signature twice = no new state."""
+        body = {k: v for k, v in output.items() if k not in ("usage", "notes")} if isinstance(output, dict) else output
+        return json.dumps(body, sort_keys=True, default=str)
+
+    def _drop_unproven(self, output: dict, finding_id: str | None) -> dict:
+        """A candidate must show file, line and quoted code that really are in the project. One that does not is
+        dropped (logged, never counted) and the rest go on; ids and ranks are renumbered in order."""
+        kept, dropped = [], list(output.get("dropped_findings", []))
+        for c in output["candidate_findings"]:
+            ev = c.get("evidence") if isinstance(c, dict) else None
+            proven = bool(isinstance(ev, dict) and isinstance(ev.get("file"), str) and ev["file"]
+                          and isinstance(ev.get("line"), int) and not isinstance(ev.get("line"), bool) and ev["line"] >= 1
+                          and isinstance(ev.get("quoted_code"), str) and ev["quoted_code"].strip()
+                          and c.get("file") == ev["file"] and c.get("line") == ev["line"])
+            reason = "missing file, line or quoted code"
+            if proven:
+                proven = not self._check_evidence([c])
+                reason = "the quoted code is not at that file and line"
+            if proven:
+                kept.append(c)
+                continue
+            where = c if isinstance(c, dict) else {}
+            dropped.append({"rule_id": str(where.get("rule_id") or "unknown"), "file": str(where.get("file") or "unknown"),
+                            "line": where.get("line") if isinstance(where.get("line"), int) else None, "reason": reason})
+            self._log("orchestrator", "finding_dropped", f"{where.get('rule_id')} {where.get('file')}: {reason}", finding_id)
+        if len(kept) == len(output["candidate_findings"]):
+            return output
+        for n, c in enumerate(kept, 1):
+            c["finding_id"], c["rank"] = f"F{n:03d}", n
+        return {**output, "candidate_findings": kept, "dropped_findings": dropped}
 
     def _drain_events(self, agent: str, finding_id: str | None) -> None:
         """Blocked tool calls recorded by tools/_containment go into the decision log."""
@@ -423,6 +465,10 @@ class Workflow:
         """Decision order for one finding (AGENTS.md section 5)."""
         fid = finding["finding_id"]
         rule = self._rule(finding)
+        if finding["detected_by"] == "ai_model" and finding["confidence"] < self.policy["confidence_gate"]:
+            self._status(fid, NEEDS_PERSON, f"low confidence: found by the AI model alone with confidence "
+                         f"{finding['confidence']}, below the gate {self.policy['confidence_gate']}")
+            return
         # 1. limits are checked inside every handoff. 2. proof: candidate_findings already passed the evidence check.
         # 3. tests before any fix
         if not self._baseline_done:
@@ -529,8 +575,13 @@ class Workflow:
                     "residual_risk": attempt["residual_risk"],
                     "decision": None, "reason": None, "reviewer": None, "edited_patch_diff": None})
             else:
+                package = self._finding_entry(fid, finding, row)
                 also.append({"finding_id": fid, "rule_id": finding["rule_id"], "file": finding["file"],
-                             "line": finding["line"], "status": row["status"], "reason": row["reason"]})
+                             "line": finding["line"], "status": row["status"], "reason": row["reason"],
+                             "severity": package["severity"], "confidence": package["confidence"],
+                             "evidence": package["evidence"], "traced_cause": package.get("traced_cause"),
+                             "patch_diff": package["patch_diff"], "tests": package["tests"],
+                             "recheck": package["recheck"], "residual_risk": package["residual_risk"]})
         queue = {"run_id": self.state["run_id"],
                  "note": "For each proposal set decision to approved, edited or rejected, and fill in reviewer and "
                          "reason (reason is required for edited and rejected). For edited, also put your own "
@@ -653,6 +704,28 @@ class Workflow:
         return {"found": len(self.state["finding_status"]), "fixed_and_verified": count(VERIFIED),
                 "rejected": count(REJECTED), "needs_a_person": count(NEEDS_PERSON), "remaining": count(NOT_PROCESSED)}
 
+    def _finding_entry(self, fid: str, finding: dict, row: dict) -> dict:
+        """Everything a person needs about one finding (canvas section 12 handoff package; also the report row)."""
+        state = self.state
+        attempts = [a for a in state.get("fix_attempts", []) if a["finding_id"] == fid]
+        inv = next((i for i in state.get("investigations", []) if i["finding_id"] == fid), None)
+        last = (self._verified_attempt(fid) if row["status"] == VERIFIED else (attempts[-1] if attempts else None))
+        entry = {"finding_id": fid, "rule_id": finding["rule_id"], "file": finding["file"],
+                 "line": finding["line"], "severity": finding["severity"], "evidence": finding["evidence"],
+                 "confidence": finding["confidence"], "detected_by": finding["detected_by"],
+                 "status": row["status"],
+                 "patch_diff": last["patch_diff"] if last and row["status"] in (VERIFIED, REJECTED) else None,
+                 "tests": last["tests"] if last else {"before": state.get("baseline_tests", {}).get("outcome", "none"),
+                                                      "after": None},
+                 "recheck": last["recheck"] if last else "not_run",
+                 "residual_risk": (last["residual_risk"] if last else
+                                   "Nothing was changed, so the weak spot is still in the code.")}
+        if row["reason"]:
+            entry["reason"] = row["reason"]
+        if inv and inv["traced_cause"]:
+            entry["traced_cause"] = inv["traced_cause"]
+        return entry
+
     def _step7_report(self) -> None:
         state = self.state
         state["totals"] = self._totals()
@@ -663,28 +736,7 @@ class Workflow:
         _write_json(os.path.join(self.run_dir, "decision_log.json"), state["audit_log"])
 
         by_id, status = self._findings_by_id(), {r["finding_id"]: r for r in state["finding_status"]}
-        findings = []
-        for fid, finding in sorted(by_id.items()):
-            row = status[fid]
-            attempts = [a for a in state.get("fix_attempts", []) if a["finding_id"] == fid]
-            inv = next((i for i in state.get("investigations", []) if i["finding_id"] == fid), None)
-            last = (self._verified_attempt(fid) if row["status"] == VERIFIED
-                    else (attempts[-1] if attempts else None))
-            entry = {"finding_id": fid, "rule_id": finding["rule_id"], "file": finding["file"],
-                     "line": finding["line"], "severity": finding["severity"], "evidence": finding["evidence"],
-                     "confidence": finding["confidence"], "detected_by": finding["detected_by"],
-                     "status": row["status"],
-                     "patch_diff": last["patch_diff"] if last and row["status"] in (VERIFIED, REJECTED) else None,
-                     "tests": last["tests"] if last else {"before": state.get("baseline_tests", {}).get("outcome", "none"),
-                                                          "after": None},
-                     "recheck": last["recheck"] if last else "not_run",
-                     "residual_risk": (last["residual_risk"] if last else
-                                       "Nothing was changed, so the weak spot is still in the code.")}
-            if row["reason"]:
-                entry["reason"] = row["reason"]
-            if inv and inv["traced_cause"]:
-                entry["traced_cause"] = inv["traced_cause"]
-            findings.append(entry)
+        findings = [self._finding_entry(fid, finding, status[fid]) for fid, finding in sorted(by_id.items())]
 
         report = {
             "outcome": state["outcome"],
