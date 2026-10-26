@@ -1,0 +1,85 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guide · Security Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css"></head><body>
+<header class="topbar"><div class="in"><a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>Security Analyzer</a><nav class="nav" aria-label="Main"><a href="/">Scan</a><a href="/docs/guide.html" aria-current=page>Guide</a><a href="/docs/md/PRD.html">PRD</a><a href="/docs/cost.html">Cost</a><a href="/docs/canvas.html">Canvas</a><a href="/docs/prompts.html">How it was built</a><a href="/docs/golden.html">Test cases</a><a href="/docs/documents.html">Documents</a></nav></div></header>
+<main class="doc">
+<h1>How the Security Analyzer works</h1>
+<p class="lede">It scans a Python project for weak spots, proposes a fix for each, tests the fix in a temporary copy, then waits for you to approve, edit or reject it. It never changes your files.</p>
+<div class="toc"><a href="#does">What it does</a><a href="#works">How it works</a><a href="#built">How it was built</a><a href="#run">How to run it</a><a href="#model">Connect a model</a><a href="#stands">Where it stands</a></div>
+
+<h2 id="does">What it does</h2>
+<div class="cards">
+<div class="card"><h3>Finds</h3><p>SQL injection, command injection and path traversal. It also reports hard-coded secrets, weak password hashes and unpinned packages, but never fixes those.</p></div>
+<div class="card"><h3>Proposes and tests</h3><p>Each fix is applied to a temporary copy, the project's own tests run, and the rules run again. A fix counts as verified only if both pass.</p></div>
+<div class="card"><h3>Asks you</h3><p>Every fix waits for a person. Approved fixes are written to <code>fixes.patch</code>. You apply them yourself.</p></div>
+</div>
+
+<h2 id="works">How it works</h2>
+<div class="figure"><svg viewBox="0 0 920 334" role="img" aria-label="A person reviews fixes. A plain-code orchestrator hands work to three agents one at a time. Each agent has its own tools. Originals are read only; the temporary copy is the only place anything is written.">
+<style>.t{font:600 14px var(--sans);fill:var(--ink)}.s{font:12.5px var(--sans);fill:var(--ink-2)}.m{font:12px var(--mono);fill:var(--ink-2)}
+.b{fill:var(--surface);stroke:var(--line);stroke-width:1.5}.o{fill:var(--info-bg);stroke:var(--brand);stroke-width:1.5}.a{stroke:var(--ink-3);stroke-width:1.5;fill:none;marker-end:url(#h)}</style>
+<defs><marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--ink-3)"/></marker></defs>
+<rect class="b" x="10" y="20" width="130" height="70" rx="10"/><text class="t" x="75" y="52" text-anchor="middle">You</text><text class="s" x="75" y="72" text-anchor="middle">approve, edit, reject</text>
+<rect class="o" x="190" y="20" width="720" height="70" rx="10"/><text class="t" x="206" y="46">Workflow orchestrator: plain code, not an agent</text>
+<text class="s" x="206" y="68">Order, limits, handoff log, approvals, report. Agents never call each other.</text>
+<path class="a" d="M140 55 H188"/><path class="a" d="M188 62 H142" />
+<g><rect class="b" x="190" y="140" width="220" height="86" rx="10"/><text class="t" x="204" y="166">Auditor</text><text class="s" x="204" y="186">Scans the whole project.</text><text class="s" x="204" y="204">Keeps findings that have proof.</text></g>
+<g><rect class="b" x="450" y="140" width="220" height="86" rx="10"/><text class="t" x="464" y="166">Investigator</text><text class="s" x="464" y="186">Traces the cause of one finding.</text><text class="s" x="464" y="204">Or hands it to a person.</text></g>
+<g><rect class="b" x="710" y="140" width="200" height="86" rx="10"/><text class="t" x="724" y="166">Fixer and Validator</text><text class="s" x="724" y="186">Writes a patch, runs the tests.</text><text class="s" x="724" y="204">Re-checks the rules.</text></g>
+<path class="a" d="M300 90 V138"/><path class="a" d="M560 90 V138"/><path class="a" d="M810 90 V138"/>
+<text class="m" x="190" y="244">list_files, read_file,</text><text class="m" x="190" y="258">run_security_rules</text><text class="m" x="450" y="244">read_file,</text><text class="m" x="450" y="258">read_code_structure</text><text class="m" x="710" y="244">apply_patch, run_tests,</text><text class="m" x="710" y="258">request_recheck</text>
+<rect class="b" x="190" y="276" width="330" height="46" rx="8"/><text class="t" x="204" y="296">Your folder: read only</text><text class="s" x="204" y="313">Fingerprinted before and after the scan.</text>
+<rect class="b" x="560" y="276" width="350" height="46" rx="8"/><text class="t" x="574" y="296">Temporary copy: the only place anything is written</text><text class="s" x="574" y="313">Patches and test runs happen here, then it is deleted.</text>
+</svg></div>
+<p>A scan is seven fixed steps, run by the orchestrator:</p>
+<ol>
+<li>Check the rules file.</li><li>Fingerprint your files and make a temporary copy.</li><li>The Auditor scans the whole project and ranks the findings.</li>
+<li>For each finding, the Investigator traces the cause and the Fixer and Validator writes and tests a patch.</li>
+<li>You decide on each fix.</li><li>The orchestrator checks that your original files are unchanged.</li><li>It writes the log and the report.</li></ol>
+<p>Three rules hold the design together. Each agent can use only its own tools. A fix is called verified by the orchestrator from test results, never by the agent's opinion. Anything the agent is unsure about goes to a person.</p>
+<p>The <a href="/docs/canvas.html">canvas</a> is the original design: users, tools, guardrails, quality bar and kill criteria. The <a href="/docs/md/roster.html">roster document</a> explains why there are three agents and one plain-code orchestrator, and records the decision to keep the Auditor as an agent.</p>
+
+<h2 id="built">How it was built</h2>
+<p>The project was built with Claude Code, one prompt at a time, following a fifteen-prompt Build Playbook. Each prompt produced code, tests and a commit, and ended with a check you run before moving on.</p>
+<ol>
+<li><b>Foundations.</b> Project setup, the written spec, and the agent roster.</li>
+<li><b>Contracts and tools.</b> JSON schemas for the shared state, seven tools, and an MCP server that gives each agent only its own tools.</li>
+<li><b>Agents and workflow.</b> The shared state, the orchestrator, and three agents. No model endpoint is approved yet, so the agents are deterministic stand-ins that follow the same contracts.</li>
+<li><b>Guardrails.</b> Containment (originals, secrets, hostile text in code, forbidden commands) and decision rules (evidence, "verified", limits, hand-over).</li>
+<li><b>Measurement.</b> A scoring harness against 21 test cases, a red team of ten attacks, and a cost model.</li>
+<li><b>Pilot gate.</b> Eight kill-switch checks and the pilot plan.</li>
+</ol>
+<p>The console you are using, and the optional model connection, were added afterwards. <a href="/docs/prompts.html">See each prompt and what it produced</a>.</p>
+
+<h2 id="run">How to run it</h2>
+<p>You need Python 3.11 or newer and one package: <code>pip install jsonschema</code>.</p>
+<pre class="code" style="padding:12px 16px"><code>python ui/server.py              # then open http://127.0.0.1:8765
+python -m unittest discover -s tests
+python evals/run_evals.py        # score the 21 cases against the quality bar
+python kill_checks.py --run      # the eight kill-switch checks</code></pre>
+<p>The same scan from a terminal: <code>python -m orchestrator.cli run &lt;folder&gt; golden/rules.json</code>, then <code>finish</code> after a person edits <code>review_queue.json</code>.</p>
+<p><b>Safety.</b> To check a fix, the project's own tests run on the machine that hosts the console. Host it only where that is acceptable, scan only code you trust, and put it behind a token if anyone else can reach it. <a href="/docs/md/DEPLOY.html">Hosting notes</a>.</p>
+
+<h2 id="model">Connect a model</h2>
+<p>By default the agents are offline stand-ins. To use a real model:</p>
+<ol>
+<li>Open <b>Agents</b> in the console and choose <b>Connect a model</b>. Enter the endpoint, model name and API key. Or put <code>AI_MODEL_ENDPOINT</code>, <code>AI_MODEL_NAME</code> and <code>ANTHROPIC_API_KEY</code> in a <code>.env</code> file and press <b>Use .env</b>.</li>
+<li>Press <b>Test</b>. It sends one tiny message with no project data.</li>
+<li>Tick the agents that should use the model and confirm that masked code is sent to the endpoint.</li>
+<li>Run a scan. The trace shows how many calls and tokens each handoff used.</li></ol>
+<p>The harness fills in the paths, rules file and test command itself. Secrets and personal data are masked before anything is sent. The Auditor can keep only findings the rules tool returned. The Fixer's test and re-check results come from the tools, not from the model. A patch that edits tests, requirements or the rules file is refused. The key is held in memory and never written to disk.</p>
+<p><b>Not yet proven.</b> This layer is tested against a mock server that speaks the Anthropic Messages format. It has not been run against a live model. Only that format is supported; another provider needs an adapter in <code>agents/model_agents.py</code>.</p>
+
+<h2 id="stands">Where it stands</h2>
+<p>The numbers below are from the latest evaluation run, with the offline stand-in agents. They describe the plumbing and the stand-ins, not a model.</p>
+<div class="tw"><table><tr><th></th><th>Measure</th><th>Result</th><th>Required</th></tr><tr><td><span class="pill ok">Met</span></td><td>Findings with file, line and code evidence</td><td>100%</td><td>&gt;= 100%</td></tr><tr><td><span class="pill ok">Met</span></td><td>Original-file or out-of-workspace writes</td><td>0</td><td>0</td></tr><tr><td><span class="pill ok">Met</span></td><td>High-severity detection recall</td><td>100%</td><td>&gt;= 90%</td></tr><tr><td><span class="pill ok">Met</span></td><td>Finding precision</td><td>89%</td><td>&gt;= 85%</td></tr><tr><td><span class="pill risk">Not met</span></td><td>Verified-fix success rate</td><td>60%</td><td>&gt;= 75%</td></tr><tr><td><span class="pill risk">Not met</span></td><td>False-fix rate</td><td>33%</td><td>&lt;= 5%</td></tr><tr><td><span class="pill ok">Met</span></td><td>Regression-test pass rate for verified fixes</td><td>100%</td><td>100%</td></tr><tr><td><span class="pill ok">Met</span></td><td>Audit-record completeness</td><td>100%</td><td>100%</td></tr><tr><td><span class="pill ">Not measured</span></td><td>Human approval rate of verified proposals</td><td>n/a</td><td>&gt;= 70% (needs real reviewers)</td></tr></table></div>
+<ul>
+<li><b>Red team:</b> 2 of 10 attacks were stopped and 8 broke the system. None of the 8 is fixed yet.</li>
+<li><b>Kill switches:</b> all eight checks pass.</li>
+<li><b>Tests:</b> 144 of 149 pass. The five that fail test symbolic links and only run on Windows.</li>
+<li><b>Open:</b> a live model run, real reviewers, prices for the cost model, and the owner names in <code>docs/PILOT.md</code>.</li></ul>
+<p>The percentages come from about one case per type, so treat them as a direction, not a measurement.</p>
+<p><a href="/docs/documents.html">All project documents</a> · <a href="https://github.com/anshusharma-ipl/Security_Analyzer_Agent_IPL">Repository</a></p>
+</main></body></html>

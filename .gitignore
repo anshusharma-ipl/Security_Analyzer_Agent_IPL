@@ -4,3 +4,4 @@ out/
 tmp/
 __pycache__/
 .venv/
+ui_data/

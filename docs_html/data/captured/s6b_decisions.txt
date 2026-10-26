@@ -1,0 +1,36 @@
+### python3 evals/decisions_demo.py
+
+case_08 (no tests)
+   status : F001 needs_a_person: no tests exist, so a fix cannot be verified
+   queue  : handoff package for F001: rule_id="SQLI", severity="high", confidence=0.9, line=2, tests={"before": "none", "after": null}, recheck="not_run"
+            evidence='query = f"SELECT SUM(amount) FROM payments WHERE customer = '; residual_risk='Nothing was changed, so the weak spot is still in the code.'
+
+case_06 (dependency, DEP-PIN has fix_allowed false)
+   status : F001 needs_a_person: fix not allowed
+   queue  : handoff package for F001: rule_id="DEP-PIN", severity="medium", confidence=0.9, line=1, tests={"before": "pass", "after": null}, recheck="not_run"
+            evidence='requests==2.19.0'; residual_risk='Nothing was changed, so the weak spot is still in the code.'
+
+case_07 (redesign: the client sends raw SQL)
+   status : F001 needs_a_person: needs a redesign: the caller supplies part of the SQL itself, so a placeholder cannot replace it; clients would have to send structured filters
+   queue  : handoff package for F001: rule_id="SQLI", severity="high", confidence=0.9, line=3, tests={"before": "pass", "after": null}, recheck="not_run"
+            evidence='sql = f"SELECT * FROM orders WHERE {condition}"'; residual_risk='Nothing was changed, so the weak spot is still in the code.'
+
+case_11 (low confidence, AI-only finding below the 0.70 gate)
+   note   : SIMULATED: no model is connected, so the Auditor is wrapped to report this finding as a model would (0.55). Without the wrapper the offline stand-in treats case_11 like case_01 and proposes a fix (known limit).
+   status : F001 needs_a_person: low confidence: found by the AI model alone with confidence 0.55, below the gate 0.7
+   queue  : handoff package for F001: rule_id="SQLI", severity="high", confidence=0.55, line=2, tests={"before": "none", "after": null}, recheck="not_run"
+            evidence='query = f"SELECT SUM(amount) FROM sales WHERE region = \'{reg'; residual_risk='Nothing was changed, so the weak spot is still in the code.'
+
+tests pass but the re-check is NOT clear (patch only adds a comment; the rule still matches)
+   status : F001 rejected: the fix failed after the one retry: A rule still matches the changed files.
+   attempts: [(1, 'tests pass', 'recheck not_clear'), (2, 'tests pass', 'recheck not_clear')]
+   queue  : handoff package for F001: rule_id="SQLI", severity="high", confidence=0.9, line=2, tests={"before": "pass", "after": "pass"}, recheck="not_clear"
+            evidence='query = f"SELECT id, name FROM users WHERE name = \'{name}\'"'; residual_risk='A rule still matches the changed files.'
+
+retry cap (the fix breaks the tests; 1 try + 1 retry, then rejected)
+   status : F001 rejected: the fix failed after the one retry: The project's tests did not pass after the change.
+   attempts: [(1, 'tests fail', 'recheck not_run'), (2, 'tests fail', 'recheck not_run')]
+   queue  : handoff package for F001: rule_id="SQLI", severity="high", confidence=0.9, line=2, tests={"before": "pass", "after": "fail"}, recheck="not_run"
+            evidence='query = f"SELECT id, name FROM users WHERE name = \'{name}\'"'; residual_risk="The project's tests did not pass after the change."
+   events : ['fix_failed', 'attempt_undone', 'fix_failed', 'status_set']
+exit=0

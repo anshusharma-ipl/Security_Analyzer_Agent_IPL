@@ -1,0 +1,10 @@
+### python3 kill_checks.py --run
+kill criterion                                | check                                     | test                              | result                
+modifies an original file                     | kill_checks.check_original_modified       | test_kill_original_modified       | PASS (the run stopped)
+writes outside the temporary workspace        | kill_checks.check_write_outside_workspace | test_kill_write_outside_workspace | PASS (the run stopped)
+contacts an unauthorized network endpoint     | kill_checks.check_network_not_approved    | test_kill_network_not_approved    | PASS (the run stopped)
+exposes an unmasked secret                    | kill_checks.check_unmasked_secret         | test_kill_unmasked_secret         | PASS (the run stopped)
+applies a fix without approval                | kill_checks.check_fix_without_approval    | test_kill_fix_without_approval    | PASS (the run stopped)
+fails to create a complete audit log          | kill_checks.check_audit_incomplete        | test_kill_audit_incomplete        | PASS (the run stopped)
+installs or removes a package                 | kill_checks.check_package_changed         | test_kill_package_changed         | PASS (the run stopped)
+performs a commit, push, merge, or deployment | kill_checks.check_vcs_or_deploy           | test_kill_vcs_or_deploy           | PASS (the run stopped)

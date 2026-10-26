@@ -1,0 +1,43 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cost at production volume · Security Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css"></head><body>
+<header class="topbar"><div class="in"><a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>Security Analyzer</a><nav class="nav" aria-label="Main"><a href="/">Scan</a><a href="/docs/guide.html">Guide</a><a href="/docs/md/PRD.html">PRD</a><a href="/docs/cost.html" aria-current=page>Cost</a><a href="/docs/canvas.html">Canvas</a><a href="/docs/prompts.html">How it was built</a><a href="/docs/golden.html">Test cases</a><a href="/docs/documents.html">Documents</a></nav></div></header>
+<main class="doc"><h1>Token cost at production volume</h1>
+<p class="lede">Measured tokens per scan, scaled to the volume you expect. Enter your price card to get money. Nothing here is a quote.</p>
+<div class="figure" style="padding:18px 20px"><div class="cgrid">
+<div><label for="spd">Scans per day</label><input type="number" id="spd" value="20" min="0"></div>
+<div><label for="wd">Working days per month</label><input type="number" id="wd" value="22" min="1" max="31"></div>
+<div><label for="fps">Findings per scan</label><input type="number" id="fps" value="1" min="0" step="0.5"></div>
+<div><label for="mult">Retry and context multiplier</label><input type="number" id="mult" value="3" min="1" step="0.5"></div>
+<div><label for="pin">Input price per million tokens</label><input type="number" id="pin" min="0" step="any" placeholder="from your price card"></div>
+<div><label for="pout">Output price per million tokens</label><input type="number" id="pout" min="0" step="any" placeholder="from your price card"></div>
+<div><label for="cur">Currency</label><input type="text" id="cur" value="" placeholder="e.g. USD or INR"></div>
+</div></div>
+<div class="tiles" id="out"></div>
+<h2>Three volumes</h2><div class="tw"><table id="scen"></table></div>
+<h2>Where the numbers come from</h2>
+<ul>
+<li><b>Per scan, measured with the stand-in agents:</b> Auditor 2,016 in and 406 out; Investigator 934 in and 131 out; Fixer and Validator 1,777 in and 207 out. The Auditor runs once per scan. The other two run once per finding, so findings per scan scales them.</li>
+<li><b>Token counts are a proxy</b> (characters divided by four), not the model's own count. Run <code>python evals/measure_handoffs.py --count-tokens</code> with an endpoint for real counts.</li>
+<li><b>The multiplier of 3</b> is an assumption for context re-reads, retries and guardrail overhead. Replace it with the measured ratio after the first model runs.</li>
+<li><b>Not included:</b> the person's review time, prompt caching or batch discounts, and larger repositories than the golden projects (one to three files). The rules scan costs no tokens.</li></ul>
+<p><a href="/docs/md/cost.html">Full cost document</a> · <a href="/docs/md/PRD.html">PRD</a></p>
+<style>.cgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 18px}.cgrid label{margin-top:8px}</style>
+<script>
+const $=i=>document.getElementById(i), A={in:2016,out:406}, F={in:934+1777,out:131+207};
+const fmt=n=>n>=1e6?(n/1e6).toFixed(2)+" M":Math.round(n).toLocaleString();
+function calc(spd){const f=+$("fps").value||0,m=+$("mult").value||1,days=+$("wd").value||0;
+ const inn=(A.in+f*F.in)*m,out=(A.out+f*F.out)*m,scans=spd*days,pin=parseFloat($("pin").value),pout=parseFloat($("pout").value);
+ const priced=!isNaN(pin)&&!isNaN(pout),per=priced?(inn*pin+out*pout)/1e6:null;
+ return{inn,out,scans,tin:inn*scans,tout:out*scans,per,month:priced?per*scans:null};}
+function money(v){return v==null?"Enter prices":(($("cur").value||"")+" "+v.toLocaleString(undefined,{maximumFractionDigits:2})).trim()}
+function draw(){const r=calc(+$("spd").value||0);
+ $("out").innerHTML=[["Tokens per scan",fmt(r.inn+r.out),fmt(r.inn)+" in, "+fmt(r.out)+" out"],["Scans per month",Math.round(r.scans).toLocaleString(),""],
+ ["Tokens per month",fmt(r.tin+r.tout),fmt(r.tin)+" in, "+fmt(r.tout)+" out"],["Cost per scan",money(r.per),""],["Cost per month",money(r.month),""]]
+ .map(x=>`<div class="tile"><b>${x[1]}</b><span>${x[0]}${x[2]?" · "+x[2]:""}</span></div>`).join("");
+ $("scen").innerHTML="<tr><th>Scans per day</th><th>Scans per month</th><th>Tokens per month</th><th>Cost per month</th></tr>"+[5,20,100].map(s=>{const q=calc(s);
+ return`<tr><td>${s}</td><td>${Math.round(q.scans).toLocaleString()}</td><td>${fmt(q.tin+q.tout)}</td><td>${money(q.month)}</td></tr>`}).join("");}
+document.querySelectorAll("input").forEach(i=>i.oninput=draw);draw();
+</script></main></body></html>
