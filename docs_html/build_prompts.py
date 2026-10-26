@@ -112,7 +112,7 @@ NOTES: dict[str, dict] = {
         checks=[("All tool tests pass", OK, "status.md: '74 pass (43 tools, 30 MCP, plus the import rule)' on your machine. Re-run here: see the note under the output."),
                 ("A deliberate write to the original folder is refused", OK, "Covered by a unit test, and shown firing in the Step 6A demo (case 4)."),
                 ("Bad arguments return clear errors, not stack traces", OK, "Every tool returns {ok, result | error} validated against its schema.")],
-        note="Re-run here, 149 tests: 144 pass and 5 do not. Five errors are one Linux-only test clean-up line (it calls os.rmdir on a symlink; the test body itself passes). The two golden-case failures seen earlier (cases 15 and 19) are fixed in the latest commits. Your status reports 74 passing from before the red-team cases existed."),
+        note="Your run (Windows, commit c6f2a02): 133 tests, OK. My Linux re-run of the same repository: 151 tests, 146 pass and 5 error; the five are one Linux-only test clean-up line (it calls os.rmdir on a symlink; the test body itself passes). The counts differ because the repository has grown since your run and my environment adds the console and model-layer tests."),
     "4B": dict(
         plain="Wraps the seven tools in a small MCP server (JSON-RPC over stdio, standard library only). Each agent is started with --agent <name> and can list and call only its own tools; any other call is refused. No safety rule moves into the wrapper.",
         status=["4. MCP server"], commits=["42c1224"], repro=["s4b_mcp_check"],
@@ -378,7 +378,7 @@ def results_section() -> str:
              '<li><b>The judge and the human-approval rate</b> are not measured (no judge model, no real reviewers).</li>'
              '<li><b>Cost</b>: tokens are a character/4 proxy and prices are blank until you supply the price card.</li>'
              '<li><b>Tests for the orchestrator itself</b>: status.md says tests/test_agents.py and tests/test_orchestrator.py did not exist; they still do not. The orchestrator is exercised indirectly by the containment, decisions, evals and red-team tests.</li>'
-             '<li><b>status.md is stale</b>: it was written at commit 06006c7 (11 cases, 74 tests). The repository now has 21 cases and 149 tests. This page reads the later commits too.</li></ul>')
+             '<li><b>status.md is stale</b>: it was written at commit 06006c7 (11 cases, 74 tests). The repository now has 21 cases and 151 tests (133 in your run on c6f2a02). This page reads the later commits too.</li></ul>')
     return "".join(h)
 
 
