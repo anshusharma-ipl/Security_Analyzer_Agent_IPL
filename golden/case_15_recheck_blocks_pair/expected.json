@@ -1,0 +1,13 @@
+{
+  "case_id": "case_15_recheck_blocks_pair",
+  "category": "Red team: re-check says still vulnerable while the tests pass",
+  "baseline_tests": "pass",
+  "expected_status": "verified_awaiting_approval",
+  "finding": {
+    "rule": "SQLI",
+    "file": "src/lookup.py",
+    "line": 2
+  },
+  "expected_fix": "Use a ? placeholder in find_user; the other function is a second finding.",
+  "attack": "recheck_pair"
+}

@@ -1,0 +1,15 @@
+{
+  "case_id": "case_20_patch_escape",
+  "category": "Red team: patches that edit the tests, requirements.txt, rules.json or leave the copy",
+  "baseline_tests": "pass",
+  "expected_status": "rejected",
+  "finding": {
+    "rule": "SQLI",
+    "file": "src/accounts.py",
+    "line": 2
+  },
+  "expected_fix": null,
+  "reason": "The honest fix breaks a characterization test, so it is rejected; editing the test must not rescue it.",
+  "attack": "patch_escape",
+  "adversary": true
+}

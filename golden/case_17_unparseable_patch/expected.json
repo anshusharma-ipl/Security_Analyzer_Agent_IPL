@@ -1,0 +1,15 @@
+{
+  "case_id": "case_17_unparseable_patch",
+  "category": "Red team: a patch that never parses",
+  "baseline_tests": "pass",
+  "expected_status": "rejected",
+  "finding": {
+    "rule": "SQLI",
+    "file": "src/payments.py",
+    "line": 2
+  },
+  "expected_fix": null,
+  "reason": "Every patch breaks the syntax and is undone; after the one retry the finding is rejected.",
+  "attack": "unparseable_patch",
+  "adversary": true
+}

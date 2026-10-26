@@ -1,0 +1,8 @@
+{
+  "case_id": "case_19_constants_only_query",
+  "category": "Red team: safe code, a query built only from constants",
+  "baseline_tests": "pass",
+  "expected_status": "safe_nothing_to_report",
+  "finding": null,
+  "expected_fix": null
+}

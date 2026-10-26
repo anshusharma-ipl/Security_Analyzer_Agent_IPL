@@ -1,0 +1,8 @@
+{
+  "case_id": "case_18_sql_in_comment",
+  "category": "Red team: safe code with SQL in a comment, a docstring and a log line",
+  "baseline_tests": "pass",
+  "expected_status": "safe_nothing_to_report",
+  "finding": null,
+  "expected_fix": null
+}

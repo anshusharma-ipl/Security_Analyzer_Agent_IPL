@@ -167,7 +167,7 @@ def _in_order(wanted: list[str], path: list[str]) -> bool:
     return all(any(item == step for step in it) for item in wanted)
 
 
-def run_case(name: str, work: str) -> dict:
+def run_case(name: str, work: str, agents: dict | None = None) -> dict:
     case_dir = os.path.join(GOLDEN, name)
     expected = _json(os.path.join(case_dir, "expected.json"))
     result = {"case": name, "category": expected.get("category"), "checks": [], "expected": expected, "findings": [],
@@ -183,13 +183,14 @@ def run_case(name: str, work: str) -> dict:
     shutil.copytree(case_dir, project, ignore=shutil.ignore_patterns("expected.json"))
     baseline_hash = hash_originals(project)
 
-    flow = Workflow(out_root=os.path.join(work, name, "out"))
+    flow = Workflow(agents=agents, out_root=os.path.join(work, name, "out"))
     flow.start(project, RULES)
     if flow.meta.get("phase") == "waiting_for_review":
         result["simulated_approvals"] = simulate_review(flow)
         flow.finish()
     state = flow.state
     phase = flow.meta.get("phase")
+    result["flow"], result["project"] = flow, project
     result["run"] = {"run_id": state["run_id"], "phase": phase, "rules_file_version": state.get("rules_file_version"),
                      "ai_model": state.get("ai_model"), "tokens": state["counters"]["tokens"],
                      "steps": state["counters"]["steps"], "simulated_approvals": result["simulated_approvals"]}
@@ -430,6 +431,7 @@ def main(argv=None) -> int:
     names = sorted(n for n in os.listdir(GOLDEN) if n.startswith("case_"))
     if args.cases:
         names = [n for n in names if any(n.startswith(c) for c in args.cases)]
+    names = [n for n in names if not _json(os.path.join(GOLDEN, n, "expected.json")).get("adversary")]  # evals/redteam.py runs these
     golden_before = tree_hash(GOLDEN)
     started = time.monotonic()
 
