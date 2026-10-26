@@ -41,6 +41,25 @@
         "elapsed_seconds": { "type": "number", "minimum": 0 }
       }
     },
+    "handoff_log": {
+      "x-owner": "orchestrator",
+      "type": "array",
+      "description": "One entry per orchestrator-to-agent handoff, in order. len(handoff_log) must equal counters.steps (validate.py checks this). Agents never call each other, so every handoff is here.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["step", "timestamp", "agent", "job", "finding_id", "wrote", "result"],
+        "properties": {
+          "step": { "type": "integer", "minimum": 1 },
+          "timestamp": { "$ref": "urn:security-analyzer-agent:schema:output#/$defs/timestamp" },
+          "agent": { "enum": ["auditor", "investigator", "fixer_validator"] },
+          "job": { "enum": ["audit", "investigate", "baseline_tests", "fix", "recheck"] },
+          "finding_id": { "type": ["string", "null"], "pattern": "^F[0-9]{3,}$", "description": "null for the whole-project audit." },
+          "wrote": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "State fields the agent wrote this step." },
+          "result": { "enum": ["ok", "invalid_output", "agent_failed", "cap_hit"] }
+        }
+      }
+    },
     "cap_hit": {
       "x-owner": "orchestrator",
       "enum": [null, "files", "steps", "ai_calls", "tokens_input", "tokens_output", "time"],

@@ -181,6 +181,12 @@ def check_state(state: dict, written_by) -> list[str]:
                 problems.append(f"{agent} wrote {name!r}, which is owned by {owner}")
     for i, c in enumerate(state.get("candidate_findings", [])):
         problems += check_confidence(f"candidate_findings/{i}/confidence", c["confidence"])
+    if "handoff_log" in state and "counters" in state:
+        log, steps = state["handoff_log"], state["counters"]["steps"]
+        if len(log) != steps:
+            problems.append(f"handoff_log has {len(log)} entries but counters/steps is {steps}")
+        if [e["step"] for e in log] != list(range(1, len(log) + 1)):
+            problems.append("handoff_log steps are not 1, 2, 3, ... in order")
     return problems
 
 
@@ -520,7 +526,15 @@ def build_cases(tmp: Path) -> list[Case]:
         "finding_status": [{"finding_id": "F001", "status": "verified_awaiting_approval", "reason": None}]})
     with_status = copy.deepcopy(s2); with_status["candidate_findings"][0]["status"] = "needs_a_person"
     bad_id = {"run_id": "7"}
-    c += [Case("state", "just_started", s1, True),
+    log_entry = {"step": 1, "timestamp": NOW, "agent": "auditor", "job": "audit", "finding_id": None,
+                 "wrote": ["file_list", "candidate_findings"], "result": "ok"}
+    with_log = copy.deepcopy(s2); with_log["handoff_log"] = [log_entry]
+    log_short = copy.deepcopy(s2); log_short["handoff_log"] = []
+    log_bad_agent = copy.deepcopy(with_log); log_bad_agent["handoff_log"][0]["agent"] = "orchestrator"
+    c += [Case("state", "handoff_log_matches_steps", with_log, True),
+          Case("state", "handoff_log_shorter_than_steps", log_short, False, "code"),
+          Case("state", "handoff_log_agent_is_not_an_agent", log_bad_agent, False, "schema"),
+          Case("state", "just_started", s1, True),
           Case("state", "after_auditor", s2, True, ctx={"written_by": {
               "orchestrator": ["run_id", "input", "rules", "workspace", "counters"],
               "auditor": ["file_list", "candidate_findings"]}}),
