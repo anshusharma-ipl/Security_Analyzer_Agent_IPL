@@ -25,7 +25,7 @@ import build_golden as G  # noqa: E402
 import build_prompts as P  # noqa: E402
 
 REPO = "https://github.com/anshusharma-ipl/Security_Analyzer_Agent_IPL"
-NAV = [("guide", "Guide", "guide.html"), ("prd", "PRD", "md/PRD.html"), ("cost", "Cost", "cost.html"), ("canvas", "Canvas", "canvas.html"), ("prompts", "How it was built", "prompts.html"), ("golden", "Test cases", "golden.html"), ("documents", "Documents", "documents.html")]
+NAV = [("guide", "Guide", "guide.html"), ("prd", "PRD", "md/PRD.html"), ("cost", "Cost", "cost.html"), ("canvas", "Canvas", "canvas.html"), ("prompts", "How it was built", "prompts.html"), ("golden", "Test cases", "golden.html")]
 LOGO = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>')
 
@@ -158,7 +158,17 @@ def build_guide() -> str:
 </ol>
 <p>The console you are using, and the optional model connection, were added afterwards. <a href="/docs/prompts.html">See each prompt and what it produced</a>.</p>
 
-<h2 id="run">How to run it</h2>
+<h2 id="live">Run a live scan, step by step</h2>
+<p>A live scan needs the console running on your own machine (or a server). The published site on GitHub Pages is read-only: it shows a recorded run and cannot scan anything or call a model.</p>
+<ol>
+<li><b>Start the console.</b> <code>pip install jsonschema</code>, then <code>python ui/server.py</code>, then open <code>http://127.0.0.1:8765</code>.</li>
+<li><b>Give it your code.</b> In <b>New scan</b> (left panel) pick <b>Zip</b> and upload your project as a .zip that includes its tests folder, or pick <b>Folder</b> and choose the project folder. Use <b>Sample project</b> to try one of the 21 test cases first. A rules file is optional; without one the approved default rules are used.</li>
+<li><b>Connect a model (optional).</b> In <b>Agents</b> enter the endpoint, model name and API key, press <b>Connect</b> then <b>Test</b>, tick which agents should use the model, and tick the box confirming masked code is sent to it. Skip this to use the offline stand-ins.</li>
+<li><b>Press Run scan.</b> The pipeline strip shows the seven steps. When it reaches the review desk, <b>approve, edit or reject</b> each proposed fix, then submit.</li>
+<li><b>Download the result.</b> The report (HTML, Markdown and JSON), the decision log and <code>fixes.patch</code> are on the run's page. Nothing is applied to your original files; a person applies <code>fixes.patch</code>.</li></ol>
+<p>From a terminal instead: <code>python -m orchestrator.cli run &lt;your-project-folder&gt; golden/rules.json</code>. With a model, set <code>AI_MODEL_ENDPOINT</code>, <code>AI_MODEL_NAME</code> and <code>ANTHROPIC_API_KEY</code> first and use the console's Agents panel to switch the agents on.</p>
+
+<h2 id="run">Other commands</h2>
 <p>You need Python 3.11 or newer and one package: <code>pip install jsonschema</code>.</p>
 <pre class="code" style="padding:12px 16px"><code>python ui/server.py              # then open http://127.0.0.1:8765
 python -m unittest discover -s tests
@@ -186,7 +196,7 @@ python kill_checks.py --run      # the eight kill-switch checks</code></pre>
 <li><b>Tests:</b> 146 of 151 pass. The five that fail test symbolic links and only run on Windows.</li>
 <li><b>Open:</b> a live model run, real reviewers, prices for the cost model, and the owner names in <code>docs/PILOT.md</code>.</li></ul>
 <p>The percentages come from about one case per type, so treat them as a direction, not a measurement.</p>
-<p><a href="/docs/documents.html">All project documents</a> · <a href="{REPO}">Repository</a></p>
+<p>Written documents: <a href="/docs/md/PRD.html">PRD</a> · <a href="/docs/md/RUN_SUMMARY.html">Run summary</a> · <a href="/docs/md/DEPLOY.html">Deploy</a> · <a href="/docs/md/UX_REVIEW.html">UX review</a> · <a href="{REPO}">Repository</a></p>
 """
     return page("guide", "Guide", body)
 
@@ -412,7 +422,7 @@ def build_documents() -> str:
                 text = handle.read()
             title = (re.search(r"^#\s+(.*)", text, re.M) or [None, slug_])[1]
             title = re.sub(r"[`*]", "", title)
-            write(f"md/{slug_}.html", page("prd" if slug_ == "PRD" else "documents", title, f'<p class="small"><a href="/docs/documents.html">All documents</a> · <span class="faint">{e(path)}</span></p><div class="md">{render_md(text)}</div>', wide=True))
+            write(f"md/{slug_}.html", page("prd" if slug_ == "PRD" else "documents", title, f'<p class="small"><a href="/docs/guide.html">Guide</a> · <span class="faint">{e(path)}</span></p><div class="md">{render_md(text)}</div>', wide=True))
             cards.append(f'<a class="card" href="/docs/md/{slug_}.html"><h3>{e(re.sub(chr(96), "", title) if len(title) < 46 else slug_)}</h3><p>{e(blurb)}</p></a>')
         if cards:
             parts.append(f'<h2>{e(group)}</h2><div class="cards">{"".join(cards)}</div>')
@@ -427,7 +437,7 @@ def main() -> int:
     write("golden.html", build_golden())
     write("canvas.html", build_canvas())
     write("cost.html", build_cost())
-    write("documents.html", build_documents())
+    build_documents()  # writes md/*.html (PRD, run summary, ...); there is no index page
     return 0
 
 
