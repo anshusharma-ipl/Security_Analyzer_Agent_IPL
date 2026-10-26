@@ -12,7 +12,6 @@ import os
 import shutil
 import sys
 import tempfile
-import time
 import unittest
 from unittest import mock
 
@@ -154,10 +153,14 @@ class TestDecisions(DecisionCase):
         self.assertEqual(flow.state["cap_hit"], "ai_calls")
         self.assertEqual(self.status(flow)["F001"]["status"], "not_processed")
         # time_cap: the audit overruns the cap, so no further agent starts and the finding is not_processed
+        # (the clock is faked so the test does not depend on how fast this machine is: 0 s until the audit has run, then 5 s)
+        audited = {"done": False}
+
         def slow_auditor(job):
-            time.sleep(1.2)
+            audited["done"] = True
             return offline_agents.run_auditor(job)
-        flow = self.run_flow("case_01_sqli_fstring", {"auditor": slow_auditor}, {"time_cap_seconds": 1})
+        with mock.patch.object(Workflow, "_elapsed", lambda self: 5.0 if audited["done"] else 0.0):
+            flow = self.run_flow("case_01_sqli_fstring", {"auditor": slow_auditor}, {"time_cap_seconds": 1})
         self.assertEqual(flow.state["cap_hit"], "time")
         self.assertEqual(self.status(flow)["F001"]["status"], "not_processed")
         # file_cap: the file list is cut short and the run says so
