@@ -17,11 +17,19 @@
 </div></div>
 <div class="tiles" id="out"></div>
 <h2>Three volumes</h2><div class="tw"><table id="scen"></table></div>
+<h2>Measured with a real model</h2>
+<div class="figure" style="padding:18px 20px"><div class="tiles">
+<div class="tile"><div class="k">Model</div><div class="v">GPT-5</div><div class="s">one console run, demo project</div></div>
+<div class="tile"><div class="k">Input tokens</div><div class="v">148,912</div><div class="s">from the API, not a proxy</div></div>
+<div class="tile"><div class="k">Output tokens</div><div class="v">28,323</div><div class="s">includes the model's reasoning</div></div>
+<div class="tile"><div class="k">AI calls</div><div class="v">62</div><div class="s">about 12 per finding; 12 minutes</div></div>
+</div>
+<p class="small muted" style="margin:12px 0 0">The scan stopped at the old 60-call cap after 6 of 10 findings (5 fixes verified, 1 for a person, 4 not reached). Per finding that is about 24,800 input and 4,700 output tokens. The characters-divided-by-four proxy predicted about 18,300 input and 2,400 output for the same 6 findings, so <b>the real input was about 8 times the proxy and the output about 12 times</b>. The multiplier of 3 above is too low; try 8 until more runs are measured. No price is entered, so no money figure is shown. Console model runs now allow 150 calls.</p></div>
 <h2>Where the numbers come from</h2>
 <ul>
-<li><b>Per scan, measured with the stand-in agents:</b> Auditor 2,016 in and 406 out; Investigator 934 in and 131 out; Fixer and Validator 1,777 in and 207 out. The Auditor runs once per scan. The other two run once per finding, so findings per scan scales them.</li>
+<li><b>Per scan, measured with the built-in agents:</b> Auditor 2,016 in and 406 out; Investigator 934 in and 131 out; Fixer and Validator 1,777 in and 207 out. The Auditor runs once per scan. The other two run once per finding, so findings per scan scales them.</li>
 <li><b>Token counts are a proxy</b> (characters divided by four), not the model's own count. Run <code>python evals/measure_handoffs.py --count-tokens</code> with an endpoint for real counts.</li>
-<li><b>The multiplier of 3</b> is an assumption for context re-reads, retries and guardrail overhead. Replace it with the measured ratio after the first model runs.</li>
+<li><b>The multiplier of 3</b> is an assumption for context re-reads, retries and guardrail overhead. The first real run (above) measured about 8 on input and 12 on output, so treat 3 as a lower bound.</li>
 <li><b>Not included:</b> the person's review time, prompt caching or batch discounts, and larger repositories than the golden projects (one to three files). The rules scan costs no tokens.</li></ul>
 <p><a href="/docs/md/cost.html">Full cost document</a> · <a href="/docs/md/PRD.html">PRD</a></p>
 <style>.cgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 18px}.cgrid label{margin-top:8px}</style>

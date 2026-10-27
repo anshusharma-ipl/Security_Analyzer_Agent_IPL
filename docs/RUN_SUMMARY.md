@@ -190,6 +190,17 @@ Why nine needed a person, and what was done about each (all in commit `006ca90`)
 - The secret and the dependency stay report-only by decision; they are shown as tasks for the person.
 - One finding was a real redesign (raw SQL from the client), and stayed with a person.
 
+### Second live run (GPT-5, after the fixes, console cap still 60)
+
+| Measure | Result |
+| --- | --- |
+| Tokens (real) | **148,912 input, 28,323 output**; 62 AI calls; 12 minutes |
+| Findings | 10: 5 fixes verified, 1 needs a person, 4 not processed (the 60-call cap stopped the run) |
+| Approvals | 5 of 5 approved, by Claude on the owner's instruction; originals untouched |
+| Versus the proxy | about 8 times the input and 12 times the output the characters-divided-by-four proxy predicts for 6 findings |
+
+All five fixes are the `?` placeholder pattern and passed tests with a clear re-check. The nine "needs a person" cases of the first run became 5 verified fixes, so the changes helped. The multi-file case (F005, `service.py` calling `db.run`) was fixed in one file, which is correct because `db.run` already takes parameters. F004 (`reports.py`, raw SQL conditions from the client) rightly stayed with a person as a redesign. The command-injection, path, secret, hash and dependency findings were never reached. In response, the console cap for model runs is now 150 calls and 40 minutes (engine default stays 60). A re-run on the full demo is still to do.
+
 ## 8. What is still unmeasured
 
 - Model behaviour after the latest fixes (the one live GPT-5 run predates them), and any live run with Claude or Gemini. The Gemini adapter has only been tested against a mock server.
