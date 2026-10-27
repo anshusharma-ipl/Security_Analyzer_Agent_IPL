@@ -66,7 +66,7 @@ def model_view() -> dict:
     cfg = MODEL["cfg"]
     env = model_agents.ModelConfig.from_env()
     return {"configured": cfg is not None, "endpoint": cfg.endpoint if cfg else None, "model": cfg.model if cfg else None,
-            "source": MODEL["source"], "env_available": env is not None,
+            "api_style": cfg.api_style if cfg else None, "source": MODEL["source"], "env_available": env is not None,
             "default_endpoint": model_agents.DEFAULT_ENDPOINT, "default_model": model_agents.DEFAULT_MODEL,
             "agents": list(AGENT_KEYS)}                      # never the key, not even part of it
 
@@ -75,7 +75,7 @@ def set_model(payload: dict) -> dict:
     if payload.get("from_env"):
         cfg, source = model_agents.ModelConfig.from_env(), "environment / .env"
         if cfg is None:
-            raise ValueError("no ANTHROPIC_API_KEY (or AI_API_KEY) in the environment or .env")
+            raise ValueError("no ANTHROPIC_API_KEY, OPENAI_API_KEY or AI_API_KEY in the environment or .env")
     else:
         key = str(payload.get("api_key") or "").strip()
         if not key:
@@ -84,7 +84,7 @@ def set_model(payload: dict) -> dict:
         name = str(payload.get("model") or model_agents.DEFAULT_MODEL).strip()
         if not re.match(r"^https?://[^\s]+$", endpoint) or not re.match(r"^[A-Za-z0-9._:/-]{1,100}$", name):
             raise ValueError("endpoint must be an http(s) URL and the model name a plain identifier")
-        cfg, source = model_agents.ModelConfig(endpoint, name, key), "entered in the console"
+        cfg, source = model_agents.ModelConfig(endpoint, name, key, api_style=str(payload.get("api_style") or "auto")), "entered in the console"
     MODEL["cfg"], MODEL["source"] = cfg, source
     return model_view()
 

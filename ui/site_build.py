@@ -185,7 +185,7 @@ python kill_checks.py --run      # the eight kill-switch checks</code></pre>
 <li>Tick the agents that should use the model and confirm that masked code is sent to the endpoint.</li>
 <li>Run a scan. The trace shows how many calls and tokens each handoff used.</li></ol>
 <p>The harness fills in the paths, rules file and test command itself. Secrets and personal data are masked before anything is sent. The Auditor can keep only findings the rules tool returned. The Fixer's test and re-check results come from the tools, not from the model. A patch that edits tests, requirements or the rules file is refused. The key is held in memory and never written to disk.</p>
-<p><b>Not yet proven.</b> This layer is tested against a mock server that speaks the Anthropic Messages format. It has not been run against a live model. Only that format is supported; another provider needs an adapter in <code>agents/model_agents.py</code>.</p>
+<p><b>Two API formats are supported:</b> Anthropic Messages (the default) and OpenAI chat completions (chosen automatically for api.openai.com, or pick it under <b>API format</b>). For OpenAI, use endpoint <code>https://api.openai.com</code> and a model name that supports tool calls. <b>Not yet proven:</b> both are tested only against mock servers; neither has run against a live model. The endpoint you connect is the only host the scan may contact.</p>
 
 <h2 id="stands">Where it stands</h2>
 <p>The numbers below are from the latest evaluation run, with the offline stand-in agents. They describe the plumbing and the stand-ins, not a model.</p>
