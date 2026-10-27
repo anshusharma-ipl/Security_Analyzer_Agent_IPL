@@ -12,6 +12,7 @@ Where the canvas said "to be measured", the team's later decisions are recorded 
 - All six rules in `golden/rules.json` are loaded: SQLI, CMDI, PATH, SECRET, WEAKHASH, DEP-PIN.
 - SQLI, CMDI, PATH have `fix_allowed: true`.
 - SECRET, WEAKHASH, DEP-PIN have `fix_allowed: false`: reported, never fixed.
+  Owner decision, 2026-10-27: they stay report-only. The console shows each as a task for the person (rotate the key, raise the pin, use a password hash) instead of proposing a patch.
 - AI-based detection rules are NOT in the pilot. The AI helps with judgement and fixes, not detection.
 
 ## 3. Roster (canvas section 10)
@@ -51,6 +52,7 @@ Per finding, in this order:
 2. No proof (file, line and code)? Drop the finding.
 3. Check tests before any fix. Tests missing or failing: hand to a person.
 4. Cause unclear, or needs a big redesign? Hand to a person. This comes before the fix setting, so a `fix_allowed: false` finding with an unclear cause also goes to a person.
+   Console setting `fix_when_cause_unclear` (owner decision, 2026-10-27): **on in the console, off in the engine default and in the evals.** When on, a finding whose only objection is "cause unclear" (no caller visible in the project) still gets a local fix (a `?` placeholder, a command list with no shell, a path check) prepared for approval. The tests and the re-check must pass, the proposal says the cause was not traced, and a person still approves every fix. A needed redesign, and every `fix_allowed: false` rule, still go to a person.
 5. The rule's `fix_allowed` is false? Report it, do not fix it (status `needs_a_person`).
 6. Otherwise prepare a fix in the temporary copy and test it. Tests pass and re-check clear: a person approves. Otherwise retry once; if it fails again, status `rejected`, listed in the report with evidence.
 

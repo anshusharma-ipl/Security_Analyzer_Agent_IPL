@@ -11,8 +11,9 @@ Honest limits of the stand-ins (a model is meant to do better):
     from a function whose callers live outside the project (case_01). Both look the same in the code, so
     it does not escalate on "no caller"; it only says so in traced_cause. It does hand over when an
     interpolated value is a SQL fragment, not a quoted value (case_07).
-  - Fixer & Validator: writes a patch only for the pattern  query = f"... '{value}' ..."  followed by
-    .execute(query)  (cases 01, 09, 10). For anything else it writes no patch.
+  - Fixer & Validator: writes a patch only for three one-line patterns: query = f"... '{value}' ..." followed by
+    .execute(query) (SQLI, cases 01, 09, 10); subprocess.run(f"cmd {value}", shell=True) (CMDI, case 02); and
+    path = os.path.join(base, name) (PATH, case 03). For anything else, such as a fix that spans files, it writes no patch.
 """
 from __future__ import annotations
 
@@ -242,6 +243,62 @@ def _sqli_patch(file: str, text: str, line_no: int) -> str | None:
     return "\n".join([f"--- a/{file}", f"+++ b/{file}", f"@@ -{first},{old_len} +{first},{new_len} @@"] + body_lines) + "\n"
 
 
+def _line_diff(file: str, lines: list[str], line_no: int, replacement: list[str]) -> str:
+    """A unified diff that replaces line ``line_no`` (1-based) with ``replacement``, with one line of context on each side."""
+    before = lines[line_no - 2:line_no - 1]
+    after = lines[line_no:line_no + 1]
+    start = line_no - len(before)
+    body = [" " + t for t in before] + ["-" + lines[line_no - 1]] + ["+" + t for t in replacement] + [" " + t for t in after]
+    old_len = len(before) + 1 + len(after)
+    new_len = len(before) + len(replacement) + len(after)
+    return "\n".join([f"--- a/{file}", f"+++ b/{file}", f"@@ -{start},{old_len} +{start},{new_len} @@"] + body) + "\n"
+
+
+_SHELL_CALL = re.compile(r"^(?P<pre>.*?\bsubprocess\.(?:run|call|check_output|check_call|Popen)\()\s*f(?P<q>[\"'])(?P<body>.*?)(?P=q)\s*,\s*shell\s*=\s*True(?P<rest>.*)$")
+_SHELL_META = re.compile(r"[|&;<>$`*?(){}\[\]\\\"']")
+
+
+def _cmdi_patch(file: str, text: str, line_no: int) -> str | None:
+    """subprocess.run(f"echo checking {host}", shell=True, ...)  becomes  subprocess.run(["echo", "checking", host], ...) with no shell.
+    Only when every word of the command is plain text or exactly one {name}; anything with shell syntax gets no patch."""
+    lines = text.splitlines()
+    if not 1 <= line_no <= len(lines):
+        return None
+    m = _SHELL_CALL.match(lines[line_no - 1])
+    if not m:
+        return None
+    words = []
+    for token in m.group("body").split():
+        name = re.fullmatch(r"\{([A-Za-z_]\w*)\}", token)
+        if name:
+            words.append(name.group(1))
+        elif _SHELL_META.search(token):
+            return None
+        else:
+            words.append(f"{m.group('q')}{token}{m.group('q')}")
+    if not words:
+        return None
+    return _line_diff(file, lines, line_no, [m.group("pre") + "[" + ", ".join(words) + "]" + m.group("rest")])
+
+
+_PATH_JOIN_LINE = re.compile(r"^(?P<indent>\s*)(?P<var>\w+)\s*=\s*os\.path\.join\(\s*(?P<base>[\w.]+)\s*,\s*(?P<name>[\w.]+)\s*\)\s*$")
+
+
+def _path_patch(file: str, text: str, line_no: int) -> str | None:
+    """path = os.path.join(base, name)  becomes a resolved path that must stay inside base, or a ValueError."""
+    lines = text.splitlines()
+    if not 1 <= line_no <= len(lines):
+        return None
+    m = _PATH_JOIN_LINE.match(lines[line_no - 1])
+    if not m:
+        return None
+    i, var, base, name = m.group("indent"), m.group("var"), m.group("base"), m.group("name")
+    return _line_diff(file, lines, line_no, [
+        f"{i}{var} = os.path.realpath(os.path.join({base}, {name}))",
+        f"{i}if os.path.commonpath([os.path.realpath({base}), {var}]) != os.path.realpath({base}):",
+        f"{i}    raise ValueError(\"the path is outside the allowed folder\")"])
+
+
 def _fix(client: McpClient, job: dict) -> dict:
     finding, fid, attempt = job["finding"], job["finding"]["finding_id"], job["attempt"]
     before = job["baseline"]
@@ -253,7 +310,8 @@ def _fix(client: McpClient, job: dict) -> dict:
                                   "recheck": recheck, "decision": decision, "residual_risk": risk}],
                 "usage": usage}
 
-    diff = _sqli_patch(finding["file"], job["source"], finding["line"]) if finding["rule_id"] == "SQLI" else None
+    writer = {"SQLI": _sqli_patch, "CMDI": _cmdi_patch, "PATH": _path_patch}.get(finding["rule_id"])
+    diff = writer(finding["file"], job["source"], finding["line"]) if writer else None
     if diff is None:
         return attempt_entry(None, [], None, "not_run", "reject",
                              "No patch was written, so nothing was changed and the weak spot is still there.")

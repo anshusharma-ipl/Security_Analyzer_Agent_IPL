@@ -9,8 +9,20 @@ import sys
 
 from tools import _containment
 
+from . import progress
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SERVER = os.path.join(ROOT, "tools", "mcp_server.py")
+
+
+def _report_outcome(name: str, reply: dict, agent: str) -> None:
+    """The two results a person wants to see as they happen: did the tests pass, is the re-check clear."""
+    result = reply.get("result") if reply.get("ok") else None
+    if name == "run_tests" and result:
+        progress.emit("tool", f"Tests: {result.get('outcome')}", agent=agent, tool=name, outcome=result.get("outcome"))
+    elif name == "request_recheck" and result:
+        progress.emit("tool", "Re-check: clear" if result.get("clear") else "Re-check: the rule still matches",
+                      agent=agent, tool=name, outcome="clear" if result.get("clear") else "not_clear")
 
 
 class McpError(RuntimeError):
@@ -53,6 +65,7 @@ class McpClient:
             _containment.check_tool_call(self.agent, name, arguments)
         except _containment.ToolNotAllowed as exc:
             return {"ok": False, "error": {"code": "tool_not_allowed", "message": str(exc)}}
+        progress.emit("tool", progress.describe_tool(name, arguments), agent=self.agent, tool=name)
         result = self._request("tools/call", {"name": name, "arguments": arguments})
         text = result["content"][0]["text"]
         try:
@@ -60,6 +73,7 @@ class McpClient:
         except ValueError:
             parsed = None
         if isinstance(parsed, dict) and "ok" in parsed:
+            _report_outcome(name, parsed, self.agent)
             return parsed
         return {"ok": False, "error": {"code": "refused", "message": text}}
 

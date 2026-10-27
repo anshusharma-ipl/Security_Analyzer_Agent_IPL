@@ -236,6 +236,31 @@ class TestDecisions(DecisionCase):
         flow = self.run_flow("case_11_escalate_no_callers", {"auditor": model_auditor(0.85)})
         self.assertEqual(self.status(flow)["F001"]["status"], "verified_awaiting_approval")   # above the gate
 
+    # -------------------------------------------------------------- policy: fix when the cause is unclear (you decide)
+    def test_an_unclear_cause_gets_a_local_fix_for_approval_when_the_policy_is_on(self):
+        def lost(job):
+            return {"investigations": [{"finding_id": job["finding"]["finding_id"], "traced_cause": None, "fix_approach": None,
+                                        "fixable": False, "handoff_reason": "cause unclear: no caller in the project"}],
+                    "usage": dict(USAGE_ZERO)}
+        flow = self.run_flow("case_01_sqli_fstring", {"investigator": lost}, {"fix_when_cause_unclear": True})
+        self.assertEqual(self.status(flow)["F001"]["status"], "verified_awaiting_approval")
+        self.assertIn("cause_unclear_fix_proposed", self.events(flow))                 # the model's objection stays in the log
+        proposal = self.queue(flow)["proposals"][0]
+        self.assertIn("Not traced", proposal["traced_cause"]["explanation"])
+        self.assertIn("not traced", proposal["residual_risk"])                         # the person is told what is still unknown
+        self.assertEqual(flow.state["approvals"], [])                                  # and nothing is applied without approval
+        # the default (policy off) is unchanged: an unclear cause goes to a person
+        flow = self.run_flow("case_01_sqli_fstring", {"investigator": lost})
+        self.assertEqual(self.status(flow)["F001"]["status"], "needs_a_person")
+        # a redesign is never overridden, even with the policy on
+        def redesign(job):
+            return {"investigations": [{"finding_id": job["finding"]["finding_id"], "traced_cause": None, "fix_approach": None,
+                                        "fixable": False, "handoff_reason": "needs a redesign: clients send raw SQL"}],
+                    "usage": dict(USAGE_ZERO)}
+        flow = self.run_flow("case_01_sqli_fstring", {"investigator": redesign}, {"fix_when_cause_unclear": True})
+        self.assertEqual(self.status(flow)["F001"]["status"], "needs_a_person")
+        self.assertNotIn("cause_unclear_fix_proposed", self.events(flow))
+
 
 if __name__ == "__main__":
     unittest.main()

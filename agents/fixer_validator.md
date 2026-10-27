@@ -33,6 +33,8 @@ One job per handoff, for ONE finding: the finding (`rule_id`, `file`, `line`, `e
 - **baseline_tests**: run the tests on the untouched temporary copy. Write `baseline_tests`.
 - **fix**: write the smallest diff that fixes this finding, `apply_patch`, `run_tests`, `request_recheck`, then decide. Write one `fix_attempts` entry.
 
+**A fix may need more than one file.** For example, a query built in `service.py` and run by `db.run` can only take a placeholder if `db.run` also accepts the parameters. `apply_patch` takes ONE unified diff, and that diff may hold hunks for several files. You may call it once per attempt, so put every change the fix needs into that one diff. The input lists `other_files_on_the_path` (numbered, read-only): use them to write matching hunks, and keep every existing caller working so the project's tests still pass. If the previous attempt failed because a caller or callee was not updated, include that file this time.
+
 ## The exact output fields you write
 Return ONE JSON object holding only these state fields. Writing any other field is an error and the output is rejected.
 

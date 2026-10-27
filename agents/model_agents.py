@@ -18,8 +18,10 @@ How a model is kept on a leash (canvas sections 9, 12, 13):
   - The re-check and the baseline test run are plain tool calls: no model is involved in them.
   - The model's endpoint must be the approved one (_containment.check_endpoint) and the API key is never logged.
 
-API format: Anthropic Messages API (POST {endpoint}/v1/messages, x-api-key, tools with input_schema, tool_use and
-tool_result blocks). Other providers need an adapter in _post().
+Providers: Anthropic Claude (Messages API, the format this module speaks internally), OpenAI GPT (chat completions) and
+Google Gemini (generateContent with function calling). The conversation loop is the same for all three; _post() turns the
+internal Anthropic-shaped request into the provider's format and the reply back. The format is chosen from the endpoint's host,
+so nobody has to pick one; an OpenAI- or Anthropic-compatible gateway on another host is chosen with api_style.
 """
 from __future__ import annotations
 
@@ -33,8 +35,9 @@ import urllib.request
 
 from tools import _containment
 from tools._mask import Masker
+from tools.read_file import read_file
 
-from . import AgentError, offline_agents
+from . import AgentError, offline_agents, progress
 from .mcp_client import McpClient
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -60,8 +63,13 @@ class ModelConfig:
         self.endpoint = (endpoint or DEFAULT_ENDPOINT).rstrip("/")
         self.model, self.api_key, self.max_tokens, self.timeout = model, api_key, max_tokens, timeout
         host = (urllib.parse.urlsplit(self.endpoint).hostname or "").lower()
-        if api_style not in ("anthropic", "openai"):          # auto: OpenAI's own host (and Azure OpenAI) use the chat-completions format
-            api_style = "openai" if host == "api.openai.com" or host.endswith(".openai.azure.com") else "anthropic"
+        if api_style not in ("anthropic", "openai", "gemini"):    # auto: decided by the host
+            if host == "api.openai.com" or host.endswith(".openai.azure.com"):
+                api_style = "openai"
+            elif host == "generativelanguage.googleapis.com":
+                api_style = "gemini"
+            else:
+                api_style = "anthropic"
         self.api_style = api_style
 
     @classmethod
@@ -75,10 +83,16 @@ class ModelConfig:
                     key, sep, value = line.strip().partition("=")
                     if sep and not key.startswith("#"):
                         values.setdefault(key.strip(), value.strip().strip('"').strip("'"))
-        key = values.get("ANTHROPIC_API_KEY") or values.get("OPENAI_API_KEY") or values.get("AI_API_KEY")
-        if not key:
+        # the first key found decides the provider's default endpoint and model; AI_MODEL_ENDPOINT / AI_MODEL_NAME override them
+        defaults = {"ANTHROPIC_API_KEY": (DEFAULT_ENDPOINT, DEFAULT_MODEL), "OPENAI_API_KEY": ("https://api.openai.com", "gpt-5"),
+                    "GEMINI_API_KEY": ("https://generativelanguage.googleapis.com", "gemini-flash-latest"),
+                    "GOOGLE_API_KEY": ("https://generativelanguage.googleapis.com", "gemini-flash-latest"),
+                    "AI_API_KEY": (DEFAULT_ENDPOINT, DEFAULT_MODEL)}
+        name = next((k for k in defaults if values.get(k)), None)
+        if name is None:
             return None
-        return cls(values.get("AI_MODEL_ENDPOINT", DEFAULT_ENDPOINT), values.get("AI_MODEL_NAME", DEFAULT_MODEL), key,
+        endpoint, model = defaults[name]
+        return cls(values.get("AI_MODEL_ENDPOINT", endpoint), values.get("AI_MODEL_NAME", model), values[name],
                    api_style=values.get("AI_API_STYLE", "auto"))
 
     def record(self) -> dict:
@@ -140,13 +154,118 @@ def _from_openai(reply: dict) -> dict:
             "usage": {"input_tokens": usage.get("prompt_tokens", 0), "output_tokens": usage.get("completion_tokens", 0)}}
 
 
+# Gemini accepts a subset of JSON Schema for a function's parameters. Anything else is dropped, a null type becomes `nullable`.
+_GEMINI_KEYS = {"type", "description", "enum", "properties", "required", "items", "nullable", "minItems", "maxItems", "minimum",
+                "maximum", "format"}
+
+
+def _gemini_schema(node):
+    if isinstance(node, list):
+        return [_gemini_schema(v) for v in node]
+    if not isinstance(node, dict):
+        return node
+    out = {}
+    for key, value in node.items():
+        if key == "properties" and isinstance(value, dict):
+            out[key] = {name: _gemini_schema(sub) for name, sub in value.items()}     # property NAMES are never filtered
+        elif key == "type" and isinstance(value, list):
+            kinds = [t for t in value if t != "null"]
+            out["type"] = kinds[0] if kinds else "string"
+            if "null" in value:
+                out["nullable"] = True
+        elif key in _GEMINI_KEYS:
+            out[key] = _gemini_schema(value)
+    return out
+
+
+def _to_gemini(cfg: ModelConfig, body: dict) -> dict:
+    """The Anthropic-shaped request this module builds, as a Gemini generateContent request."""
+    contents, names = [], {}                                   # names: tool_use id -> function name, for the replies
+    for m in body["messages"]:
+        c = m["content"]
+        if isinstance(c, str):
+            contents.append({"role": "user" if m["role"] == "user" else "model", "parts": [{"text": c}]})
+        elif m["role"] == "assistant":
+            parts = []
+            for b in c:
+                if b.get("type") == "text" and b.get("text"):
+                    parts.append({"text": b["text"]})
+                elif b.get("type") == "tool_use":
+                    names[b["id"]] = b["name"]
+                    part = {"functionCall": {"name": b["name"], "args": b.get("input") or {}}}
+                    if b.get("thought_signature"):                  # Gemini 2.5/3 want the signature sent back with its call
+                        part["thoughtSignature"] = b["thought_signature"]
+                    parts.append(part)
+            contents.append({"role": "model", "parts": parts or [{"text": ""}]})
+        else:
+            parts = []
+            for b in c:
+                if b.get("type") == "tool_result":
+                    try:
+                        payload = json.loads(b["content"])
+                    except (ValueError, TypeError):
+                        payload = None
+                    parts.append({"functionResponse": {"name": names.get(b["tool_use_id"], "tool"),
+                                                       "response": payload if isinstance(payload, dict) else {"result": b["content"]}}})
+                elif b.get("type") == "text":
+                    parts.append({"text": b["text"]})
+            contents.append({"role": "user", "parts": parts})
+    out = {"contents": contents, "generationConfig": {"maxOutputTokens": max(body.get("max_tokens", cfg.max_tokens), 8192)}}
+    if body.get("system"):
+        out["systemInstruction"] = {"parts": [{"text": body["system"]}]}
+    if body.get("tools"):
+        declarations = []
+        for t in body["tools"]:
+            decl = {"name": t["name"], "description": t.get("description", "")}
+            schema = _gemini_schema(t.get("input_schema") or {})
+            if schema.get("properties"):                           # Gemini rejects an object with no properties: leave it out
+                decl["parameters"] = schema
+            declarations.append(decl)
+        out["tools"] = [{"functionDeclarations": declarations}]
+    return out
+
+
+def _from_gemini(reply: dict) -> dict:
+    """A Gemini generateContent reply, as the Anthropic-shaped reply the conversation loop reads."""
+    candidates = reply.get("candidates") or []
+    if not candidates:
+        block = (reply.get("promptFeedback") or {}).get("blockReason")
+        raise AgentError("the model returned no answer" + (f" (blocked: {block})" if block else ""))
+    content, calls = [], 0
+    for part in (candidates[0].get("content") or {}).get("parts") or []:
+        if part.get("thought") is True:                             # a thought summary is not part of the answer
+            continue
+        if "functionCall" in part:
+            call = part["functionCall"]
+            calls += 1
+            block = {"type": "tool_use", "id": f"gemini-{calls}-{call.get('name', 'tool')}", "name": call.get("name", ""),
+                     "input": call.get("args") if isinstance(call.get("args"), dict) else {}}
+            if part.get("thoughtSignature"):
+                block["thought_signature"] = part["thoughtSignature"]
+            content.append(block)
+        elif part.get("text"):
+            content.append({"type": "text", "text": part["text"]})
+    usage = reply.get("usageMetadata") or {}
+    return {"content": content, "model": reply.get("modelVersion"),
+            "stop_reason": "tool_use" if calls else "end_turn",
+            "usage": {"input_tokens": usage.get("promptTokenCount", 0),
+                      "output_tokens": usage.get("candidatesTokenCount", 0) + usage.get("thoughtsTokenCount", 0)}}
+
+
 def _post(cfg: ModelConfig, body: dict) -> dict:
-    openai = cfg.api_style == "openai"
+    openai, gemini = cfg.api_style == "openai", cfg.api_style == "gemini"
+    progress.emit("model", f"Asking {cfg.model}")
     if openai:
         base = cfg.endpoint[:-3] if cfg.endpoint.endswith("/v1") else cfg.endpoint
         url = base + "/v1/chat/completions"
         headers = {"content-type": "application/json", "authorization": "Bearer " + cfg.api_key}
         body = _to_openai(cfg, body)
+    elif gemini:
+        base = cfg.endpoint[:-len("/v1beta")] if cfg.endpoint.endswith("/v1beta") else cfg.endpoint
+        name = cfg.model[len("models/"):] if cfg.model.startswith("models/") else cfg.model
+        url = f"{base}/v1beta/models/{name}:generateContent"
+        headers = {"content-type": "application/json", "x-goog-api-key": cfg.api_key}      # a header, so the key is never in a URL
+        body = _to_gemini(cfg, body)
     else:
         url = cfg.endpoint + "/v1/messages"
         headers = {"content-type": "application/json", "x-api-key": cfg.api_key, "anthropic-version": API_VERSION}
@@ -158,7 +277,7 @@ def _post(cfg: ModelConfig, body: dict) -> dict:
             request = urllib.request.Request(url, data=data, headers=headers, method="POST")
             with urllib.request.urlopen(request, timeout=cfg.timeout) as reply:
                 parsed = json.loads(reply.read().decode("utf-8"))
-                return _from_openai(parsed) if openai else parsed
+                return _from_openai(parsed) if openai else _from_gemini(parsed) if gemini else parsed
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", "replace")[:300]
             last = cfg.redact(f"HTTP {exc.code}: {detail}")
@@ -430,7 +549,8 @@ def _investigate(cfg: ModelConfig, client: McpClient, system: str, job: dict) ->
         cause = None
     if cause:
         path = [p for p in (cause.get("path") or []) if isinstance(p, str) and p in files]
-        cause = {"explanation": str(cause["explanation"])[:500], "path": path or ([finding["file"]] if fixable else None)}
+        # The schema needs a list, never null: when the model names no usable path, the weak spot's own file is the path.
+        cause = {"explanation": str(cause["explanation"])[:500], "path": path or [finding["file"]]}
     if fixable and cause is None:                       # a fix needs a traced cause; without one a person decides
         fixable = False
         entry = {**entry, "handoff_reason": "cause unclear: the model gave no traced cause"}
@@ -465,6 +585,24 @@ def make_fixer_validator(cfg: ModelConfig):
     return run
 
 
+def _related_files(job: dict, limit: int = 4, chars: int = 6000) -> dict:
+    """The other source files on the Investigator's traced path (a caller or a callee), numbered and masked, so a fix that
+    needs a matching change in them (a function that must accept a new parameter) can be written as ONE patch. The harness
+    reads them from the temporary copy; the model has no file-reading tool of its own."""
+    cause = job["investigation"].get("traced_cause") or {}
+    out: dict = {}
+    for path in cause.get("path") or []:
+        if len(out) >= limit:
+            break
+        if path == job["finding"]["file"] or not path.endswith(".py") or FORBIDDEN_PATCH.search(path):
+            continue
+        shown = read_file(job["workspace"], path)["response"]
+        if shown.get("ok"):
+            text = shown["result"]["content"][:chars]
+            out[path] = "\n".join(f"{i}: {t}" for i, t in enumerate(text.splitlines(), 1))
+    return out
+
+
 def _fix(cfg: ModelConfig, client: McpClient, system: str, job: dict) -> dict:
     finding, fid, attempt = job["finding"], job["finding"]["finding_id"], job["attempt"]
     ws = {"workspace": job["workspace"]}
@@ -497,7 +635,8 @@ def _fix(cfg: ModelConfig, client: McpClient, system: str, job: dict) -> dict:
     numbered = "\n".join(f"{i}: {t}" for i, t in enumerate(job["source"].splitlines(), 1))
     payload = {"finding": {k: finding[k] for k in ("finding_id", "rule_id", "file", "line", "evidence", "severity")},
                "investigation": {"fix_approach": job["investigation"]["fix_approach"], "traced_cause": job["investigation"]["traced_cause"]},
-               "file_to_patch": finding["file"], "file_source_numbered": numbered, "attempt": attempt,
+               "file_to_patch": finding["file"], "file_source_numbered": numbered,
+               "other_files_on_the_path": _related_files(job), "attempt": attempt,
                "previous_failure": job.get("previous_failure"), "baseline_tests": job["baseline"], "job": "fix"}
     final = session.converse("write the smallest fix, apply it, test it, ask for a re-check", payload)
 

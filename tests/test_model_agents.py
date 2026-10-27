@@ -87,6 +87,11 @@ def script(body: dict) -> dict:
             return tu("read_file", {"path": job["finding"]["file"]})
         if stage == 1:
             return tu("read_code_structure", {"files": [job["finding"]["file"]]})
+        if MockModel.mode == "unfixable_no_path":     # a cause but no path, and not fixable: the model's own wording, as GPT-5 sent it
+            return end({"investigations": [{"finding_id": job["finding"]["finding_id"],
+                                            "traced_cause": {"explanation": "Callers send raw SQL.", "path": None},
+                                            "fix_approach": None, "fixable": False,
+                                            "handoff_reason": "needs a redesign: callers provide raw SQL conditions"}]})
         return end({"investigations": [{"finding_id": job["finding"]["finding_id"], "traced_cause": {"explanation": "Input reaches the query.", "path": [job["finding"]["file"]]},
                                         "fix_approach": "Use a ? placeholder.", "fixable": True, "handoff_reason": None}]})
     if "# Fixer" in system:
@@ -352,11 +357,8 @@ class ConsoleModelTest(unittest.TestCase):
         self.assertNotIn("sk-test-key-123456", json.dumps(m))
         self.assertNotIn("sk-test-key-123456", json.dumps(self.call("/api/info")[1]))
         self.assertTrue(self.call("/api/model/test", {})[1]["ok"])
-        # an agent is ticked but the acknowledgement is missing -> refused
-        s, r = self.call("/api/jobs", {"case": "case_01_sqli_fstring", "use_model": {"fixer_validator": True}})
-        self.assertEqual(s, 400)
-        self.assertIn("confirm", r["error"])
-        s, r = self.call("/api/jobs", {"case": "case_01_sqli_fstring", "model_ack": True,
+        # there is no acknowledgement checkbox any more: masking is automatic, so a run with a connected model just starts
+        s, r = self.call("/api/jobs", {"case": "case_01_sqli_fstring",
                                        "use_model": {"auditor": True, "investigator": True, "fixer_validator": True}})
         self.assertEqual(s, 200)
         for _ in range(300):
@@ -371,9 +373,183 @@ class ConsoleModelTest(unittest.TestCase):
         self.assertNotIn("sk-test-key-123456", json.dumps(v))
         # disconnect -> using the model is refused
         self.call("/api/model/clear", {})
-        s, r = self.call("/api/jobs", {"case": "case_01_sqli_fstring", "model_ack": True, "use_model": {"auditor": True}})
+        s, r = self.call("/api/jobs", {"case": "case_01_sqli_fstring", "use_model": {"auditor": True}})
         self.assertEqual(s, 400)
         self.assertEqual(self.call("/api/model")[1]["configured"], False)
+
+
+def _gemini_to_anthropic(body: dict) -> dict:
+    """What the scripted model reads: the Gemini request turned back into the Anthropic shape."""
+    messages = []
+    for m in body["contents"]:
+        parts = m["parts"]
+        if m["role"] == "model":
+            blocks = []
+            for p in parts:
+                if "functionCall" in p:
+                    blocks.append({"type": "tool_use", "id": p["functionCall"]["name"], "name": p["functionCall"]["name"], "input": p["functionCall"]["args"]})
+                elif p.get("text"):
+                    blocks.append({"type": "text", "text": p["text"]})
+            messages.append({"role": "assistant", "content": blocks})
+        elif any("functionResponse" in p for p in parts):
+            messages.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": p["functionResponse"]["name"],
+                                                          "content": json.dumps(p["functionResponse"]["response"])}
+                                                         for p in parts if "functionResponse" in p]})
+        else:
+            messages.append({"role": "user", "content": "".join(p.get("text", "") for p in parts)})
+    return {"model": "gemini-mock", "system": body["systemInstruction"]["parts"][0]["text"], "messages": messages}
+
+
+def _walk(node):
+    if isinstance(node, dict):
+        for k, v in node.items():
+            yield k
+            yield from _walk(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _walk(v)
+
+
+class GeminiHandler(BaseHTTPRequestHandler):
+    """The same scripted model behind a Gemini generateContent endpoint. It checks the details real Gemini is strict about."""
+    problems: list = []
+    signatures_seen: list = []
+
+    def log_message(self, *a):
+        pass
+
+    def do_POST(self):
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        bad = []
+        if self.path != "/v1beta/models/gemini-mock:generateContent":
+            bad.append(f"path {self.path}")
+        if self.headers.get("x-goog-api-key") != "sk-test-key-123456" or "key=" in self.path:
+            bad.append("the key must be in the x-goog-api-key header, never in the URL")
+        for decl in (body.get("tools") or [{}])[0].get("functionDeclarations", []):
+            if "parameters" in decl and not decl["parameters"].get("properties"):
+                bad.append(f"{decl['name']}: parameters without properties")
+            leaked = {"additionalProperties", "$schema", "$defs", "$ref"} & set(_walk(decl.get("parameters", {})))
+            if leaked:
+                bad.append(f"{decl['name']}: unsupported schema keys {sorted(leaked)}")
+        for c in body["contents"]:
+            for p in c["parts"]:
+                if "functionCall" in p:
+                    GeminiHandler.signatures_seen.append(p.get("thoughtSignature"))
+        GeminiHandler.problems += bad
+        if bad:
+            payload, code = {"error": {"message": "; ".join(bad)}}, 400
+        elif "Reply with the word OK." in json.dumps(body):
+            payload, code = {"modelVersion": "gemini-mock", "candidates": [{"content": {"parts": [{"text": "OK"}]}}],
+                             "usageMetadata": {"promptTokenCount": 8, "candidatesTokenCount": 2}}, 200
+        else:
+            out = script(_gemini_to_anthropic(body))
+            parts = [{"text": b["text"]} for b in out["content"] if b["type"] == "text"]
+            for b in out["content"]:
+                if b["type"] == "tool_use":
+                    parts.append({"functionCall": {"name": b["name"], "args": b["input"]}, "thoughtSignature": "sig-" + b["name"]})
+            parts.insert(0, {"text": "thinking...", "thought": True})            # a thought summary must be ignored
+            payload, code = {"modelVersion": "gemini-mock", "candidates": [{"content": {"role": "model", "parts": parts}}],
+                             "usageMetadata": {"promptTokenCount": 100, "candidatesTokenCount": 15, "thoughtsTokenCount": 5}}, 200
+        data = json.dumps(payload).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
+class GeminiStyleTest(unittest.TestCase):
+    """Google Gemini works like the other two: chosen from the host, strict about the schema, signatures sent back."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.httpd = HTTPServer(("127.0.0.1", 0), GeminiHandler)
+        threading.Thread(target=cls.httpd.serve_forever, daemon=True).start()
+        cls.url = f"http://127.0.0.1:{cls.httpd.server_address[1]}"
+        cls.tmp = tempfile.mkdtemp(prefix="saa-gemini-test-")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.httpd.shutdown()
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_the_provider_is_chosen_from_the_host(self):
+        self.assertEqual(model_agents.ModelConfig("https://generativelanguage.googleapis.com", "gemini-flash-latest", "k").api_style, "gemini")
+        self.assertEqual(model_agents.ModelConfig("https://api.openai.com", "gpt-5", "k").api_style, "openai")
+        self.assertEqual(model_agents.ModelConfig("https://api.anthropic.com", "claude-sonnet-5-5", "k").api_style, "anthropic")
+
+    def test_the_schema_is_reduced_to_what_gemini_accepts(self):
+        schema = {"$schema": "x", "type": "object", "additionalProperties": False, "required": ["a"],
+                  "properties": {"a": {"type": ["string", "null"], "default": "d", "description": "x"},
+                                 "b": {"type": "array", "items": {"type": "string", "minLength": 1}}}}
+        out = model_agents._gemini_schema(schema)
+        self.assertEqual(out["properties"]["a"], {"type": "string", "nullable": True, "description": "x"})
+        self.assertEqual(out["properties"]["b"]["items"], {"type": "string"})
+        self.assertNotIn("additionalProperties", out)
+        self.assertNotIn("$schema", out)
+
+    def test_a_full_scan_in_the_gemini_format_with_signatures_echoed_and_the_key_kept_out_of_the_url(self):
+        GeminiHandler.problems, GeminiHandler.signatures_seen = [], []
+        cfg = model_agents.ModelConfig(self.url, "gemini-mock", "sk-test-key-123456", api_style="gemini")
+        self.assertTrue(model_agents.test_connection(cfg)["ok"])
+        MockModel.mode = "good"
+        src = shutil.copytree(os.path.join(GOLDEN, "case_01_sqli_fstring"), os.path.join(self.tmp, "src"),
+                              ignore=shutil.ignore_patterns("expected.json", "__pycache__"))
+        flow = Workflow(agents=model_agents.make_agents(cfg, None), out_root=os.path.join(self.tmp, "out"), ai_model=cfg.record())
+        flow.start(src, RULES)
+        self.assertEqual(GeminiHandler.problems, [])
+        self.assertEqual({r["status"] for r in flow.state["finding_status"]}, {"verified_awaiting_approval"})
+        self.assertTrue(GeminiHandler.signatures_seen and all(s and s.startswith("sig-") for s in GeminiHandler.signatures_seen))
+        self.assertGreater(flow.state["counters"]["tokens"]["output"], 0)             # thought tokens are counted as output
+
+    def test_an_empty_or_blocked_reply_is_a_clear_error_not_a_crash(self):
+        with self.assertRaises(model_agents.AgentError) as ctx:
+            model_agents._from_gemini({"candidates": [], "promptFeedback": {"blockReason": "SAFETY"}})
+        self.assertIn("SAFETY", str(ctx.exception))
+
+
+class InvestigatorAndFixerContextTest(unittest.TestCase):
+    """Two things the first real GPT-5 run showed: a cause with no path was REJECTED (so the finding went to a person for a
+    harness reason, not a security one), and a multi-file fix could not be written because the Fixer saw only one file."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.httpd = HTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=cls.httpd.serve_forever, daemon=True).start()
+        cls.cfg = model_agents.ModelConfig(f"http://127.0.0.1:{cls.httpd.server_address[1]}", "mock-model", "sk-test-key-123456")
+        cls.tmp = tempfile.mkdtemp(prefix="saa-context-test-")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.httpd.shutdown()
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def tearDown(self):
+        MockModel.mode = "good"
+
+    def test_a_cause_without_a_path_is_accepted_and_the_reason_to_hand_over_is_the_models(self):
+        MockModel.mode = "unfixable_no_path"
+        src = shutil.copytree(os.path.join(GOLDEN, "case_01_sqli_fstring"), os.path.join(self.tmp, "s1"),
+                              ignore=shutil.ignore_patterns("expected.json", "__pycache__"))
+        flow = Workflow(agents=model_agents.make_agents(self.cfg, None), out_root=os.path.join(self.tmp, "o1"), ai_model=self.cfg.record())
+        flow.start(src, RULES)
+        row = flow.state["finding_status"][0]
+        self.assertEqual(row["status"], "needs_a_person")
+        self.assertIn("needs a redesign", row["reason"])                      # not "investigator output rejected"
+        self.assertNotIn("rejected", row["reason"])
+        entry = flow.state["investigations"][0]
+        self.assertEqual(entry["traced_cause"]["path"], ["src/users.py"])     # a list, never null
+
+    def test_the_fixer_is_given_the_other_files_on_the_traced_path(self):
+        from tools.orchestrator_helpers import make_temp_copy
+        info = make_temp_copy(os.path.join(GOLDEN, "case_05_multifile_sqli"), RULES, run_dir=os.path.join(self.tmp, "rf"))
+        job = {"workspace": info["workspace"], "finding": {"file": "src/service.py"},
+               "investigation": {"traced_cause": {"path": ["src/views.py", "src/service.py", "src/db.py", "tests/test_views.py"]}}}
+        other = model_agents._related_files(job)
+        self.assertEqual(sorted(other), ["src/db.py", "src/views.py"])        # not the finding's own file, not a test
+        self.assertTrue(other["src/db.py"].startswith("1: "))                 # numbered, so a diff can be written against it
+        job["investigation"] = {"traced_cause": None}
+        self.assertEqual(model_agents._related_files(job), {})
 
 
 if __name__ == "__main__":

@@ -41,7 +41,12 @@
         },
         "step_cap": { "type": "integer", "minimum": 1, "default": 50 },
         "token_cap_input": { "type": "integer", "minimum": 1, "default": 400000 },
-        "token_cap_output": { "type": "integer", "minimum": 1, "default": 60000 }
+        "token_cap_output": { "type": "integer", "minimum": 1, "default": 60000 },
+        "fix_when_cause_unclear": {
+          "type": "boolean",
+          "default": false,
+          "description": "When the only objection is 'cause unclear' (no caller in the project), still prepare a local fix for a person to approve."
+        }
       }
     }
   }

@@ -35,7 +35,7 @@ if ROOT not in sys.path:
 
 import kill_checks  # noqa: E402  (canvas section 16: one automatic check per immediate kill criterion)
 import validate  # noqa: E402  (schema checks and the code checks a schema cannot state)
-from agents import AgentError, offline_agents  # noqa: E402
+from agents import AgentError, offline_agents, progress  # noqa: E402
 from tools import _containment  # noqa: E402
 from tools._mask import Masker  # noqa: E402
 from tools._safety import SafetyError, is_inside  # noqa: E402
@@ -50,6 +50,10 @@ DEFAULT_POLICY = {
     "file_cap": 200, "max_retries": 1, "test_command": "python -m unittest discover -s tests",
     "ai_call_cap": 60, "time_cap_seconds": 1200, "confidence_gate": 0.7,
     "step_cap": 50, "token_cap_input": 400000, "token_cap_output": 60000,
+    # AGENTS.md section 5 step 4 hands an unclear cause to a person. With this on, a finding whose only problem is that no caller
+    # is visible still gets a LOCAL fix (placeholder, no shell, path check) for a person to approve: the tests and the
+    # re-check must pass and nothing is applied without approval. A needed redesign still goes to a person. Off by default.
+    "fix_when_cause_unclear": False,
 }
 TEST_TIMEOUT_SECONDS = 120
 DECISIONS = ("approved", "edited", "rejected")
@@ -164,6 +168,7 @@ class Workflow:
         if finding_id:
             entry["finding_id"] = finding_id
         log.append(entry)
+        progress.emit("log", detail, event=event, actor=actor, finding_id=finding_id)
 
     def _save(self, label: str) -> None:
         """state.json after every handoff (and each setup step), plus a numbered copy."""
@@ -329,6 +334,7 @@ class Workflow:
         entry = {"step": step, "timestamp": _now(), "agent": agent, "job": job_name, "finding_id": finding_id,
                  "wrote": [], "result": "ok"}
         self._drain_events(agent, finding_id)             # events left over from before this handoff are not this agent's
+        progress.emit("agent", f"{agent}: {job_name}", agent=agent, job=job_name, finding_id=finding_id, phase="start")
         try:
             output = self.agents[agent]({"job": job_name, **job})
         except _containment.ContainmentViolation as exc:
@@ -372,6 +378,7 @@ class Workflow:
         self._log(agent, f"{job_name}_done", "wrote " + ", ".join(entry["wrote"]), finding_id)
         self._check_state()
         self._save(f"{agent}_{job_name}" if finding_id is None else f"{agent}_{job_name}_{finding_id}")
+        progress.emit("agent", f"{agent}: {job_name}", agent=agent, job=job_name, finding_id=finding_id, phase="end")
         return output
 
     @staticmethod
@@ -538,6 +545,8 @@ class Workflow:
             "source_folder": self.state["input"]["source_folder"], "finding": finding,
             "file_list": self.state["file_list"]})
         inv = next(i for i in self.state["investigations"] if i["finding_id"] == fid)
+        if not inv["fixable"] and self._propose_despite_unclear_cause(finding, rule, inv):
+            inv = next(i for i in self.state["investigations"] if i["finding_id"] == fid)
         if not inv["fixable"]:
             self._status(fid, NEEDS_PERSON, inv["handoff_reason"])
             return
@@ -572,6 +581,32 @@ class Workflow:
             if attempt <= self.policy["max_retries"]:
                 self._undo_attempt(finding, tried)
         self._status(fid, REJECTED, "the fix failed after the one retry: " + (reason_last or "no reason given"))
+
+    def _propose_despite_unclear_cause(self, finding: dict, rule: dict, inv: dict) -> bool:
+        """Policy fix_when_cause_unclear. True when the Investigator's only objection is 'cause unclear' (nobody calls this
+        function in the project) and the rule has a small local fix. The model's own words stay in the decision log, the
+        proposal says the cause was not traced, and a person still approves. A redesign or a rule with no fix is not touched."""
+        reason = str(inv.get("handoff_reason") or "")
+        if not (self.policy.get("fix_when_cause_unclear") and reason.lower().startswith("cause unclear")
+                and rule["fix_allowed"] and finding["rule_id"] in offline_agents.PATH_RULES):
+            return False
+        inv["fixable"] = True
+        inv["fix_approach"] = inv.get("fix_approach") or offline_agents.FIX_APPROACH[finding["rule_id"]]
+        inv["traced_cause"] = inv.get("traced_cause") or {
+            "explanation": f"Not traced: {reason[len('cause unclear:'):].strip() or 'no caller is visible in the project'}. "
+                           "The weak spot is local, so a fix is proposed anyway; you decide.",
+            "path": [finding["file"]]}
+        inv["handoff_reason"] = None
+        self.meta.setdefault("unclear_cause_fixes", []).append(finding["finding_id"])
+        self._log("orchestrator", "cause_unclear_fix_proposed",
+                  f"the cause is not traced ({reason[:120]}); a local fix is prepared for approval", finding["finding_id"])
+        return True
+
+    def _risk_note(self, fid: str, text: str) -> str:
+        """Residual risk, with the 'cause not traced' warning added for a fix proposed under fix_when_cause_unclear."""
+        if fid in self.meta.get("unclear_cause_fixes", []):
+            return text + " The cause was not traced (no caller is visible), so check where this function's input comes from."
+        return text
 
     def _undo_attempt(self, finding: dict, tried: dict) -> None:
         """Put the temporary copy back as it was before a failed attempt (reverse patch), so the retry starts clean."""
@@ -624,7 +659,7 @@ class Workflow:
                     "confidence": finding["confidence"], "file": finding["file"], "line": finding["line"],
                     "evidence": finding["evidence"], "traced_cause": inv["traced_cause"],
                     "patch_diff": attempt["patch_diff"], "tests": attempt["tests"], "recheck": attempt["recheck"],
-                    "residual_risk": attempt["residual_risk"],
+                    "residual_risk": self._risk_note(fid, attempt["residual_risk"]),
                     "decision": None, "reason": None, "reviewer": None, "edited_patch_diff": None})
             else:
                 package = self._finding_entry(fid, finding, row)
@@ -770,7 +805,7 @@ class Workflow:
                  "tests": last["tests"] if last else {"before": state.get("baseline_tests", {}).get("outcome", "none"),
                                                       "after": None},
                  "recheck": last["recheck"] if last else "not_run",
-                 "residual_risk": (last["residual_risk"] if last else
+                 "residual_risk": (self._risk_note(fid, last["residual_risk"]) if last else
                                    "Nothing was changed, so the weak spot is still in the code.")}
         if row["reason"]:
             entry["reason"] = row["reason"]
