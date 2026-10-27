@@ -129,6 +129,93 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 
+def _openai_to_anthropic(body: dict) -> dict:
+    """What the scripted model reads: the OpenAI request turned back into the Anthropic shape."""
+    messages, system = [], ""
+    for m in body["messages"]:
+        if m["role"] == "system":
+            system = m["content"]
+            continue
+        if m["role"] == "tool":
+            messages.append({"role": "user", "content": [{"type": "tool_result", "tool_use_id": m["tool_call_id"], "content": m["content"]}]})
+        elif m["role"] == "assistant":
+            blocks = ([{"type": "text", "text": m["content"]}] if m.get("content") else []) + [
+                {"type": "tool_use", "id": c["id"], "name": c["function"]["name"], "input": json.loads(c["function"]["arguments"])}
+                for c in m.get("tool_calls", [])]
+            messages.append({"role": "assistant", "content": blocks})
+        else:
+            messages.append({"role": "user", "content": m["content"]})
+    return {"model": body["model"], "system": system, "messages": messages}
+
+
+class OpenAIHandler(BaseHTTPRequestHandler):
+    """The same scripted model behind an OpenAI chat-completions endpoint."""
+    def log_message(self, *a):
+        pass
+
+    def do_POST(self):
+        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        MockModel.requests.append(body)
+        if self.path != "/v1/chat/completions" or self.headers.get("authorization") != "Bearer sk-test-key-123456" \
+                or "tools" in body and not all(t.get("type") == "function" for t in body["tools"]):
+            payload, code = {"error": {"message": "bad request"}}, 400
+        elif "Reply with the word OK." in json.dumps(body):
+            payload, code = {"model": body["model"], "choices": [{"message": {"role": "assistant", "content": "OK"}}], "usage": {"prompt_tokens": 8, "completion_tokens": 2}}, 200
+        else:
+            out = script(_openai_to_anthropic(body))
+            text = "".join(b.get("text", "") for b in out["content"] if b["type"] == "text")
+            calls = [{"id": b["id"], "type": "function", "function": {"name": b["name"], "arguments": json.dumps(b["input"])}} for b in out["content"] if b["type"] == "tool_use"]
+            msg = {"role": "assistant", "content": text or None, **({"tool_calls": calls} if calls else {})}
+            payload, code = {"model": body["model"], "choices": [{"message": msg}], "usage": {"prompt_tokens": 100, "completion_tokens": 20}}, 200
+        data = json.dumps(payload).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
+class OpenAIStyleTest(unittest.TestCase):
+    """api.openai.com is refused by the network guard unless the connected endpoint is approved, and the OpenAI format works."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.httpd = HTTPServer(("127.0.0.1", 0), OpenAIHandler)
+        threading.Thread(target=cls.httpd.serve_forever, daemon=True).start()
+        cls.url = f"http://127.0.0.1:{cls.httpd.server_address[1]}"
+        cls.tmp = tempfile.mkdtemp(prefix="saa-openai-test-")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.httpd.shutdown()
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_style_is_detected_from_the_host(self):
+        self.assertEqual(model_agents.ModelConfig("https://api.openai.com", "m", "k").api_style, "openai")
+        self.assertEqual(model_agents.ModelConfig("https://api.anthropic.com", "m", "k").api_style, "anthropic")
+        self.assertEqual(model_agents.ModelConfig("https://x.example", "m", "k", api_style="openai").api_style, "openai")
+
+    def test_connection_and_a_full_scan_in_the_openai_format(self):
+        cfg = model_agents.ModelConfig(self.url, "mock-model", "sk-test-key-123456", api_style="openai")
+        self.assertTrue(model_agents.test_connection(cfg)["ok"])
+        MockModel.mode, MockModel.requests = "good", []
+        src = shutil.copytree(os.path.join(GOLDEN, "case_01_sqli_fstring"), os.path.join(self.tmp, "src"),
+                              ignore=shutil.ignore_patterns("expected.json", "__pycache__"))
+        flow = Workflow(agents=model_agents.make_agents(cfg, None), out_root=os.path.join(self.tmp, "out"), ai_model=cfg.record())
+        flow.start(src, RULES)
+        self.assertEqual({r["status"] for r in flow.state["finding_status"]}, {"verified_awaiting_approval"})
+        self.assertTrue(any("tools" in r for r in MockModel.requests))
+
+    def test_the_connected_endpoint_host_is_what_the_network_guard_approves(self):
+        src = shutil.copytree(os.path.join(GOLDEN, "case_01_sqli_fstring"), os.path.join(self.tmp, "src2"),
+                              ignore=shutil.ignore_patterns("expected.json", "__pycache__"))
+        flow = Workflow(out_root=os.path.join(self.tmp, "out2"), ai_model={"name": "m", "version": "m", "endpoint": "https://api.openai.com"})
+        flow.start(src, RULES)
+        self.assertEqual(flow.guard.approved, "api.openai.com")
+        self.assertTrue(flow.guard.allowed("api.openai.com"))
+        self.assertFalse(flow.guard.allowed("evil.example"))
+
+
 class ModelAgentsTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

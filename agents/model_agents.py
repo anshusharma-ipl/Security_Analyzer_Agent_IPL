@@ -28,6 +28,7 @@ import os
 import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from tools import _containment
@@ -54,9 +55,14 @@ HARNESS = (
 
 # --------------------------------------------------------------------------- configuration
 class ModelConfig:
-    def __init__(self, endpoint: str, model: str, api_key: str, max_tokens: int = 4096, timeout: int = 120) -> None:
+    def __init__(self, endpoint: str, model: str, api_key: str, max_tokens: int = 4096, timeout: int = 120,
+                 api_style: str = "auto") -> None:
         self.endpoint = (endpoint or DEFAULT_ENDPOINT).rstrip("/")
         self.model, self.api_key, self.max_tokens, self.timeout = model, api_key, max_tokens, timeout
+        host = (urllib.parse.urlsplit(self.endpoint).hostname or "").lower()
+        if api_style not in ("anthropic", "openai"):          # auto: OpenAI's own host (and Azure OpenAI) use the chat-completions format
+            api_style = "openai" if host == "api.openai.com" or host.endswith(".openai.azure.com") else "anthropic"
+        self.api_style = api_style
 
     @classmethod
     def from_env(cls) -> "ModelConfig | None":
@@ -69,30 +75,90 @@ class ModelConfig:
                     key, sep, value = line.strip().partition("=")
                     if sep and not key.startswith("#"):
                         values.setdefault(key.strip(), value.strip().strip('"').strip("'"))
-        key = values.get("ANTHROPIC_API_KEY") or values.get("AI_API_KEY")
+        key = values.get("ANTHROPIC_API_KEY") or values.get("OPENAI_API_KEY") or values.get("AI_API_KEY")
         if not key:
             return None
-        return cls(values.get("AI_MODEL_ENDPOINT", DEFAULT_ENDPOINT), values.get("AI_MODEL_NAME", DEFAULT_MODEL), key)
+        return cls(values.get("AI_MODEL_ENDPOINT", DEFAULT_ENDPOINT), values.get("AI_MODEL_NAME", DEFAULT_MODEL), key,
+                   api_style=values.get("AI_API_STYLE", "auto"))
 
     def record(self) -> dict:
         """What the run record stores (never the key)."""
-        return {"name": self.model, "version": self.model, "endpoint": self.endpoint}
+        return {"name": self.model, "version": self.model, "endpoint": self.endpoint}  # api_style is not stored
 
     def redact(self, text: str) -> str:
         return text.replace(self.api_key, "<API_KEY>") if self.api_key else text
 
 
+def _to_openai(cfg: ModelConfig, body: dict) -> dict:
+    """The Anthropic-shaped request this module builds, as an OpenAI chat-completions request."""
+    msgs = []
+    if body.get("system"):
+        msgs.append({"role": "system", "content": body["system"]})
+    for m in body["messages"]:
+        c = m["content"]
+        if isinstance(c, str):
+            msgs.append({"role": m["role"], "content": c})
+        elif m["role"] == "assistant":
+            text = "".join(b.get("text", "") for b in c if b.get("type") == "text")
+            calls = [{"id": b["id"], "type": "function", "function": {"name": b["name"], "arguments": json.dumps(b.get("input") or {})}}
+                     for b in c if b.get("type") == "tool_use"]
+            msg = {"role": "assistant", "content": text or None}
+            if calls:
+                msg["tool_calls"] = calls
+            msgs.append(msg)
+        else:
+            for b in c:
+                if b.get("type") == "tool_result":
+                    msgs.append({"role": "tool", "tool_call_id": b["tool_use_id"], "content": b["content"]})
+    out = {"model": body["model"], "messages": msgs, "max_completion_tokens": body.get("max_tokens", cfg.max_tokens)}
+    if body.get("tools"):
+        out["tools"] = [{"type": "function", "function": {"name": t["name"], "description": t.get("description", ""),
+                                                          "parameters": t.get("input_schema") or {"type": "object", "properties": {}}}}
+                        for t in body["tools"]]
+    return out
+
+
+def _from_openai(reply: dict) -> dict:
+    """An OpenAI chat-completions reply, as the Anthropic-shaped reply the conversation loop reads."""
+    try:
+        choice = reply["choices"][0]
+        message = choice["message"]
+    except (KeyError, IndexError, TypeError):
+        raise AgentError("the model endpoint returned an unexpected reply (no choices)") from None
+    content = []
+    if message.get("content"):
+        content.append({"type": "text", "text": message["content"]})
+    for call in message.get("tool_calls") or []:
+        try:
+            args = json.loads(call["function"].get("arguments") or "{}")
+        except ValueError:
+            args = {}
+        content.append({"type": "tool_use", "id": call["id"], "name": call["function"]["name"], "input": args if isinstance(args, dict) else {}})
+    usage = reply.get("usage", {})
+    return {"content": content, "model": reply.get("model"),
+            "stop_reason": "tool_use" if any(b["type"] == "tool_use" for b in content) else "end_turn",
+            "usage": {"input_tokens": usage.get("prompt_tokens", 0), "output_tokens": usage.get("completion_tokens", 0)}}
+
+
 def _post(cfg: ModelConfig, body: dict) -> dict:
-    url = cfg.endpoint + "/v1/messages"
+    openai = cfg.api_style == "openai"
+    if openai:
+        base = cfg.endpoint[:-3] if cfg.endpoint.endswith("/v1") else cfg.endpoint
+        url = base + "/v1/chat/completions"
+        headers = {"content-type": "application/json", "authorization": "Bearer " + cfg.api_key}
+        body = _to_openai(cfg, body)
+    else:
+        url = cfg.endpoint + "/v1/messages"
+        headers = {"content-type": "application/json", "x-api-key": cfg.api_key, "anthropic-version": API_VERSION}
     _containment.check_endpoint(url, cfg.endpoint)
     data = json.dumps(body).encode("utf-8")
-    headers = {"content-type": "application/json", "x-api-key": cfg.api_key, "anthropic-version": API_VERSION}
     last = ""
     for attempt in range(3):
         try:
             request = urllib.request.Request(url, data=data, headers=headers, method="POST")
             with urllib.request.urlopen(request, timeout=cfg.timeout) as reply:
-                return json.loads(reply.read().decode("utf-8"))
+                parsed = json.loads(reply.read().decode("utf-8"))
+                return _from_openai(parsed) if openai else parsed
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", "replace")[:300]
             last = cfg.redact(f"HTTP {exc.code}: {detail}")

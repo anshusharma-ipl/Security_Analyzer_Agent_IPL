@@ -17,6 +17,7 @@ fixes are written to out/<run_id>/fixes.patch for a person to apply.
 """
 from __future__ import annotations
 
+import urllib.parse
 import copy
 import hashlib
 import json
@@ -116,7 +117,9 @@ def _ai_model() -> dict:
 def _with_guard(method):
     """Run a public step (start, finish) with the network guard installed, and always take it off again."""
     def wrapper(self, *args, **kwargs):
-        self.guard = kill_checks.NetworkGuard()
+        override = (self._ai_model_override or {}).get("endpoint")       # a model connected in the console, not only .env
+        host = urllib.parse.urlsplit(override).hostname if override and override != "none" else None
+        self.guard = kill_checks.NetworkGuard(approved=host)
         self.guard.install()
         try:
             return method(self, *args, **kwargs)

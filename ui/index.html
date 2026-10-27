@@ -52,6 +52,7 @@
         <summary>Connect a model</summary>
         <p class="small muted" style="margin-top:8px">Anthropic Messages API format. The key stays in this server's memory and is never saved or shown again.</p>
         <label for="mEndpoint">Endpoint</label><input type="text" id="mEndpoint">
+        <label for="mStyle">API format</label><select id="mStyle"><option value="auto">Auto (OpenAI for api.openai.com, otherwise Anthropic)</option><option value="openai">OpenAI-compatible</option><option value="anthropic">Anthropic</option></select>
         <label for="mName">Model name</label><input type="text" id="mName">
         <label for="mKey">API key</label><input type="password" id="mKey" autocomplete="off">
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
@@ -186,7 +187,7 @@ async function modelCall(path, body) {
   try { return await post(path, body); } catch (e) { $("mMsg").textContent = e.message; return null; }
 }
 $("mConnect").onclick = async () => {
-  const r = await modelCall("/api/model", { endpoint: $("mEndpoint").value, model: $("mName").value, api_key: $("mKey").value });
+  const r = await modelCall("/api/model", { endpoint: $("mEndpoint").value, model: $("mName").value, api_key: $("mKey").value, api_style: $("mStyle").value });
   $("mKey").value = ""; if (r) { showModel(r); $("mMsg").textContent = "Connected. Press Test to check it."; }
 };
 $("mEnv").onclick = async () => { const r = await modelCall("/api/model", { from_env: true }); if (r) { showModel(r); $("mMsg").textContent = "Connected from .env."; } };
