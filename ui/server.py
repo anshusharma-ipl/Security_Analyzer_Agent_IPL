@@ -463,6 +463,9 @@ class Handler(BaseHTTPRequestHandler):
                     archive.writestr("report.html", self._report_html(run_dir))
             return self._send(200, buffer.getvalue(), "application/zip",
                               {"Content-Disposition": f'attachment; filename="security-analyzer-{job["id"]}.zip"'})
+        inline = name == "report.view.html"
+        if inline:
+            name = "report.html"
         if name not in DOWNLOADS:
             return self._fail(404, "unknown file")
         if name == "report.html":
@@ -475,7 +478,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._fail(404, f"{name} does not exist for this run")
             with open(full, "rb") as handle:
                 body = handle.read()
-        self._send(200, body, DOWNLOADS[name], {"Content-Disposition": f'attachment; filename="{name}"'})
+        self._send(200, body, DOWNLOADS[name], {} if inline else {"Content-Disposition": f'attachment; filename="{name}"'})
 
     @staticmethod
     def _report_html(run_dir: str) -> str:
