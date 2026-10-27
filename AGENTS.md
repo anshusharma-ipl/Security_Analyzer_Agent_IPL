@@ -79,7 +79,7 @@ No findings at all: `safe_nothing_to_report`.
 | --- | --- | --- |
 | max_retries | 1 | One retry per finding |
 | file_cap | 200 | Starting value, revisit after pilot |
-| ai_call_cap | 60 | Starting value, revisit after pilot |
+| ai_call_cap | 60 | Starting value, revisit after pilot. The console raises it to 150 (and time_cap to 40 minutes) for model runs only: the first live GPT-5 run made 62 calls on 6 of 10 findings and stopped (2026-10-27, owner decision) |
 | time_cap | 20 minutes | Starting value, revisit after pilot |
 | step_cap | 50 steps | Team decision. One step = one orchestrator-to-agent handoff (job given, agent finishes, result written to shared state). Tool calls inside an agent are not steps; AI calls count against ai_call_cap |
 | token_cap | 400,000 in, 60,000 out | Team decision |

@@ -261,6 +261,21 @@ class ProviderTest(unittest.TestCase):
         self.assertTrue(use["auditor"])
 
 
+    def test_model_runs_get_the_larger_console_caps_and_plain_runs_do_not(self):
+        from unittest import mock
+        from orchestrator.workflow import DEFAULT_POLICY
+        self.assertEqual(DEFAULT_POLICY["ai_call_cap"], 60)                             # the engine and the evals keep 60
+        seen = []
+        fake = type("H", (), {"_json": lambda self, code, payload: None})()
+        with mock.patch.object(server, "_start_job", lambda *a, **k: seen.append(a[2]) or "abc123abc123"):
+            server.MODEL["cfg"] = None
+            server.Handler._create_job(fake, {"demo": "shop"})
+            server.set_model({"provider": "openai", "api_key": "k", "model": "gpt-5"})
+            server.Handler._create_job(fake, {"demo": "shop", "use_model": {"auditor": True}})
+        self.assertNotIn("ai_call_cap", seen[0])
+        self.assertEqual(seen[1]["ai_call_cap"], 150)
+        self.assertEqual(seen[1]["time_cap_seconds"], 2400)
+
 class LiveStepsTest(unittest.TestCase):
     """The console shows what a scan is doing, step by step. The steps hold names and counts only, never code."""
 

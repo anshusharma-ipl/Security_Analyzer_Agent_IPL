@@ -53,6 +53,7 @@ MAX_ZIP_BYTES = 20 * 1024 * 1024
 MAX_UNZIPPED_BYTES = 40 * 1024 * 1024
 MAX_FILES = 2000
 MAX_JSON_BYTES = 60 * 1024 * 1024
+CONSOLE_MODEL_CAPS = {"ai_call_cap": 150, "time_cap_seconds": 2400}   # console model runs only; the engine and evals keep DEFAULT_POLICY
 ID = re.compile(r"^[a-f0-9]{12}$")
 DOWNLOADS = {"report.html": "text/html; charset=utf-8", "report.md": "text/markdown; charset=utf-8",
              "report.json": "application/json", "fixes.patch": "text/x-diff; charset=utf-8",
@@ -670,6 +671,8 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError(f"{key} must be between {low} and {high}")
                 policy[key] = value
         cfg, use = parse_use_model(payload)
+        if cfg:                                  # a model run makes about 12 AI calls per finding; the engine default (60) stops a 10-finding scan early
+            policy.update(CONSOLE_MODEL_CAPS)
         job_id = _start_job(source, rules_path, policy, label, cfg, use)
         self._json(200, {"job_id": job_id})
 

@@ -93,7 +93,7 @@ NOTES: dict[str, dict] = {
         plain="Makes the coding agent argue the design again: the single-agent version and where it fails the canvas, a roster table, the three-sentence test for each agent, a recommendation on whether the Auditor should stay an agent, and a Mermaid diagram.",
         status=["6. Roster document"], commits=["73c00d8"], docs=["docs/roster.md"], repro=[],
         checks=[("Every agent has a reason to exist that a plain tool call cannot meet", PART,
-                "roster.md says the Auditor FAILS the test for the pilot rules and recommends option (b), a plain scan step. The Investigator passes. The Fixer & Validator passes, but only for authoring and revising the patch."),
+                "roster.md says the Auditor FAILS the test for the pilot rules (a plain scan step would do the same). The owner decided on 2026-10-27 to keep it as an agent anyway (option a), so the removal test stays a recurring eval. The Investigator passes. The Fixer & Validator passes, but only for authoring and revising the patch."),
                 ("The agent that writes a fix never decides alone whether it worked", OK, "Status is set by the orchestrator only when tests pass and the re-check is clear; the agent's decision is advisory."),
                 ("You decided option (a) or (b) for the Auditor and wrote the reason", OK,
                  "Decided 2026-10-27 by the project owner: option (a), the Auditor stays an agent (AGENTS.md section 3, docs/roster.md section 4). The removal test stays a recurring eval."),
@@ -161,8 +161,8 @@ NOTES: dict[str, dict] = {
     "7B": dict(
         plain="Adds three things on top of the scoring: which agent broke first on each failure, a consistency run that flags cases whose status flips between runs, and an LLM judge (a different model from the agents) for only what code cannot check.",
         status=[], commits=["9a5c536"], repro=[],
-        checks=[("Compare the judge with your own labels on 5 cases", NO, "The judge has not run: 'not run: no judge model is approved (JUDGE_MODEL_NAME and JUDGE_ENDPOINT are not set in .env)'. 45 items are queued for it."),
-                ("If one agent causes most failures, fix that agent", PART, "Re-run summary: Auditor 3, Investigator 2, Fixer & Validator 4, not an agent 1. The Fixer leads, but not by much."),
+        checks=[("Compare the judge with your own labels on 5 cases", NO, "The judge has not run: 'not run: no judge model is approved (JUDGE_MODEL_NAME and JUDGE_ENDPOINT are not set in .env)'. 47 items are queued for it."),
+                ("If one agent causes most failures, fix that agent", PART, "Latest run: Auditor 3, Investigator 2, Fixer & Validator 2, not an agent 1. The Auditor leads, but not by much."),
                 ("Unstable cases are listed", OK, "'unstable cases: 0' (expected: the stand-ins are deterministic).")]),
     "8": dict(
         plain="Asks for the failures you did not think of: ten hostile inputs aimed at the seams between agents, each added to golden/ as a new case with an expected.json, with the spec line each one breaks and the smallest proposed fix.",

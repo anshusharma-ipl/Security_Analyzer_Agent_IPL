@@ -266,7 +266,7 @@ def prompt_item(sid: str, s: dict) -> str:
         out.append(f'<h4>Note</h4><p>{e(n["note"])}</p>')
     mapped = [SUMMARY[k] for k in SUMMARY_MAP.get(sid, []) if k in SUMMARY]
     if mapped:
-        out.append('<h4>From your run (docs/RUN_SUMMARY.md, commit c6f2a02)</h4><div class="md">' + "".join(render_md(m) for m in mapped) + "</div>")
+        out.append('<h4>From your run (docs/RUN_SUMMARY.md, commit b4ae6fe)</h4><div class="md">' + "".join(render_md(m) for m in mapped) + "</div>")
     if commits:
         out.append(f'<h4>Commits</h4><p>{commits}</p>')
     for ch in n["commits"]:
@@ -299,7 +299,7 @@ def build_prompts() -> str:
         parts.append(f'<div class="phase">{e(name)}</div>' + "".join(prompt_item(i, by_id[i]) for i in ids))
     body = f"""<h1>How it was built</h1>
 <p class="lede">Fifteen prompts, run one at a time in Claude Code. Open a prompt to see what it does, the checks that go with it, and what came out.</p>
-<p class="small muted">Output comes from four places: your run summary (<code>docs/RUN_SUMMARY.md</code>, from your Claude Code runs on commit c6f2a02), your <code>status.md</code> and commit messages, documents the coding agent wrote into the repository, and commands re-run here so you can compare. Re-runs here match your summary on every headline number. Raw Claude Code transcripts are not in the repository.</p>
+<p class="small muted">Output comes from four places: your run summary (<code>docs/RUN_SUMMARY.md</code>, from your Claude Code runs on commit b4ae6fe), your <code>status.md</code> and commit messages, documents the coding agent wrote into the repository, and commands re-run here so you can compare. Re-runs here match your summary on every headline number. Raw Claude Code transcripts are not in the repository.</p>
 {run_block()}
 {"".join(parts)}
 <h2>The three agents' instructions</h2>
@@ -343,7 +343,7 @@ DOCS = [
     ("Decisions", [("AGENTS", "AGENTS.md", "The team spec: scope, roster, tools, limits"), ("roster", "docs/roster.md", "Single agent or several, and why the Auditor stays"), ("canvas", "canvas.md", "The original canvas: agents, tools, guardrails, quality bar, kill criteria"), ("cost", "docs/cost.md", "Cost model and its assumptions")]),
     ("Pilot", [("PILOT", "docs/PILOT.md", "Pilot setup, kill criteria, rollback and scale-up")]),
     ("Agent instructions", [("auditor", "agents/auditor.md", "What the Auditor is told"), ("investigator", "agents/investigator.md", "What the Investigator is told"), ("fixer_validator", "agents/fixer_validator.md", "What the Fixer and Validator is told")]),
-    ("Review", [("RUN_SUMMARY", "docs/RUN_SUMMARY.md", "Results of every run on commit c6f2a02, from your Claude Code session"), ("UX_REVIEW", "docs/UX_REVIEW.md", "UX review of the console and what changed"), ("status", "docs_html/data/status.md", "The coding agent's own build status report")]),
+    ("Review", [("RUN_SUMMARY", "docs/RUN_SUMMARY.md", "Results of every run on commit b4ae6fe, from your Claude Code session"), ("UX_REVIEW", "docs/UX_REVIEW.md", "UX review of the console and what changed"), ("status", "docs_html/data/status.md", "The coding agent's own build status report")]),
 ]
 
 
