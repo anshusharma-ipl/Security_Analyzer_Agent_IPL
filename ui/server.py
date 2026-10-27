@@ -17,16 +17,20 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import hmac
 import io
 import json
 import os
 import re
 import shutil
+import socket
+import subprocess
 import sys
 import threading
 import time
 import traceback
+import urllib.request
 import uuid
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -39,10 +43,11 @@ if ROOT not in sys.path:
 
 from orchestrator.workflow import DEFAULT_POLICY, RunStopped, StillWaiting, Workflow  # noqa: E402
 from ui.report_html import render_report_html  # noqa: E402
-from agents import model_agents  # noqa: E402
+from agents import model_agents, progress  # noqa: E402
 
 DATA = os.path.join(ROOT, "ui_data")                 # ignored by git; outside every uploaded project
 GOLDEN = os.path.join(ROOT, "golden")
+DEMO = os.path.join(ROOT, "demo", "shop_demo")           # a small sample project with every rule type (all data is fake)
 DEFAULT_RULES = os.path.join(GOLDEN, "rules.json")
 MAX_ZIP_BYTES = 20 * 1024 * 1024
 MAX_UNZIPPED_BYTES = 40 * 1024 * 1024
@@ -58,16 +63,99 @@ ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]"} | {h.strip() for h in os.env
 MODEL: dict = {"cfg": None, "source": None}          # the connected model; the key lives only here, in memory
 AGENT_KEYS = model_agents.AGENT_KEYS
 JOBS: dict[str, dict] = {}
+
+FINGERPRINT_FILES = ("kill_checks.py", "orchestrator/workflow.py", "agents/model_agents.py", "ui/server.py", "tools/_containment.py")
+
+
+def _code_fingerprint() -> str:
+    """A short hash of the code files that matter, read once when the console starts (line endings ignored), so a console
+    that is running old code can be told apart from one running the current code."""
+    digest = hashlib.sha256()
+    for name in FINGERPRINT_FILES:
+        try:
+            with open(os.path.join(ROOT, *name.split("/")), "rb") as handle:
+                digest.update(handle.read().replace(b"\r\n", b"\n"))
+        except OSError:
+            digest.update(b"missing:" + name.encode())
+    return digest.hexdigest()[:10]
+
+
+def _git_commit() -> str:
+    """The commit this folder is at, or a note that it is not a git checkout (for example an unzipped download)."""
+    if not os.path.exists(os.path.join(ROOT, ".git")):
+        return "no git (a zip copy)"
+    try:
+        done = subprocess.run(["git", "-C", ROOT, "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=3)
+        return done.stdout.strip() if done.returncode == 0 and done.stdout.strip() else "unknown commit"
+    except (OSError, subprocess.SubprocessError):
+        return "unknown commit"
+
+
+VERSION = {"commit": _git_commit(), "code": _code_fingerprint(), "folder": ROOT, "pid": os.getpid(),
+           "started": time.strftime("%Y-%m-%d %H:%M:%S")}
+
+
+def version_text() -> str:
+    """The body of /healthz. The first line stays exactly 'ok' so a health check or the launcher can rely on it."""
+    return (f"ok\nversion: {VERSION['commit']} | code {VERSION['code']}\nfolder: {VERSION['folder']}\n"
+            f"pid: {VERSION['pid']} | started: {VERSION['started']}\n")
+
+
+class ConsoleServer(ThreadingHTTPServer):
+    """One console per port. On Windows, SO_REUSEADDR lets a second server share a port that is already taken (and the older
+    one may keep answering), so ask for exclusive use there; elsewhere a second listener cannot bind anyway."""
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
+def whats_on_port(host: str, port: int) -> str | None:
+    """None when nothing answers on the port; otherwise one line saying what does (what its /healthz reports)."""
+    probe = "127.0.0.1" if host in ("0.0.0.0", "", "localhost") else host
+    try:
+        socket.create_connection((probe, port), timeout=1).close()
+    except OSError:
+        return None
+    try:
+        with urllib.request.urlopen(f"http://{probe}:{port}/healthz", timeout=2) as reply:
+            lines = reply.read().decode("utf-8", "replace").strip().splitlines()
+    except Exception:  # noqa: BLE001 - whatever is there did not answer like a console
+        return "something that is not this console"
+    if lines and lines[0] == "ok" and len(lines) > 1:
+        return "a console: " + "; ".join(lines[1:])
+    if lines and lines[0] == "ok":
+        return "an older console that does not report its version (it is running code from before this check)"
+    return "something that is not this console"
 RUN_LOCK = threading.Lock()                          # one run at a time: tools keep a process-wide event list
 
 
 # --------------------------------------------------------------------------- model connection
+# The request format follows from the provider, so the console never asks for one. Model names are suggestions: any name the
+# provider accepts can be typed. "custom" covers a gateway or a self-hosted model that speaks the OpenAI or the Anthropic format.
+PROVIDERS = [
+    {"id": "openai", "label": "OpenAI (GPT)", "endpoint": "https://api.openai.com", "style": "openai",
+     "models": ["gpt-5", "gpt-5-mini", "gpt-4.1"], "key_label": "OpenAI API key"},
+    {"id": "anthropic", "label": "Anthropic (Claude)", "endpoint": "https://api.anthropic.com", "style": "anthropic",
+     "models": ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"], "key_label": "Anthropic API key"},
+    {"id": "google", "label": "Google (Gemini)", "endpoint": "https://generativelanguage.googleapis.com", "style": "gemini",
+     "models": ["gemini-flash-latest", "gemini-pro-latest"], "key_label": "Gemini API key"},
+    {"id": "custom_openai", "label": "Other: OpenAI-compatible", "endpoint": "", "style": "openai", "models": [], "key_label": "API key"},
+    {"id": "custom_anthropic", "label": "Other: Anthropic-compatible", "endpoint": "", "style": "anthropic", "models": [], "key_label": "API key"},
+]
+STYLE_TO_PROVIDER = {"openai": "openai", "anthropic": "anthropic", "gemini": "google"}
+
+
 def model_view() -> dict:
     cfg = MODEL["cfg"]
     env = model_agents.ModelConfig.from_env()
+    host = (cfg.endpoint.split("//", 1)[-1].split("/", 1)[0] if cfg else "")
+    known = next((p["id"] for p in PROVIDERS if p["endpoint"] and cfg and p["endpoint"].split("//", 1)[-1] == host), None)
     return {"configured": cfg is not None, "endpoint": cfg.endpoint if cfg else None, "model": cfg.model if cfg else None,
-            "api_style": cfg.api_style if cfg else None, "source": MODEL["source"], "env_available": env is not None,
-            "default_endpoint": model_agents.DEFAULT_ENDPOINT, "default_model": model_agents.DEFAULT_MODEL,
+            "provider": (known or ("custom_" + cfg.api_style if cfg and cfg.api_style != "gemini" else "google")) if cfg else None,
+            "source": MODEL["source"], "env_available": env is not None, "providers": PROVIDERS,
             "agents": list(AGENT_KEYS)}                      # never the key, not even part of it
 
 
@@ -80,26 +168,31 @@ def set_model(payload: dict) -> dict:
         key = str(payload.get("api_key") or "").strip()
         if not key:
             raise ValueError("an API key is required")
-        endpoint = str(payload.get("endpoint") or model_agents.DEFAULT_ENDPOINT).strip().rstrip("/")
-        name = str(payload.get("model") or model_agents.DEFAULT_MODEL).strip()
-        if not re.match(r"^https?://[^\s]+$", endpoint) or not re.match(r"^[A-Za-z0-9._:/-]{1,100}$", name):
-            raise ValueError("endpoint must be an http(s) URL and the model name a plain identifier")
-        cfg, source = model_agents.ModelConfig(endpoint, name, key, api_style=str(payload.get("api_style") or "auto")), "entered in the console"
+        provider = next((p for p in PROVIDERS if p["id"] == payload.get("provider")), None)
+        if provider is not None and not provider["endpoint"] and not str(payload.get("endpoint") or "").strip():
+            raise ValueError("enter the gateway's endpoint (for example https://your-gateway.example.com/v1)")
+        endpoint = str(payload.get("endpoint") or (provider or {}).get("endpoint") or model_agents.DEFAULT_ENDPOINT).strip().rstrip("/")
+        name = str(payload.get("model") or ((provider or {}).get("models") or [model_agents.DEFAULT_MODEL])[0]).strip()
+        if not re.match(r"^https?://[^\s]+$", endpoint):
+            raise ValueError("choose a provider, or give the endpoint as an http(s) URL for an other-provider gateway")
+        if not re.match(r"^[A-Za-z0-9._:/-]{1,100}$", name):
+            raise ValueError("the model name must be a plain identifier such as gpt-5 or claude-sonnet-5-5")
+        style = (provider or {}).get("style") or str(payload.get("api_style") or "auto")      # api_style stays for old callers
+        cfg, source = model_agents.ModelConfig(endpoint, name, key, api_style=style), "entered in the console"
     MODEL["cfg"], MODEL["source"] = cfg, source
     return model_view()
 
 
 def parse_use_model(payload: dict) -> tuple:
-    """(cfg or None, use dict). A model is used only if one is connected, an agent is ticked, and the person has
-    acknowledged that masked code is sent to the endpoint."""
+    """(cfg or None, use dict). A model is used only if one is connected and an agent is selected. There is no consent
+    checkbox: masking (secrets, emails, phone numbers) is applied to everything sent and cannot be turned off, and the
+    console tells the person what is sent. Use fake or non-sensitive code until the endpoint is approved."""
     wanted = {k: bool((payload.get("use_model") or {}).get(k)) for k in AGENT_KEYS}
     if not any(wanted.values()):
         return None, wanted
     cfg = MODEL["cfg"]
     if cfg is None:
         raise ValueError("connect a model first, or untick the agents that should use it")
-    if payload.get("model_ack") is not True:
-        raise ValueError("confirm that masked code is sent to the model endpoint (use fake data until compliance signs off)")
     return cfg, wanted
 
 
@@ -209,10 +302,11 @@ def _start_job(upload_dir: str, rules_path: str, policy: dict, label: str, cfg=N
     job_id = uuid.uuid4().hex[:12]
     out_root = os.path.join(DATA, "out", job_id)
     job = {"id": job_id, "label": label, "model_used": [k for k, v in (use or {}).items() if v] if cfg else [], "source": upload_dir, "rules": rules_path, "out_root": out_root,
-           "run_dir": None, "busy": True, "error": None, "review_error": None, "created": time.time()}
+           "run_dir": None, "busy": True, "error": None, "review_error": None, "created": time.time(), "steps": []}
     JOBS[job_id] = job
 
     def work() -> None:
+        progress.set_sink(job["steps"].append)              # what this scan does, shown live in the console
         with RUN_LOCK:
             try:
                 flow = Workflow(agents=model_agents.make_agents(cfg, use) if cfg else None, out_root=out_root,
@@ -227,6 +321,7 @@ def _start_job(upload_dir: str, rules_path: str, policy: dict, label: str, cfg=N
                 traceback.print_exc()
             finally:
                 job["busy"] = False
+                progress.clear_sink()
 
     # run_dir is only known once Workflow.start() creates it, so wait for it from a helper that watches the folder
     def watch() -> None:
@@ -247,6 +342,7 @@ def _start_job(upload_dir: str, rules_path: str, policy: dict, label: str, cfg=N
 
 def _finish_job(job: dict) -> None:
     def work() -> None:
+        progress.set_sink(job.setdefault("steps", []).append)
         with RUN_LOCK:
             try:
                 flow = Workflow.load(job["run_dir"])
@@ -263,6 +359,7 @@ def _finish_job(job: dict) -> None:
                 traceback.print_exc()
             finally:
                 job["busy"] = False
+                progress.clear_sink()
 
     job["busy"] = True
     threading.Thread(target=work, daemon=True).start()
@@ -299,9 +396,11 @@ def apply_review(job: dict, decisions: list) -> None:
 
 
 # --------------------------------------------------------------------------- views
-def job_view(job: dict) -> dict:
+def job_view(job: dict, since: int = 0) -> dict:
+    """The job as the page shows it. ``since`` is how many live steps the page already has, so only new ones are sent."""
+    steps = job.get("steps", [])
     view = {"id": job["id"], "label": job["label"], "model_used": job.get("model_used", []), "phase": _phase(job), "error": job.get("error"),
-            "review_error": job.get("review_error")}
+            "review_error": job.get("review_error"), "steps": steps[max(0, since):], "steps_total": len(steps)}
     run_dir = job.get("run_dir")
     if not run_dir:
         return view
@@ -381,7 +480,8 @@ class Handler(BaseHTTPRequestHandler):
             return False
         url = urlparse(self.path)
         if url.path == "/healthz":
-            self._send(200, b"ok", "text/plain")
+            self._send(200, version_text().encode("utf-8"), "text/plain; charset=utf-8",
+                       {"X-Console-Version": f"{VERSION['commit']} {VERSION['code']}"})
             return False
         if not TOKEN:
             return True
@@ -419,7 +519,8 @@ class Handler(BaseHTTPRequestHandler):
             if m and m.group(1) in JOBS:
                 job = JOBS[m.group(1)]
                 if m.group(2) is None:
-                    return self._json(200, job_view(job))
+                    since = parse_qs(urlparse(self.path).query).get("since", ["0"])[0]
+                    return self._json(200, job_view(job, int(since) if since.isdigit() else 0))
                 if m.group(2) == "file":
                     rel = parse_qs(url.query).get("path", [""])[0]
                     return self._json(200, {"path": rel, "text": read_source_file(job, unquote(rel))})
@@ -538,6 +639,13 @@ class Handler(BaseHTTPRequestHandler):
             dest = os.path.join(DATA, "uploads", upload_id)
             shutil.copytree(os.path.join(GOLDEN, name), dest, ignore=shutil.ignore_patterns("expected.json", "__pycache__"))
             source, label = dest, name
+        elif payload.get("demo"):
+            if payload["demo"] != "shop" or not os.path.isdir(DEMO):
+                raise ValueError("unknown demo project")
+            upload_id = uuid.uuid4().hex[:12]
+            dest = os.path.join(DATA, "uploads", upload_id)
+            shutil.copytree(DEMO, dest, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))     # a COPY: the demo folder is never touched
+            source, label = dest, "Demo shop"
         else:
             upload_id = str(payload.get("upload_id") or "")
             if not ID.match(upload_id) or not os.path.isdir(os.path.join(DATA, "uploads", upload_id)):
@@ -552,8 +660,9 @@ class Handler(BaseHTTPRequestHandler):
             os.makedirs(os.path.dirname(rules_path), exist_ok=True)
             with open(rules_path, "w", encoding="utf-8", newline="\n") as handle:
                 handle.write(str(rules_text))
-        # only these two policy values may be changed from the page
-        policy = {}
+        # only these policy values may be changed from the page. The console proposes a local fix even when no caller is visible
+        # (the person still approves every fix); the page can turn that off.
+        policy = {"fix_when_cause_unclear": payload.get("policy", {}).get("fix_when_cause_unclear", True) is not False}
         for key, low, high in (("file_cap", 1, 1000), ("max_retries", 0, 3)):
             if payload.get("policy", {}).get(key) is not None:
                 value = int(payload["policy"][key])
@@ -574,8 +683,20 @@ def main() -> int:
     if args.host not in ("127.0.0.1", "localhost", "::1") and not TOKEN:
         print("Refusing to listen on a network address without CONSOLE_TOKEN: this console runs the tests of uploaded code.")
         return 2
-    server = ThreadingHTTPServer((args.host, args.port), Handler)
+    busy = whats_on_port(args.host, args.port)
+    if busy is not None:
+        print(f"Port {args.port} is already in use, so this console did not start.\n"
+              f"  Running there: {busy}\n"
+              f"  Close that console (its window, or Stop-Process -Id <pid> in PowerShell) and start this one again,\n"
+              f"  or start this one on another port with:  python ui/server.py --port {args.port + 1}")
+        return 2
+    try:
+        server = ConsoleServer((args.host, args.port), Handler)
+    except OSError as exc:
+        print(f"This console could not listen on {args.host}:{args.port} ({exc}). Is another program using the port?")
+        return 2
     print(f"Security Analyzer console on http://{args.host}:{args.port}  (Ctrl+C to stop)")
+    print(f"Version: {VERSION['commit']} | code {VERSION['code']} | folder {VERSION['folder']} | pid {VERSION['pid']}")
     print("Agents are offline stand-ins unless you connect a model in the Model panel. The project's tests run on this computer.")
     try:
         server.serve_forever()

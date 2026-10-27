@@ -10,7 +10,7 @@ import unittest
 import urllib.error
 import urllib.request
 import zipfile
-from http.server import ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -145,6 +145,169 @@ class ConsoleTest(unittest.TestCase):
 
     def test_golden_is_never_changed(self):
         self.assertEqual(hash_originals(os.path.join(ROOT, "golden")), self.golden_hash)
+
+
+class ConsoleStartupTest(unittest.TestCase):
+    """A stale console must be obvious (a second console on the same port, running old code, kept answering)."""
+
+    def serve(self):
+        httpd = server.ConsoleServer(("127.0.0.1", 0), server.Handler)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        return httpd, httpd.server_address[1]
+
+    def test_healthz_says_what_code_is_running(self):
+        _httpd, port = self.serve()
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/healthz", timeout=5) as reply:
+            body = reply.read().decode("utf-8")
+            header = reply.headers["X-Console-Version"]
+        lines = body.splitlines()
+        self.assertEqual(lines[0], "ok")                                   # a health check or the launcher can still rely on line 1
+        self.assertTrue(lines[1].startswith("version: "))
+        self.assertIn(server.VERSION["code"], lines[1])
+        self.assertRegex(server.VERSION["code"], r"^[0-9a-f]{10}$")
+        self.assertIn(f"pid: {os.getpid()}", body)
+        self.assertIn("folder: " + ROOT, body)
+        self.assertEqual(header, f"{server.VERSION['commit']} {server.VERSION['code']}")
+
+    def test_a_second_console_cannot_share_a_busy_port(self):
+        _httpd, port = self.serve()
+        with self.assertRaises(OSError):                                    # exclusive use on Windows, a normal bind failure elsewhere
+            server.ConsoleServer(("127.0.0.1", port), server.Handler)
+        described = server.whats_on_port("127.0.0.1", port)
+        self.assertIn("a console:", described)
+        self.assertIn(f"pid: {os.getpid()}", described)
+
+    def test_main_refuses_to_start_on_a_busy_port_and_says_what_is_there(self):
+        _httpd, port = self.serve()
+        out = io.StringIO()
+        old_argv, old_out = sys.argv, sys.stdout
+        sys.argv, sys.stdout = ["server.py", "--port", str(port)], out
+        try:
+            code = server.main()
+        finally:
+            sys.argv, sys.stdout = old_argv, old_out
+        self.assertEqual(code, 2)
+        text = out.getvalue()
+        self.assertIn(f"Port {port} is already in use", text)
+        self.assertIn("a console:", text)
+        self.assertIn(f"--port {port + 1}", text)
+
+    def test_a_free_port_is_free_and_an_old_console_without_a_version_is_recognised(self):
+        import socket
+        probe = socket.socket()
+        probe.bind(("127.0.0.1", 0))
+        free = probe.getsockname()[1]
+        probe.close()
+        self.assertIsNone(server.whats_on_port("127.0.0.1", free))
+
+        class OldConsole(BaseHTTPRequestHandler):                           # answers /healthz with just "ok", as before this change
+            def do_GET(self):  # noqa: N802
+                self.send_response(200)
+                self.send_header("content-length", "2")
+                self.end_headers()
+                self.wfile.write(b"ok")
+
+            def log_message(self, *args):
+                pass
+        old = ThreadingHTTPServer(("127.0.0.1", 0), OldConsole)
+        threading.Thread(target=old.serve_forever, daemon=True).start()
+        self.addCleanup(old.server_close)
+        self.addCleanup(old.shutdown)
+        self.assertIn("older console that does not report its version", server.whats_on_port("127.0.0.1", old.server_address[1]))
+
+    def test_the_launcher_only_opens_the_console_it_started(self):
+        with open(os.path.join(ROOT, "launch.py"), encoding="utf-8") as handle:
+            text = handle.read()
+        self.assertIn("child.pid", text)                                    # compares the pid in /healthz with its own child
+        self.assertIn("child.poll() is not None", text)                     # a refused start does not open another console's page
+
+
+class ProviderTest(unittest.TestCase):
+    """The console offers GPT, Claude and Gemini by name; the request format follows from the choice and is never asked for."""
+
+    def tearDown(self):
+        server.MODEL.update(cfg=None, source=None)
+
+    def test_each_provider_sets_its_endpoint_and_format(self):
+        for provider, style, host in (("openai", "openai", "api.openai.com"), ("anthropic", "anthropic", "api.anthropic.com"),
+                                      ("google", "gemini", "generativelanguage.googleapis.com")):
+            view = server.set_model({"provider": provider, "api_key": "k-not-real", "model": "any-model-name"})
+            self.assertEqual(server.MODEL["cfg"].api_style, style)
+            self.assertIn(host, view["endpoint"])
+            self.assertEqual(view["provider"], provider)
+            self.assertNotIn("k-not-real", json.dumps(view))                            # the key is never sent back
+        self.assertNotIn("api_style", server.model_view())                              # no API-format field is exposed
+
+    def test_the_provider_list_has_the_three_vendors_and_gateways(self):
+        ids = [p["id"] for p in server.model_view()["providers"]]
+        self.assertEqual(ids[:3], ["openai", "anthropic", "google"])
+        self.assertIn("custom_openai", ids)
+
+    def test_a_gateway_needs_its_endpoint_and_a_bad_model_name_is_refused(self):
+        with self.assertRaises(ValueError):
+            server.set_model({"provider": "custom_openai", "api_key": "k"})
+        with self.assertRaises(ValueError):
+            server.set_model({"provider": "openai", "api_key": "k", "model": "not a model; rm -rf"})
+        view = server.set_model({"provider": "custom_openai", "api_key": "k", "endpoint": "https://gw.example.test/v1", "model": "m"})
+        self.assertEqual(server.MODEL["cfg"].api_style, "openai")
+        self.assertEqual(view["provider"], "custom_openai")
+
+    def test_there_is_no_consent_checkbox_to_tick(self):
+        server.set_model({"provider": "openai", "api_key": "k", "model": "gpt-5"})
+        cfg, use = server.parse_use_model({"use_model": {"auditor": True}})            # no model_ack needed
+        self.assertIsNotNone(cfg)
+        self.assertTrue(use["auditor"])
+
+
+class LiveStepsTest(unittest.TestCase):
+    """The console shows what a scan is doing, step by step. The steps hold names and counts only, never code."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp(prefix="saa-steps-test-")
+        server.DATA = cls.tmp
+        cls.httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        cls.base = f"http://127.0.0.1:{cls.httpd.server_address[1]}"
+        threading.Thread(target=cls.httpd.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.httpd.shutdown()
+
+    def get(self, path, data=None):
+        req = urllib.request.Request(self.base + path, data=json.dumps(data).encode() if data is not None else None,
+                                     headers={"Content-Type": "application/json"} if data is not None else {})
+        with urllib.request.urlopen(req) as r:
+            return json.loads(r.read())
+
+    def test_steps_arrive_in_order_and_since_returns_only_the_new_ones(self):
+        job = self.get("/api/jobs", {"case": "case_01_sqli_fstring"})["job_id"]
+        for _ in range(300):
+            v = self.get("/api/jobs/" + job)
+            if v["phase"] in ("waiting_for_review", "done", "stopped", "error"):
+                break
+            time.sleep(0.2)
+        steps = v["steps"]
+        self.assertEqual(v["phase"], "waiting_for_review",
+                         f"the run did not reach the review: error={v.get('error')!r}, stop_reason={(v.get('meta') or {}).get('stop_reason')!r}, "
+                         f"last steps={[x['text'][:60] for x in steps[-3:]]}")
+        self.assertEqual(v["steps_total"], len(steps))
+        kinds = {s["kind"] for s in steps}
+        self.assertTrue({"agent", "tool", "log"} <= kinds, kinds)
+        texts = " | ".join(s["text"] for s in steps)
+        self.assertIn("Running the security rules", texts)
+        self.assertIn("Tests: pass", texts)
+        self.assertIn("Re-check: clear", texts)
+        self.assertEqual([s["t"] for s in steps], sorted(s["t"] for s in steps))        # in the order they happened
+        cut = len(steps) - 3
+        later = self.get(f"/api/jobs/{job}?since={cut}")
+        self.assertEqual(later["steps"], steps[cut:])                                   # only what the page has not seen
+        self.assertEqual(self.get(f"/api/jobs/{job}?since=999")["steps"], [])
+        source = open(os.path.join(ROOT, "golden", "case_01_sqli_fstring", "src", "users.py"), encoding="utf-8").read()
+        self.assertNotIn("SELECT id, name FROM users", json.dumps(steps))                # no code in the live view
+        self.assertTrue(source)
 
 
 if __name__ == "__main__":

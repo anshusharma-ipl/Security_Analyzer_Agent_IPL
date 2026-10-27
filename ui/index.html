@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/console.css">
 </head>
 <body>
 <header class="topbar"><div class="in">
@@ -17,54 +18,66 @@
   <span class="mode" id="modeLabel" hidden></span>
 </div></header>
 
-<div class="page">
-<div class="notice"><span><b>Run trusted code only.</b> To check a fix, the project's own tests run on this computer, in a temporary copy. Your files are never changed. Use fake or non-sensitive code until the model endpoint is approved.</span></div>
-<div class="col">
-<section class="panel start">
-  <div class="bd">
-    <div id="drop" class="drop" tabindex="0" role="button" aria-label="Choose or drop your project">
-      <b>Drop your project here</b>
-      <span class="small muted">a folder or a .zip, with its tests included &middot; or click to choose a .zip</span>
-      <div class="small" id="pickedNote"></div>
-    </div>
-    <input type="file" id="zipIn" accept=".zip" hidden>
-    <div class="startrow">
-      <button class="btn primary" id="runBtn">Run agents</button>
-      <span class="small muted" id="modelState">No model connected.</span>
-      <a class="small" href="#" id="modelToggle">Model settings</a>
-    </div>
-    <div class="err" id="runErr" role="alert"></div>
-    <div id="modelBox" hidden>
-      <p class="small muted">The key stays in this server's memory and is never saved or shown again.</p>
-      <div class="grid2">
-        <div><label for="mEndpoint">Endpoint</label><input type="text" id="mEndpoint"></div>
-        <div><label for="mName">Model name</label><input type="text" id="mName"></div>
-        <div><label for="mKey">API key</label><input type="password" id="mKey" autocomplete="off"></div>
-        <div><label for="mStyle">API format</label><select id="mStyle"><option value="auto">Auto (OpenAI for api.openai.com, otherwise Anthropic)</option><option value="openai">OpenAI-compatible</option><option value="anthropic">Anthropic</option></select></div>
+<div class="cx">
+  <!-- ============ left: project and model ============ -->
+  <aside class="cx-side" aria-label="Scan settings">
+    <section class="cx-card">
+      <h2><span class="n">1</span>Project</h2>
+      <div id="drop" class="cx-drop" tabindex="0" role="button" aria-label="Choose or drop your project">
+        <b>Drop a folder or .zip here</b>
+        <span class="small muted">with its tests included &middot; or click to choose a .zip</span>
       </div>
-      <div class="btnrow"><button class="btn sm primary" id="mConnect">Connect</button><button class="btn sm" id="mEnv" hidden>Use .env</button><button class="btn sm" id="mTest" hidden>Test</button><button class="btn sm" id="mClear" hidden>Disconnect</button></div>
-      <div class="small" id="mMsg" style="margin-top:8px"></div>
-      <div id="mUse" hidden style="margin-top:12px">
-        <b class="small">Use the model for</b>
-        <div class="check"><input type="checkbox" id="useAuditor"><label class="inline" for="useAuditor">Auditor</label></div>
-        <div class="check"><input type="checkbox" id="useInvestigator"><label class="inline" for="useInvestigator">Investigator</label></div>
-        <div class="check"><input type="checkbox" id="useFixer"><label class="inline" for="useFixer">Fixer and Validator</label></div>
-        <div class="check"><input type="checkbox" id="mAck"><label class="inline" for="mAck">I understand masked code is sent to this endpoint. Fake data only until compliance signs off.</label></div>
-      </div>
+      <input type="file" id="zipIn" accept=".zip" hidden>
+      <div class="cx-picked" id="pickedNote" aria-live="polite"></div>
+      <button class="cx-link" id="useDemo" type="button">Or use the demo project (all six rule types)</button>
+    </section>
+
+    <section class="cx-card">
+      <h2><span class="n">2</span>Model <span class="pill" id="modelPill">Not connected</span></h2>
+      <label for="mProvider">Provider</label>
+      <select id="mProvider"></select>
+      <label for="mName">Model</label>
+      <input type="text" id="mName" list="mModels" autocomplete="off" spellcheck="false">
+      <datalist id="mModels"></datalist>
+      <div id="mCustom" hidden><label for="mEndpoint">Endpoint</label><input type="text" id="mEndpoint" placeholder="https://your-gateway.example.com/v1" autocomplete="off"></div>
+      <label for="mKey" id="mKeyLabel">API key</label>
+      <input type="password" id="mKey" autocomplete="off" placeholder="Kept in this server's memory only">
+      <div class="cx-row"><button class="btn sm primary" id="mConnect" type="button">Connect</button><button class="btn sm" id="mEnv" type="button" hidden>Use .env</button><button class="btn sm" id="mTest" type="button" hidden>Test</button><button class="btn sm" id="mClear" type="button" hidden>Disconnect</button></div>
+      <div class="small" id="mMsg" style="margin-top:8px" aria-live="polite"></div>
+      <details id="mUse" hidden>
+        <summary>Agents that use the model</summary>
+        <div class="check"><input type="checkbox" id="useAuditor"><label class="inline" for="useAuditor">Auditor (decides which findings are real)</label></div>
+        <div class="check"><input type="checkbox" id="useInvestigator"><label class="inline" for="useInvestigator">Investigator (traces the cause)</label></div>
+        <div class="check"><input type="checkbox" id="useFixer"><label class="inline" for="useFixer">Fixer and Validator (writes the fix)</label></div>
+        <div class="small muted">Agents left unticked run without a model.</div>
+      </details>
+    </section>
+
+    <div class="cx-note" role="note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>
+      <div><b>What leaves this computer.</b> Nothing, until you connect a model. With one connected, the code the agents read is sent to the provider you chose, and only to it. Secrets, emails and phone numbers are replaced with placeholders first, automatically. Your files are never changed; fixes are tried in a temporary copy and only written to a patch for you to apply. Use fake or non-sensitive code until your security team has approved the provider.</div>
     </div>
-  </div>
-</section>
-<div id="feed"></div>
-</div>
-<div class="footer">Guides: <a href="/docs/guide.html">How it works and runs</a> &middot; <a href="/docs/md/PRD.html">PRD</a> &middot; <a href="/docs/cost.html">Cost</a> &middot; <a href="/docs/canvas.html">Canvas</a> &middot; <a href="/docs/prompts.html">How it was built</a> &middot; <a href="/docs/golden.html">The 21 test cases</a></div>
+
+    <div class="cx-run"><button class="btn primary block" id="runBtn" type="button">Run scan</button><div class="err" id="runErr" role="alert"></div></div>
+  </aside>
+
+  <!-- ============ right: the live flow, the findings, what was fixed ============ -->
+  <main class="cx-main" id="main" aria-live="off">
+    <div class="cx-empty" id="empty">
+      <h2>Your scan will appear here</h2>
+      <p>Add a project and choose <b>Run scan</b>. You will see each agent work step by step, then the findings, and you approve the fixes that are ready.</p>
+      <p class="small faint">No model is needed to try it: the demo project works without one.</p>
+    </div>
+  </main>
 </div>
 
 <script>
 "use strict";
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-let jobId = null, timer = null, view = null, shown = 0, anim = null, reviewer = "";
-const decisions = {};   // finding_id -> {decision, reason, edited_patch_diff}
+const AGENT = { auditor: "Auditor", investigator: "Investigator", fixer_validator: "Fixer & Validator", orchestrator: "Orchestrator", person: "You" };
+const JOB = { audit: "Scanning the project", recheck: "Re-checking the fix", baseline_tests: "Running the project's own tests first", investigate: "Tracing where the weak spot comes from", fix: "Writing and testing a fix" };
+const S = { jobId: null, v: null, total: 0, timer: null, decisions: {}, who: "", open: new Set(), t0: 0, ticker: null, finalSig: "" };
 
 async function api(path, opts) {
   const r = await fetch(path, opts);
@@ -74,13 +87,18 @@ async function api(path, opts) {
 }
 const post = (path, body) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
 
-/* ---------------- upload ---------------- */
-let picked = null;   // {zip: File} or {files: [{path, file}], name}
+/* ---------------- project ---------------- */
+let picked = null;          // {zip: File} or {files: [{path, file}], name}
+let useDemo = false;
 const drop = $("drop");
-const showPicked = () => { $("pickedNote").textContent = !picked ? "" : picked.zip ? `Selected: ${picked.zip.name}` : `Selected folder: ${picked.name} (${picked.files.length} files)`; drop.classList.toggle("has", !!picked); };
+const showPicked = () => {
+  $("pickedNote").textContent = useDemo ? "Selected: the demo project (13 findings across six rule types)" : !picked ? "" : picked.zip ? `Selected: ${picked.zip.name}` : `Selected folder: ${picked.name} (${picked.files.length} files)`;
+  drop.classList.toggle("has", !!picked || useDemo);
+};
 drop.onclick = () => $("zipIn").click();
 drop.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("zipIn").click(); } };
-$("zipIn").onchange = (e) => { const f = e.target.files[0]; picked = f ? { zip: f } : null; showPicked(); };
+$("zipIn").onchange = (e) => { const f = e.target.files[0]; picked = f ? { zip: f } : null; useDemo = false; showPicked(); };
+$("useDemo").onclick = () => { picked = null; useDemo = true; $("runErr").textContent = ""; showPicked(); };
 ["dragenter", "dragover"].forEach((n) => drop.addEventListener(n, (e) => { e.preventDefault(); drop.classList.add("over"); }));
 ["dragleave", "drop"].forEach((n) => drop.addEventListener(n, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
 async function walk(entry, prefix, out) {
@@ -98,7 +116,7 @@ drop.addEventListener("drop", async (e) => {
   try {
     if (entry && entry.isDirectory) { const files = []; await walk(entry, "", files); picked = { files, name: entry.name }; }
     else { const f = e.dataTransfer.files[0]; if (!f || !/\.zip$/i.test(f.name)) throw new Error("Drop a folder or a .zip file."); picked = { zip: f }; }
-    $("runErr").textContent = "";
+    useDemo = false; $("runErr").textContent = "";
   } catch (err) { picked = null; $("runErr").textContent = err.message; }
   showPicked();
 });
@@ -110,11 +128,8 @@ async function b64(file) {
   return btoa(s);
 }
 async function uploadProject() {
-  if (!picked) throw new Error("Drop your project folder or .zip first.");
-  if (picked.zip) {
-    const r = await api("/api/upload/zip", { method: "POST", body: picked.zip });
-    return { id: r.upload_id, label: picked.zip.name };
-  }
+  if (!picked) throw new Error("Drop your project folder or .zip first, or use the demo project.");
+  if (picked.zip) { const r = await api("/api/upload/zip", { method: "POST", body: picked.zip }); return { id: r.upload_id, label: picked.zip.name }; }
   const out = []; let skipped = 0;
   for (const { path, file } of picked.files) {
     if (SKIP.test(path + "/") || !TEXT_EXT.test(path) || file.size > 1_000_000) { skipped++; continue; }
@@ -127,23 +142,38 @@ async function uploadProject() {
 }
 
 /* ---------------- model ---------------- */
-$("modelToggle").onclick = (e) => { e.preventDefault(); $("modelBox").hidden = !$("modelBox").hidden; };
-function showModel(m) {
-  $("modelState").textContent = m.configured ? `Model: ${m.model}` : "No model connected.";
-  $("modeLabel").textContent = m.configured ? `Model: ${m.model}` : ""; $("modeLabel").hidden = !m.configured;
-  $("mUse").hidden = !m.configured; $("mTest").hidden = !m.configured; $("mClear").hidden = !m.configured;
-  $("mEnv").hidden = !m.env_available;
-  $("mEndpoint").placeholder = m.default_endpoint; $("mName").placeholder = m.default_model;
-  if (m.configured) ["useAuditor", "useInvestigator", "useFixer"].forEach((i) => ($(i).checked = true));
-  else ["useAuditor", "useInvestigator", "useFixer", "mAck"].forEach((i) => ($(i).checked = false));
+let PROV = [], modelOn = false;
+function onProvider(keepName) {
+  const p = PROV.find((x) => x.id === $("mProvider").value) || PROV[0]; if (!p) return;
+  $("mModels").innerHTML = p.models.map((n) => `<option value="${esc(n)}"></option>`).join("");
+  if (!keepName || !$("mName").value) $("mName").value = p.models[0] || "";
+  $("mName").placeholder = p.models[0] || "model name";
+  $("mCustom").hidden = !!p.endpoint;
+  $("mKeyLabel").textContent = p.key_label;
 }
+$("mProvider").onchange = () => onProvider(false);
+function showModel(m) {
+  if (m.providers && !PROV.length) {
+    PROV = m.providers; $("mProvider").innerHTML = PROV.map((p) => `<option value="${esc(p.id)}">${esc(p.label)}</option>`).join("");
+  }
+  modelOn = !!m.configured;
+  if (m.provider) $("mProvider").value = m.provider;
+  onProvider(true);
+  if (m.configured) $("mName").value = m.model;
+  const pill = $("modelPill"); pill.textContent = m.configured ? `Connected: ${m.model}` : "Not connected"; pill.className = "pill " + (m.configured ? "ok" : "");
+  $("modeLabel").textContent = m.configured ? `Model: ${m.model}` : ""; $("modeLabel").hidden = !m.configured;
+  $("mUse").hidden = !m.configured; $("mTest").hidden = !m.configured; $("mClear").hidden = !m.configured; $("mEnv").hidden = !m.env_available;
+  if (m.configured) ["useAuditor", "useInvestigator", "useFixer"].forEach((i) => { if (!$(i).dataset.touched) $(i).checked = true; });
+  else ["useAuditor", "useInvestigator", "useFixer"].forEach((i) => ($(i).checked = false));
+}
+["useAuditor", "useInvestigator", "useFixer"].forEach((i) => ($(i).onchange = () => ($(i).dataset.touched = "1")));
 async function modelCall(path, body) {
   $("mMsg").textContent = "Working…";
   try { return await post(path, body); } catch (e) { $("mMsg").textContent = e.message; return null; }
 }
 $("mConnect").onclick = async () => {
-  const r = await modelCall("/api/model", { endpoint: $("mEndpoint").value, model: $("mName").value, api_key: $("mKey").value, api_style: $("mStyle").value });
-  $("mKey").value = ""; if (r) { showModel(r); $("mMsg").textContent = "Connected. Press Test to check it, and tick the box below to use it."; }
+  const r = await modelCall("/api/model", { provider: $("mProvider").value, model: $("mName").value, api_key: $("mKey").value, endpoint: $("mEndpoint").value });
+  $("mKey").value = ""; if (r) { showModel(r); $("mMsg").textContent = "Connected. Press Test to check it."; }
 };
 $("mEnv").onclick = async () => { const r = await modelCall("/api/model", { from_env: true }); if (r) { showModel(r); $("mMsg").textContent = "Connected from .env."; } };
 $("mClear").onclick = async () => { const r = await modelCall("/api/model/clear"); if (r) { showModel(r); $("mMsg").textContent = "Disconnected."; } };
@@ -153,227 +183,323 @@ $("mTest").onclick = async () => {
 };
 api("/api/model").then(showModel).catch(() => {});
 
-/* ---------------- run ---------------- */
+/* ---------------- the run ---------------- */
 $("runBtn").onclick = async () => {
   $("runErr").textContent = ""; $("runBtn").disabled = true;
   try {
     const body = { policy: {} };
-    body.use_model = { auditor: $("useAuditor").checked, investigator: $("useInvestigator").checked, fixer_validator: $("useFixer").checked };
-    body.model_ack = $("mAck").checked;
-    const u = await uploadProject(); body.upload_id = u.id; body.label = u.label;
-    for (const k in decisions) delete decisions[k];
-    view = null; shown = 0;
-    $("feed").innerHTML = `<section class="panel" style="margin-top:16px"><div class="bd"><span class="spin"></span> Starting…</div></section>`;
+    if (modelOn) body.use_model = { auditor: $("useAuditor").checked, investigator: $("useInvestigator").checked, fixer_validator: $("useFixer").checked };
+    if (useDemo) body.demo = "shop"; else { const u = await uploadProject(); body.upload_id = u.id; body.label = u.label; }
+    buildRunUi();
     const r = await post("/api/jobs", body);
-    jobId = r.job_id; poll();
-  } catch (e) { $("runErr").textContent = e.message; $("runBtn").disabled = false; $("feed").innerHTML = ""; }
+    S.jobId = r.job_id; poll();
+  } catch (e) { $("runErr").textContent = e.message; $("runBtn").disabled = false; if (!S.jobId) $("main").innerHTML = emptyHtml; }
 };
-function poll() {
-  clearTimeout(timer);
-  api("/api/jobs/" + jobId).then((v) => {
-    view = v; startAnim();
-    if (!["waiting_for_review", "done", "stopped", "error"].includes(v.phase)) timer = setTimeout(poll, 900);
-    else $("runBtn").disabled = false;
-  }).catch((e) => { $("feed").innerHTML = `<section class="panel"><div class="bd err">${esc(e.message)}</div></section>`; $("runBtn").disabled = false; });
-}
-/* events appear one at a time, so you can follow what the agents did */
-function startAnim() {
-  clearInterval(anim);
-  const total = () => ((view.state || {}).audit_log || []).length;
-  const step = () => { if (shown < total()) { shown++; draw(); } else { clearInterval(anim); anim = null; draw(); } };
-  const gap = total() - shown > 40 ? 30 : 110;
-  anim = setInterval(step, gap); step();
+const emptyHtml = $("empty").outerHTML;
+
+function buildRunUi() {
+  clearTimeout(S.timer); clearInterval(S.ticker);
+  Object.assign(S, { jobId: null, v: null, total: 0, decisions: {}, open: new Set(), t0: Date.now(), finalSig: "" });
+  cards.clear(); flow.group = null; flow.pinned = true;
+  $("main").innerHTML = `
+    <section class="cx-card res" id="runCard"><div class="hd"><div><h3 id="rTitle">Scan</h3><div class="sub" id="rSub">Starting…</div></div>
+      <div class="push"><span class="small faint" id="rElapsed"></span><span class="pill info" id="rPill"><span class="spin"></span>Starting</span></div></div>
+      <div class="flow" id="flow" role="log" aria-label="Agent steps"></div>
+      <div class="now" id="now" aria-live="polite"><span class="spin"></span><span id="nowText">Starting…</span></div></section>
+    <section class="cx-card res" id="findCard" hidden><div class="hd"><h3>Findings</h3><div class="fsum" id="fsum"></div></div><div class="flist" id="flist"></div></section>
+    <div id="barWrap"></div><div id="finalWrap"></div>`;
+  flow.el = $("flow"); flow.el.onscroll = () => { flow.pinned = flow.el.scrollTop + flow.el.clientHeight >= flow.el.scrollHeight - 28; };
+  S.ticker = setInterval(() => { const e = $("rElapsed"); if (e && S.t0) e.textContent = Math.round((Date.now() - S.t0) / 1000) + " s"; }, 1000);
 }
 
-/* ---------------- the feed ---------------- */
-const AGENT = { auditor: "Auditor", investigator: "Investigator", fixer_validator: "Fixer and Validator", orchestrator: "Orchestrator", person: "You" };
-const chip = (a) => `<span class="agent ${esc(a)}">${esc(AGENT[a] || a)}</span>`;
-function sentence(e) {
-  const d = e.detail || "";
-  switch (e.event) {
-    case "run_started": return "Scan started";
-    case "rules_validated": return "Checked the rules file: " + d;
-    case "temporary_copy_made": return "Made a temporary copy to work in: " + d;
-    case "prompt_injection_attempt": return "Ignored hostile text hidden in the code. " + d;
-    case "audit_done": return "Scanned the project with the security rules";
-    case "findings_ranked": return "Ranked the findings: " + d;
-    case "baseline_tests_done": return "Ran the project's own tests to get a baseline";
-    case "investigate_done": return "Traced where the weak spot comes from";
-    case "fix_done": return "Wrote a patch in the copy and ran the tests";
-    case "recheck_done": return "Re-checked the patched copy";
-    case "review_queue_written": return d;
-    case "waiting_for_person": return "Waiting for your decision. Nothing is applied to your project.";
-    case "fix_approved": return "You approved " + (e.finding_id || "a fix");
-    case "fix_edited": return "You edited and approved " + (e.finding_id || "a fix");
-    case "fix_rejected": return "You rejected " + (e.finding_id || "a fix") + (d ? ": " + d : "");
-    case "originals_verified": return "Confirmed your original files are unchanged";
-    case "decision_log_written": return "Wrote the decision log";
-    default: return e.event.replace(/_/g, " ") + (d ? ": " + d : "");
+/* ---------- polling ---------- */
+async function poll() {
+  clearTimeout(S.timer);
+  try {
+    const v = await api(`/api/jobs/${S.jobId}?since=${S.total}`);
+    S.total = v.steps_total; const fresh = v.steps || []; delete v.steps; S.v = v;
+    flow.append(fresh);
+    renderHeader(v); renderFindings(v); renderBar(v); renderFinal(v);
+    const live = !["waiting_for_review", "done", "stopped", "error"].includes(v.phase);
+    if (live) S.timer = setTimeout(poll, 700);
+    else { $("runBtn").disabled = false; clearInterval(S.ticker); $("now").hidden = true; }
+    S.fails = 0;
+  } catch (e) {
+    // a hiccup (the browser throttling a background tab, the server busy running the project's tests) is retried quietly;
+    // only a run of failures is shown
+    S.fails = (S.fails || 0) + 1;
+    if (S.fails < 15) { $("nowText").textContent = "Reconnecting to the console…"; S.timer = setTimeout(poll, 1500); return; }
+    $("runCard").insertAdjacentHTML("beforeend", `<div class="bd err">The console stopped answering (${esc(e.message)}). Reload the page; a finished scan keeps its report.</div>`);
+    $("runBtn").disabled = false; clearInterval(S.ticker);
   }
 }
-const GROUPED = new Set(["investigate_done", "fix_done", "recheck_done", "status_set"]);
-function statusPill(detail) {
-  if (/^verified/.test(detail)) return ["Fix verified", "ok"];
-  if (/^needs_a_person/.test(detail)) return ["Needs a person", "wait"];
-  if (/^rejected/.test(detail)) return ["Rejected", "risk"];
-  return ["", ""];
-}
-function feedHtml(v, events) {
-  const cands = Object.fromEntries(((v.state || {}).candidate_findings || []).map((c) => [c.finding_id, c]));
-  const blocks = [];
-  for (const e of events) {
-    if (e.finding_id && GROUPED.has(e.event)) {
-      const last = blocks[blocks.length - 1];
-      if (last && last.fid === e.finding_id) last.items.push(e); else blocks.push({ fid: e.finding_id, items: [e] });
-    } else blocks.push({ line: e });
-  }
-  return blocks.map((b) => {
-    if (b.line) {
-      const e = b.line, warn = e.event === "prompt_injection_attempt";
-      return `<div class="line">${chip(e.actor)}<span class="${warn ? "warn" : ""}">${esc(sentence(e))}</span></div>`;
+
+/* ---------- the flow: steps are appended, never redrawn ---------- */
+const LOGS = {
+  run_started: () => ["Scan started"],
+  rules_validated: (d) => ["Checked the rules file", d],
+  temporary_copy_made: () => ["Made a temporary copy to work in", "Your own files stay untouched"],
+  findings_ranked: (d) => ["Ranked the findings", d],
+  nothing_found: () => ["Nothing to report"],
+  prompt_injection_attempt: (d) => ["Ignored text in the code that tried to give an AI instructions", d, "warn"],
+  cause_unclear_fix_proposed: () => ["Cause not traced (no caller in the project)", "Preparing a local fix anyway, for your approval", "warn"],
+  fix_failed: (d) => ["A fix attempt did not pass", d, "warn"],
+  attempt_undone: () => ["Undid the failed attempt in the copy"],
+  cap_hit: (d) => ["A run limit was reached", d, "warn"],
+  waiting_for_person: () => ["Waiting for your decision", "Nothing is applied to your project"],
+  fix_approved: (d, e) => [`You approved ${e.finding_id || "a fix"}`],
+  fix_edited: (d, e) => [`You edited and approved ${e.finding_id || "a fix"}`],
+  fix_rejected: (d, e) => [`You rejected ${e.finding_id || "a fix"}`, d],
+  originals_verified: () => ["Confirmed your original files are unchanged"],
+  decision_log_written: () => ["Wrote the decision log"],
+  run_stopped: (d) => ["The scan was stopped", d, "fail"],
+};
+const flow = {
+  el: null, group: null, pinned: true,
+  append(steps) { steps.forEach((s) => this.one(s)); this.setNow(steps); if (steps.length && this.pinned) this.el.scrollTop = this.el.scrollHeight; },
+  node(cls, title, sub, who) {
+    const d = document.createElement("div"); d.className = "fg " + cls;
+    d.innerHTML = `<span class="dot"></span><div class="t">${who ? `<span class="who ${esc(who)}">${esc(AGENT[who] || who)}</span>` : ""}${esc(title)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ""}<ul></ul>`;
+    this.el.appendChild(d); return d;
+  },
+  finish(g, cls) { if (g) { g.classList.remove("run"); g.classList.add(cls || "done"); g.querySelector(".dot").textContent = cls === "fail" ? "!" : "✓"; } },
+  one(s) {
+    if (s.kind === "agent") {
+      if (s.phase === "start") {
+        this.finish(this.group);
+        const fid = s.finding_id ? ` · ${s.finding_id}` : "";
+        this.group = this.node("run", (JOB[s.job] || s.job) + fid, "", s.agent);
+      } else { this.finish(this.group); this.group = null; }
+    } else if (s.kind === "tool" || s.kind === "model") {
+      if (!this.group) { this.node("note", s.text); return; }
+      const li = document.createElement("li");
+      li.textContent = s.text;
+      if (s.outcome === "pass" || s.outcome === "clear") li.className = "good"; else if (s.outcome === "fail" || s.outcome === "not_clear") li.className = "bad";
+      this.group.querySelector("ul").appendChild(li);
+    } else if (s.kind === "log") {
+      if (s.event === "status_set") { this.node("note", statusLine(s)); return; }
+      const f = LOGS[s.event]; if (!f) return;
+      const [title, sub, tone] = f(s.text || "", s);
+      const n = this.node(tone === "warn" ? "warn" : tone === "fail" ? "fail" : "note", title, sub, tone ? null : null);
+      if (tone === "warn") n.querySelector(".dot").textContent = "!";
+      if (tone === "fail") n.querySelector(".dot").textContent = "!";
     }
-    const c = cands[b.fid] || {};
-    const st = b.items.filter((i) => i.event === "status_set").pop();
-    const [label, cls] = st ? statusPill(st.detail || "") : ["Working", ""];
-    const why = st && /^needs_a_person: /.test(st.detail || "") ? `<div class="small muted why">${esc(st.detail.replace(/^needs_a_person: /, ""))}</div>` : "";
-    return `<div class="grp"><div class="gh"><b>${esc(b.fid)}</b> ${esc(c.rule_id || "")} <span class="mono small faint">${esc(c.file || "")}${c.line ? ":" + c.line : ""}</span>${label ? `<span class="pill ${cls}">${esc(label)}</span>` : ""}</div>
-      ${b.items.filter((i) => i.event !== "status_set").map((e) => `<div class="line">${chip(e.actor)}<span>${esc(sentence(e))}</span></div>`).join("")}${why}</div>`;
-  }).join("");
+  },
+  setNow(steps) {
+    const last = [...steps].reverse().find((s) => s.kind === "tool" || s.kind === "model" || (s.kind === "agent" && s.phase === "start"));
+    if (last) $("nowText").textContent = last.kind === "agent" ? `${AGENT[last.agent] || last.agent}: ${JOB[last.job] || last.job}…` : last.text + "…";
+  },
+};
+function statusLine(s) {
+  const d = s.text || "";
+  const id = s.finding_id || "";
+  if (/^verified/.test(d)) return `${id}: a fix is ready for your approval`;
+  if (/^needs_a_person/.test(d)) return `${id}: needs you. ${d.replace(/^needs_a_person: ?/, "")}`;
+  if (/^rejected/.test(d)) return `${id}: the fix did not pass. ${d.replace(/^rejected: ?/, "")}`;
+  return `${id}: ${d}`;
 }
 
-function draw() {
-  const v = view; if (!v) return;
-  const all = (v.state || {}).audit_log || [];
-  const events = all.slice(0, shown), caughtUp = shown >= all.length;
-  const running = ["running", "queued", "decided"].includes(v.phase);
-  const pill = { running: ["Working", "info"], queued: ["Starting", "info"], decided: ["Finishing", "info"], waiting_for_review: ["Needs your approval", "wait"], done: ["Done", "ok"], stopped: ["Stopped", "risk"], error: ["Error", "risk"] }[v.phase] || ["", ""];
-  const c = (v.state || {}).counters || {};
-  const using = (v.model_used || []).length ? "model: " + v.model_used.map((a) => AGENT[a] || a).join(", ") : "no model";
-  let h = `<section class="panel" style="margin-top:16px"><div class="hd"><div><h3>${esc(v.label || "Scan")}</h3><div class="small faint">${esc((v.state || {}).run_id || "")} · ${esc(using)}${c.ai_calls ? ` · ${c.ai_calls} AI calls, ${(c.tokens_in || 0) + (c.tokens_out || 0)} tokens` : ""}</div></div>
-    <span class="pill ${pill[1]}">${running ? '<span class="spin"></span>' : ""}${pill[0]}</span></div>
-    <div class="bd feed">${feedHtml(v, events)}${running || !caughtUp ? `<div class="line working"><span class="spin"></span><span>Agents are working…</span></div>` : ""}`;
-  if (v.error) h += `<div class="err"><b>The scan failed.</b> ${esc(v.error)}</div>`;
-  if (v.phase === "stopped" && caughtUp) h += `<div class="stopbox"><b>The scan was stopped.</b> ${esc(v.meta?.stop_reason || "")}<div class="small muted">A partial report is kept; nothing was applied to your project.</div></div>`;
-  h += `</div></section>`;
-  if (events.some((e) => e.event === "findings_ranked")) h += findingsList(v);
-  if (caughtUp && v.phase === "waiting_for_review" && v.review_queue) h += approvals(v);
-  if (caughtUp && v.phase === "done") h += finalReport(v);
-  const keep = document.activeElement && document.activeElement.id, pos = document.activeElement && document.activeElement.selectionStart;
-  const openKeys = [...document.querySelectorAll("#feed details[open]")].map((d) => d.dataset.k);
-  $("feed").innerHTML = h;
-  document.querySelectorAll("#feed details").forEach((d) => { if (openKeys.includes(d.dataset.k)) d.open = true; });
-  wire(v);
-  if (keep && $(keep)) { $(keep).focus(); try { $(keep).setSelectionRange(pos, pos); } catch {} }
-  if (running && !caughtUp) window.scrollTo({ top: document.body.scrollHeight });
+/* ---------- header ---------- */
+function renderHeader(v) {
+  const st = v.state || {}, c = st.counters || {};
+  $("rTitle").textContent = v.label || "Scan";
+  const model = (v.model_used || []).length ? `${(st.ai_model || {}).name || "model"} for ${v.model_used.map((a) => AGENT[a] || a).join(", ")}` : "no model: built-in agents";
+  $("rSub").textContent = `${st.run_id || ""} · ${model}${c.ai_calls ? ` · ${c.ai_calls} AI calls, ${((c.tokens || {}).input || 0) + ((c.tokens || {}).output || 0)} tokens` : ""}`;
+  const P = { running: ["Working", "info", 1], queued: ["Starting", "info", 1], decided: ["Finishing", "info", 1], waiting_for_review: ["Needs your approval", "wait"], done: ["Done", "ok"], stopped: ["Stopped", "risk"], error: ["Error", "risk"] }[v.phase] || ["", ""];
+  $("rPill").className = "pill " + P[1]; $("rPill").innerHTML = (P[2] ? '<span class="spin"></span>' : "") + esc(P[0]);
+  if (v.phase === "stopped" || v.error) {
+    flow.finish(flow.group, "fail"); flow.group = null;
+    if (!$("stopBox")) $("runCard").insertAdjacentHTML("beforeend", `<div class="bd" id="stopBox"><div class="stopbox"><b>The scan was stopped.</b> ${esc(v.error || v.meta?.stop_reason || "")}<div class="small" style="margin-top:4px">A partial report is kept; nothing was applied to your project.</div></div></div>`);
+  } else if (!["running", "queued", "decided"].includes(v.phase)) flow.finish(flow.group);
 }
 
-/* ---------------- list of findings ---------------- */
-function findingsList(v) {
-  const st = v.state || {}, cands = st.candidate_findings || [];
-  const status = Object.fromEntries((st.finding_status || []).map((r) => [r.finding_id, r]));
-  const appr = Object.fromEntries(((v.report || {}).approvals || []).map((a) => [a.finding_id, a]));
-  const label = (id) => {
-    const r = status[id], a = appr[id];
-    if (a) return a.decision === "rejected" ? ["Rejected by you", "risk"] : ["Fix approved", "ok"];
-    if (!r) return ["Working", ""];
-    if (r.status === "verified_awaiting_approval") return ["Fix ready", "info"];
-    if (r.status === "needs_a_person") return ["Needs a person", "wait"];
-    return [r.status, ""];
-  };
-  const rows = cands.map((f) => { const [l, c] = label(f.finding_id);
-    return `<tr><td><b>${esc(f.finding_id)}</b></td><td>${esc(f.rule_id)}</td><td class="mono small">${esc(f.file)}:${f.line}</td><td><span class="pill ${f.severity === "high" ? "risk" : "wait"}">${esc(f.severity)}</span></td><td><span class="pill ${c}">${esc(l)}</span></td></tr>`; }).join("");
-  return `<section class="panel" style="margin-top:16px"><div class="hd"><h3>Findings (${cands.length})</h3><span class="small muted">each has file, line and the code as proof</span></div>
-    <div class="tw"><table><tr><th>ID</th><th>Rule</th><th>Where</th><th>Severity</th><th>Status</th></tr>${rows}</table></div></section>`;
+/* ---------- findings: one card per finding, replaced only when that finding changed ---------- */
+const cards = new Map();
+const RULE_HELP = {
+  SECRET: "<b>Your action:</b> rotate this key now (it is exposed in the source and in its history), then read the new one from an environment variable or a secrets manager, for example <code>API_KEY = os.environ[\"API_KEY\"]</code>. The agent never changes secrets.",
+  "DEP-PIN": "<b>Your action:</b> raise the pinned version in <code>requirements.txt</code> to at least the minimum your rules file sets for this package, run your tests, then deploy. The agent never changes dependencies.",
+  WEAKHASH: "<b>Your action:</b> hash passwords with a slow, salted algorithm (bcrypt or argon2) and re-hash existing passwords at next login. This needs a new library, so a person adds it.",
+};
+const cap = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
+const FRIENDLY = {
+  nofix: () => "No automatic fix was possible for this one (for example, the fix spans several files). Connect a model to attempt it, or make the change by hand.",
+  redesign: (r) => "This needs a redesign, not a patch. " + cap(r.replace(/^needs a redesign:\s*/i, "")),
+  tests: () => "There are no passing tests to check a fix against, so none was tried. Add tests, then run the scan again.",
+  unclear: () => "The agent could not trace where this code's input comes from, so it did not propose a fix.",
+  agent: () => "An agent step failed, so nothing was tried here. Run the scan again.",
+  lowconf: (r) => cap(r),
+  action: () => "",
+};
+function friendlyWhy(key, reason) { const f = FRIENDLY[key]; return f ? f(reason || "") : cap(reason || ""); }
+function classify(row) {
+  const r = row.reason || "";
+  if (row.status === "verified_awaiting_approval") return ["Fix ready", "info", "ready"];
+  if (row.status === "rejected") return ["Fix did not pass", "risk", "rejected"];
+  if (row.status === "not_processed") return ["Not scanned (limit reached)", "wait", "skipped"];
+  if (/^fix not allowed/.test(r)) return ["Needs your action", "wait", "action"];
+  if (/redesign/.test(r)) return ["Needs a redesign", "wait", "redesign"];
+  if (/no tests|tests already fail/.test(r)) return ["Fix the tests first", "wait", "tests"];
+  if (/could not write a patch/.test(r)) return ["No automatic fix", "wait", "nofix"];
+  if (/cause unclear/.test(r)) return ["Cause not traced", "wait", "unclear"];
+  if (/agent step failed|rejected:/.test(r)) return ["Agent step failed", "risk", "agent"];
+  if (/low confidence/.test(r)) return ["Low confidence", "wait", "lowconf"];
+  return ["Needs a person", "wait", "person"];
 }
-
-/* ---------------- approvals (like permission prompts) ---------------- */
-function beforeAfter(d) {
-  const before = [], after = [];
-  for (const l of d.replace(/\n$/, "").split("\n")) {
-    if (l.startsWith("---") || l.startsWith("+++") || l.startsWith("@@")) continue;
-    if (l.startsWith("-")) before.push(["d", l.slice(1)]); else if (l.startsWith("+")) after.push(["a", l.slice(1)]);
-    else { before.push(["", l.slice(1)]); after.push(["", l.slice(1)]); }
+function model(f, v) {
+  const st = v.state || {}, rep = v.report || null;
+  const row = (st.finding_status || []).find((r) => r.finding_id === f.finding_id);
+  const inv = (st.investigations || []).find((i) => i.finding_id === f.finding_id);
+  const attempts = (st.fix_attempts || []).filter((a) => a.finding_id === f.finding_id), last = attempts[attempts.length - 1];
+  const prop = ((v.review_queue || {}).proposals || []).find((p) => p.finding_id === f.finding_id);
+  const rf = ((rep || {}).findings || []).find((x) => x.finding_id === f.finding_id);
+  const appr = ((rep || {}).approvals || []).find((a) => a.finding_id === f.finding_id);
+  const local = S.decisions[f.finding_id] || {};
+  let label = "Investigating", cls = "info", key = "work";
+  if (row) [label, cls, key] = classify(row);
+  let decision = appr ? appr.decision : local.decision || null;
+  if (key === "ready" && decision) { [label, cls] = decision === "rejected" ? ["Rejected by you", "risk"] : ["Fix approved", "ok"]; }
+  const diff = (rf && rf.patch_diff) || (prop && prop.patch_diff) || (key === "rejected" && last && last.patch_diff) || null;
+  const cause = (rf && rf.traced_cause) || (prop && prop.traced_cause) || (inv && inv.traced_cause) || null;
+  const why = row && key !== "ready" ? (key === "rejected" ? row.reason : friendlyWhy(key, row.reason)) : null;
+  const tests = (rf && rf.tests) || (prop && prop.tests) || (last && last.tests) || null;
+  const recheck = (rf && rf.recheck) || (prop && prop.recheck) || (last && last.recheck) || null;
+  const risk = (rf && rf.residual_risk) || (prop && prop.residual_risk) || (last && last.residual_risk) || null;
+  const task = (key === "action" || key === "redesign" || key === "nofix" || key === "unclear" || key === "person") ? (RULE_HELP[f.rule_id] || null) : null;
+  const canDecide = key === "ready" && v.phase === "waiting_for_review" && !appr;
+  return { f, key, label, cls, why, cause, diff, tests, recheck, risk, task, decision, canDecide, local, open: S.open,
+    sig: [key, label, why, decision, canDecide, local.decision === "rejected" || local.decision === "edited", !!diff, !!cause, risk, !!rep] };
+}
+function beforeAfter(diff) {
+  const files = []; let cur = null;
+  for (const l of diff.replace(/\n$/, "").split("\n")) {
+    if (l.startsWith("--- ")) continue;
+    if (l.startsWith("+++ ")) { cur = { name: l.slice(4).replace(/^b\//, ""), b: [], a: [] }; files.push(cur); continue; }
+    if (!cur || l.startsWith("@@")) continue;
+    if (l.startsWith("-")) cur.b.push(["d", l.slice(1)]); else if (l.startsWith("+")) cur.a.push(["a", l.slice(1)]);
+    else { cur.b.push(["", l.slice(1)]); cur.a.push(["", l.slice(1)]); }
   }
-  const col = (t, rows) => `<div class="bacol"><div class="bah">${t}</div><pre class="diff">${rows.map((r) => `<span class="${r[0] || "h"}">${esc(r[1]) || " "}</span>`).join("")}</pre></div>`;
-  return `<div class="bacols">${col("Before", before)}${col("After", after)}</div>`;
+  const pre = (rows) => `<pre>${rows.map((r) => `<span class="${r[0]}">${esc(r[1]) || " "}</span>`).join("")}</pre>`;
+  return files.map((x) => `<div class="mono small" style="margin:8px 0 4px">${esc(x.name)}</div><div class="ba"><div><h5>Before</h5>${pre(x.b)}</div><div><h5>After</h5>${pre(x.a)}</div></div>`).join("");
 }
-function approvals(v) {
-  const ps = v.review_queue.proposals, done = ps.filter((p) => decisions[p.finding_id]?.decision).length;
-  const cards = ps.map((p) => {
-    const d = decisions[p.finding_id] || {};
-    const btn = (val, text, cls) => `<button class="btn sm ${d.decision === val ? cls : ""}" data-dec="${esc(p.finding_id)}" data-val="${val}">${text}</button>`;
-    return `<div class="ask ${d.decision || ""}"><div class="asktitle"><b>${esc(p.finding_id)}</b> Fixer proposes a change to <span class="mono">${esc(p.file)}:${p.line}</span>
-        <span class="pill ${p.severity === "high" ? "risk" : "wait"}">${esc(p.rule_id)} · ${esc(p.severity)}</span></div>
-      ${p.traced_cause ? `<div class="small muted">${esc(p.traced_cause.explanation)}</div>` : ""}
-      ${p.patch_diff ? beforeAfter(p.patch_diff) : ""}
-      <div class="small muted" style="margin-top:8px">Tests ${esc(p.tests?.before)} before, ${esc(p.tests?.after ?? "not run")} after · re-check ${esc(p.recheck)} · ${esc(p.residual_risk || "")}</div>
-      <div class="btnrow">${btn("approved", "Approve", "primary")}${btn("rejected", "Reject", "danger")}${btn("edited", "Edit…", "primary")}</div>
-      ${d.decision === "edited" ? `<label for="edit-${esc(p.finding_id)}">Your own unified diff (it must apply, pass the tests and re-check clear)</label><textarea id="edit-${esc(p.finding_id)}" data-edit="${esc(p.finding_id)}">${esc(d.edited_patch_diff ?? p.patch_diff ?? "")}</textarea>` : ""}
-      ${d.decision && d.decision !== "approved" ? `<label for="why-${esc(p.finding_id)}">Reason (required)</label><input type="text" id="why-${esc(p.finding_id)}" data-why="${esc(p.finding_id)}" maxlength="300" value="${esc(d.reason ?? "")}">` : ""}
-    </div>`;
-  }).join("");
-  const rest = v.review_queue.also_reported.length;
-  return `<section class="panel approvals" style="margin-top:16px"><div class="hd"><div><h3>Approval needed</h3><div class="small muted">${ps.length} proposed ${ps.length === 1 ? "fix" : "fixes"}. Nothing is applied to your project. Approved fixes go into <code>fixes.patch</code>.</div></div>
-      <button class="btn sm" id="approveAll">Approve all</button></div>
-    <div class="bd">${cards}${rest ? `<div class="small muted">${rest} more ${rest === 1 ? "finding needs" : "findings need"} a person but no patch was proposed. They are listed in the final report.</div>` : ""}</div>
-    <div class="bar"><div><b>${done} of ${ps.length}</b> decided<div class="err" id="subErr">${esc(v.review_error || "")}</div></div>
-      <div class="who"><input type="text" id="who" placeholder="Your name" aria-label="Your name" value="${esc(reviewer)}" maxlength="80"><button class="btn primary" id="submitReview" ${done === ps.length ? "" : "disabled"}>Submit and finish</button></div></div></section>`;
+function cardHtml(m) {
+  const f = m.f, d = m.local;
+  const where = `${esc(f.file)}${f.line ? ":" + f.line : ""}`;
+  const actions = m.canDecide ? `<div class="fc-actions">
+      <button class="btn sm approve ${m.decision === "approved" ? "on" : ""}" data-act="approved">${m.decision === "approved" ? "✓ Approved" : "Approve this fix"}</button>
+      <button class="btn sm reject ${m.decision === "rejected" ? "on" : ""}" data-act="rejected">Reject</button>
+      <button class="btn sm" data-act="edited">Edit…</button></div>
+    ${m.decision === "edited" ? `<div class="fc-reason"><label for="ed-${esc(f.finding_id)}">Your own unified diff (it must apply, pass the tests and re-check clear)</label><textarea id="ed-${esc(f.finding_id)}" data-edit>${esc(d.edited_patch_diff ?? m.diff ?? "")}</textarea></div>` : ""}
+    ${m.decision === "rejected" || m.decision === "edited" ? `<div class="fc-reason"><label for="why-${esc(f.finding_id)}">Reason (required)</label><input type="text" id="why-${esc(f.finding_id)}" data-why maxlength="300" value="${esc(d.reason ?? "")}"></div>` : ""}` : "";
+  const facts = [m.tests ? `Tests ${esc(m.tests.before)} before, ${esc(m.tests.after ?? "not run")} after` : "", m.recheck && m.recheck !== "not_run" ? `Re-check: ${esc(m.recheck === "clear" ? "clear" : "the rule still matches")}` : ""].filter(Boolean);
+  const detailBody = `${m.cause ? `<p class="fc-why"><b>Cause.</b> ${esc(m.cause.explanation)}${(m.cause.path || []).length > 1 ? ` <span class="mono small">${esc(m.cause.path.join(" → "))}</span>` : ""}</p>` : ""}
+    ${m.diff ? beforeAfter(m.diff) : ""}
+    ${facts.length ? `<div class="facts">${facts.map((x) => `<span>${x}</span>`).join("")}</div>` : ""}
+    ${m.risk ? `<p class="fc-why" style="margin-top:8px"><b>Remaining risk.</b> ${esc(m.risk)}</p>` : ""}`;
+  const hasDetail = !!(m.cause || m.diff || facts.length || m.risk);
+  const k = "d-" + f.finding_id;
+  return `<div class="fc-h"><span class="fc-id">${esc(f.finding_id)}</span><span class="rule ${esc(f.rule_id)}">${esc(f.rule_id)}</span><span class="fc-where mono small">${where}</span>
+      <span class="pill ${f.severity === "high" ? "risk" : "wait"}">${esc(f.severity)}</span><span class="pill ${m.cls}">${m.key === "work" ? '<span class="spin"></span>' : ""}${esc(m.label)}</span></div>
+    <div class="fc-b"><div class="fc-code">${esc((f.evidence || {}).quoted_code || "")}</div>
+      ${m.why ? `<p class="fc-why">${esc(m.why)}</p>` : ""}${m.task ? `<div class="task">${m.task}</div>` : ""}${actions}</div>
+    ${hasDetail ? `<details data-k="${k}" ${m.open.has(k) ? "open" : ""}><summary>${m.diff ? "Before and after, tests and remaining risk" : "Details"}</summary>${detailBody}</details>` : ""}`;
+}
+function wireCard(el, m) {
+  const id = m.f.finding_id;
+  el.querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => {
+    const d = (S.decisions[id] ??= {}); d.decision = d.decision === b.dataset.act && b.dataset.act === "approved" ? null : b.dataset.act;
+    refreshCard(id); renderBar(S.v);
+    const why = $("why-" + id); if (why && (d.decision === "rejected" || d.decision === "edited")) why.focus();
+  }));
+  el.querySelectorAll("[data-why]").forEach((i) => (i.oninput = () => (S.decisions[id].reason = i.value)));
+  el.querySelectorAll("[data-edit]").forEach((i) => (i.oninput = () => (S.decisions[id].edited_patch_diff = i.value)));
+  el.querySelectorAll("details[data-k]").forEach((d) => (d.ontoggle = () => (d.open ? S.open.add(d.dataset.k) : S.open.delete(d.dataset.k))));
+}
+function refreshCard(id) {
+  const c = cards.get(id), f = ((S.v.state || {}).candidate_findings || []).find((x) => x.finding_id === id);
+  if (!c || !f) return;
+  const m = model(f, S.v); c.sig = JSON.stringify(m.sig); c.el.className = `fc ${m.key === "ready" ? "ready" : m.cls === "ok" ? "ok" : ""}`;
+  c.el.innerHTML = cardHtml(m); wireCard(c.el, m);
+}
+function renderFindings(v) {
+  const st = v.state || {}, cands = st.candidate_findings || [];
+  if (!cands.length) {
+    if (st.outcome === "safe_nothing_to_report") { $("findCard").hidden = false; $("fsum").innerHTML = '<span class="pill ok">Nothing to report</span>'; $("flist").innerHTML = '<p class="fc-why">The rules found nothing in this project.</p>'; }
+    return;
+  }
+  $("findCard").hidden = false;
+  const list = $("flist");
+  const counts = {};
+  const bucket = (m) => (m.key === "ready" ? (m.decision === "rejected" ? "rej" : m.decision ? "appr" : "ready") : m.key === "work" ? "work" : "open");
+  cands.forEach((f) => {
+    const m = model(f, v), sig = JSON.stringify(m.sig);
+    counts[bucket(m)] = (counts[bucket(m)] || 0) + 1;
+    let c = cards.get(f.finding_id);
+    if (!c) { c = { el: document.createElement("article"), sig: "" }; cards.set(f.finding_id, c); list.appendChild(c.el); }
+    if (c.sig !== sig) { c.sig = sig; c.el.className = `fc ${m.key === "ready" ? "ready" : m.cls === "ok" ? "ok" : ""}`; c.el.innerHTML = cardHtml(m); wireCard(c.el, m); }
+  });
+  const chips = [["ready", "Fix ready", "info"], ["appr", "Approved", "ok"], ["rej", "Rejected", "risk"], ["open", "Need you", "wait"], ["work", "In progress", ""]].filter((x) => counts[x[0]]).map((x) => `<span class="pill ${x[2]}">${counts[x[0]]} ${x[1]}</span>`);
+  const html = `<span class="pill">${cands.length} found</span>` + chips.join("");
+  if ($("fsum").dataset.h !== html) { $("fsum").innerHTML = html; $("fsum").dataset.h = html; }
 }
 
-/* ---------------- final report ---------------- */
-function finalReport(v) {
-  const rep = v.report; if (!rep) return "";
+/* ---------- the approval bar ---------- */
+function renderBar(v) {
+  const wrap = $("barWrap"); if (!wrap) return;
+  if (v) renderFindings(v);                      // the count chips follow the Approve and Reject buttons at once
+  const ps = v && v.phase === "waiting_for_review" && v.review_queue ? v.review_queue.proposals : [];
+  if (!ps.length) { wrap.innerHTML = ""; return; }
+  const done = ps.filter((p) => S.decisions[p.finding_id]?.decision).length;
+  if (!$("abar")) {
+    wrap.innerHTML = `<div class="abar" id="abar"><div><b id="aCount"></b><div class="err" id="subErr"></div></div><button class="btn sm" id="approveAll" type="button">Approve all fixes</button>
+      <div class="who"><input type="text" id="who" placeholder="Your name (for the log)" aria-label="Your name" maxlength="80" value="${esc(S.who)}"><button class="btn primary" id="submitReview" type="button">Finish</button></div></div>`;
+    $("who").oninput = () => (S.who = $("who").value);
+    $("approveAll").onclick = () => { ps.forEach((p) => ((S.decisions[p.finding_id] ??= {}).decision = "approved")); ps.forEach((p) => refreshCard(p.finding_id)); renderBar(S.v); };
+    $("submitReview").onclick = submitReview;
+  }
+  $("aCount").textContent = `${done} of ${ps.length} ${ps.length === 1 ? "fix" : "fixes"} decided`;
+  $("submitReview").disabled = done !== ps.length;
+  $("subErr").textContent = v.review_error || $("subErr").textContent;
+}
+async function submitReview() {
+  const v = S.v, btn = $("submitReview"); $("subErr").textContent = ""; btn.disabled = true;
+  try {
+    if (!S.who.trim()) throw new Error("Enter your name so the decision log shows who approved.");
+    const list = v.review_queue.proposals.map((p) => ({ finding_id: p.finding_id, reviewer: S.who, ...(S.decisions[p.finding_id] || {}) }));
+    await post(`/api/jobs/${S.jobId}/review`, { decisions: list });
+    $("barWrap").innerHTML = ""; $("now").hidden = false; $("nowText").textContent = "Finishing: applying your decisions to the patch and writing the report…";
+    S.t0 = Date.now(); clearInterval(S.ticker); S.ticker = setInterval(() => { const e = $("rElapsed"); if (e) e.textContent = Math.round((Date.now() - S.t0) / 1000) + " s"; }, 1000);
+    poll();
+  } catch (e) { $("subErr").textContent = e.message; btn.disabled = false; }
+}
+
+/* ---------- what was fixed ---------- */
+function renderFinal(v) {
+  const wrap = $("finalWrap"); if (!wrap || v.phase !== "done" || !v.report) return;
+  const rep = v.report, sig = JSON.stringify([rep.totals, (rep.approvals || []).map((a) => a.decision), v.downloads]);
+  if (sig === S.finalSig) return; S.finalSig = sig;
   const rows = rep.findings || [], appr = Object.fromEntries((rep.approvals || []).map((a) => [a.finding_id, a]));
-  const outcome = (f) => {
-    const a = appr[f.finding_id];
-    if (f.status === "verified_awaiting_approval") return a ? (a.decision === "rejected" ? "open" : "fixed") : "pending";
-    return "open";
+  const fixed = rows.filter((f) => f.status === "verified_awaiting_approval" && appr[f.finding_id] && appr[f.finding_id].decision !== "rejected");
+  const rejected = rows.filter((f) => appr[f.finding_id] && appr[f.finding_id].decision === "rejected");
+  const open = rows.filter((f) => !fixed.includes(f) && !rejected.includes(f));
+  const ok = (v.state || {}).originals_unchanged;
+  const tile = (n, l, c) => `<div class="tile ${c}"><b>${n}</b><span>${l}</span></div>`;
+  const fixRow = (f) => `<details class="fixrow"><summary><span class="rule ${esc(f.rule_id)}">${esc(f.rule_id)}</span><span class="mono small">${esc(f.file)}:${f.line}</span><span class="pill ok" style="margin-left:auto">Fixed</span></summary><div class="in">${f.patch_diff ? beforeAfter(f.patch_diff) : ""}<div class="facts"><span>Tests ${esc(f.tests?.before)} → ${esc(f.tests?.after ?? "not run")}</span><span>Re-check: ${esc(f.recheck)}</span></div></div></details>`;
+  const taskRow = (f) => {
+    const key = classify({ status: f.status, reason: f.reason })[2];
+    const say = friendlyWhy(key, f.reason);
+    const info = RULE_HELP[f.rule_id] || `<b>Your action:</b> ${esc(say || "a person needs to make this change")}`;
+    return `<div class="fc"><div class="fc-h"><span class="fc-id">${esc(f.finding_id)}</span><span class="rule ${esc(f.rule_id)}">${esc(f.rule_id)}</span><span class="fc-where mono small">${esc(f.file)}:${f.line}</span></div><div class="fc-b"><div class="task">${info}</div>${say && RULE_HELP[f.rule_id] ? `<p class="fc-why">${esc(say)}</p>` : ""}</div></div>`;
   };
-  const out = rows.map((f) => ({ f, o: outcome(f) }));
-  const n = (o) => out.filter((x) => x.o === o).length;
-  const total = rows.length, fixed = n("fixed"), pending = n("pending"), open = n("open");
-  const t = rep.totals || {}, ok = (v.state || {}).originals_unchanged;
-  const tiles = [["Found", total, ""], ["Fixed", fixed, "ok"], ["Needs a person", open, open ? "wait" : ""], ["High severity", rows.filter((f) => f.severity === "high").length, "risk"], ["Your files", ok === false ? "Changed" : "Unchanged", ok === false ? "risk" : "ok"]];
-  const seg = (label, parts) => `<div class="brow"><div class="bl">${label}</div><div class="bbar">${parts.filter((p) => p[0] > 0).map((p) => `<span class="seg ${p[1]}" style="flex:${p[0]}">${p[0]}</span>`).join("") || '<span class="seg none" style="flex:1">0</span>'}</div></div>`;
-  const table = out.map(({ f, o }) => {
-    const after = { fixed: ["Fixed", "ok"], pending: ["Fix ready", "info"], open: ["Still open", "risk"] }[o];
-    const why = o === "open" && f.reason ? `<div class="small faint">${esc(f.reason)}</div>` : "";
-    const more = f.patch_diff && o !== "open" ? `<details class="plain" data-k="r-${esc(f.finding_id)}"><summary>Before and after</summary>${beforeAfter(f.patch_diff)}</details>` : "";
-    return `<tr><td><b>${esc(f.finding_id)}</b> ${esc(f.rule_id)}</td><td class="mono small">${esc(f.file)}:${f.line}</td><td><span class="pill ${f.severity === "high" ? "risk" : "wait"}">${esc(f.severity)}</span></td>
-      <td><span class="pill risk">Vulnerable</span></td><td><span class="pill ${after[1]}">${after[0]}</span>${why}${more}</td>
-      <td class="small" style="white-space:nowrap">${f.tests ? `${esc(f.tests.before)} → ${esc(f.tests.after ?? "not run")}` : "–"}</td></tr>`;
-  }).join("");
   const names = { "report.md": "report.md", "report.json": "report.json", "fixes.patch": "fixes.patch", "decision_log.json": "decision_log.json" };
-  const dl = (v.downloads || []).filter((n) => n !== "report.html").map((n) => `<a class="btn sm" href="/api/jobs/${jobId}/download/${n}" download>${esc(names[n] || n)}</a>`).join("");
-  return `<section class="panel final" style="margin-top:16px"><div class="hd"><h3>Final report</h3><span class="pill ${ok === false ? "risk" : "ok"}">${ok === false ? "ORIGINAL FILES CHANGED" : "Your files are unchanged"}</span></div><div class="bd">
-    <div class="tiles">${tiles.map((x) => `<div class="tile ${x[2]}"><b>${x[1]}</b><span>${x[0]}</span></div>`).join("")}</div>
-    <h4 class="sec">Before and after</h4>
-    <div class="ba">${seg("Before", [[total, "risk"]])}${seg("After approved fixes", [[fixed, "ok"], [pending, "info"], [open, "risk"]])}</div>
-    <h4 class="sec">Each finding</h4>
-    <div class="tw"><table><tr><th>Finding</th><th>Where</th><th>Severity</th><th>Before</th><th>After</th><th>Tests</th></tr>${table}</table></div>
-    <div class="dl" style="margin-top:16px"><a class="btn sm primary" href="/api/jobs/${jobId}/download/report.view.html" target="_blank" rel="noopener">Open full report</a><a class="btn sm" href="/api/jobs/${jobId}/download/report.html" download>Report (HTML)</a>${dl}<a class="btn sm" href="/api/jobs/${jobId}/download/bundle.zip" download>Everything (.zip)</a></div>
-    <p class="small muted" style="margin:12px 0 0">${v.downloads?.includes("fixes.patch") ? "To apply the approved fixes, run <code>git apply fixes.patch</code> in your project folder. " : "No fix was approved, so there is no patch. "}Every original file was fingerprinted (SHA-256) before the run and checked again at the end. Sensitive items hidden before any model call: ${rep.run.sensitive_items_hidden}.</p>
+  const dl = (v.downloads || []).filter((n) => n !== "report.html" && n !== "fixes.patch").map((n) => `<a class="btn sm" href="/api/jobs/${S.jobId}/download/${n}" download>${esc(names[n] || n)}</a>`).join("");
+  const hasPatch = (v.downloads || []).includes("fixes.patch");
+  wrap.innerHTML = `<section class="cx-card res"><div class="hd"><h3>What was fixed</h3><div class="push"><span class="pill ${ok === false ? "risk" : "ok"}">${ok === false ? "ORIGINAL FILES CHANGED" : "Your files are unchanged"}</span></div></div><div class="bd">
+    <div class="tiles">${tile(rows.length, "Found", "")}${tile(fixed.length, "Fixed (approved)", "ok")}${tile(open.length, "Need you", open.length ? "wait" : "")}${tile(rejected.length, "Rejected by you", rejected.length ? "risk" : "")}${tile(rows.filter((f) => f.severity === "high").length, "High severity", "risk")}</div>
+    ${fixed.length ? `<h4 class="sec">Fixed</h4>${fixed.map(fixRow).join("")}` : `<p class="fc-why">No fix was approved, so nothing was written to a patch.</p>`}
+    ${open.length ? `<h4 class="sec">Still open: your tasks (${open.length})</h4><div style="display:grid;gap:10px">${open.map(taskRow).join("")}</div>` : ""}
+    <div class="dl">${hasPatch ? `<a class="btn primary" href="/api/jobs/${S.jobId}/download/fixes.patch" download>Download fixes.patch</a>` : ""}<a class="btn" href="/api/jobs/${S.jobId}/download/report.view.html" target="_blank" rel="noopener">Open the full report</a>${dl}<a class="btn sm" href="/api/jobs/${S.jobId}/download/bundle.zip" download>Everything (.zip)</a></div>
+    <p class="small muted" style="margin:12px 0 0">${hasPatch ? "To apply the approved fixes, run <code>git apply fixes.patch</code> in your project folder. " : ""}Every original file was fingerprinted (SHA-256) before the run and checked again at the end. Sensitive items hidden before any model call: ${rep.run.sensitive_items_hidden}.</p>
   </div></section>`;
-}
-
-function wire(v) {
-  if (v.phase !== "waiting_for_review") return;
-  document.querySelectorAll("[data-dec]").forEach((b) => b.onclick = () => { (decisions[b.dataset.dec] ??= {}).decision = b.dataset.val; draw(); });
-  document.querySelectorAll("[data-why]").forEach((i) => i.oninput = () => (decisions[i.dataset.why] ??= {}).reason = i.value);
-  document.querySelectorAll("[data-edit]").forEach((i) => i.oninput = () => (decisions[i.dataset.edit] ??= {}).edited_patch_diff = i.value);
-  const all = $("approveAll"); if (all) all.onclick = () => { v.review_queue.proposals.forEach((p) => (decisions[p.finding_id] ??= {}).decision = "approved"); draw(); };
-  const who = $("who"); if (who) who.oninput = () => reviewer = who.value;
-  const btn = $("submitReview");
-  if (btn) btn.onclick = async () => {
-    $("subErr").textContent = ""; btn.disabled = true;
-    try {
-      if (!reviewer.trim()) throw new Error("Enter your name so the decision log shows who approved.");
-      const list = v.review_queue.proposals.map((p) => ({ finding_id: p.finding_id, reviewer, ...(decisions[p.finding_id] || {}) }));
-      await post(`/api/jobs/${jobId}/review`, { decisions: list });
-      shown = Math.min(shown, ((view.state || {}).audit_log || []).length);
-      poll();
-    } catch (e) { $("subErr").textContent = e.message; btn.disabled = false; }
-  };
 }
 </script>
 </body>
