@@ -501,6 +501,25 @@ function renderFinal(v) {
     <p class="small muted" style="margin:12px 0 0">${hasPatch ? "To apply the approved fixes, run <code>git apply fixes.patch</code> in your project folder. " : ""}Every original file was fingerprinted (SHA-256) before the run and checked again at the end. Sensitive items hidden before any model call: ${rep.run.sensitive_items_hidden}.</p>
   </div></section>`;
 }
+
+/* ---------- coming back to a scan after visiting another page ---------- */
+const KEEP = "sa_console_job";
+function keepJob() {
+  try { if (S.jobId) localStorage.setItem(KEEP, JSON.stringify({ id: S.jobId, t0: S.t0, who: S.who, decisions: S.decisions })); } catch (e) { /* storage may be blocked */ }
+}
+addEventListener("pagehide", keepJob);
+document.addEventListener("visibilitychange", () => { if (document.hidden) keepJob(); });
+setInterval(keepJob, 3000);
+(async function reattach() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(KEEP) || "null"); } catch (e) { /* ignore */ }
+  if (!saved || !saved.id) return;
+  try { await api(`/api/jobs/${saved.id}?since=0`); } catch (e) { try { localStorage.removeItem(KEEP); } catch (e2) { /* ignore */ } return; }   // the console was restarted: that scan is gone
+  buildRunUi();
+  Object.assign(S, { jobId: saved.id, t0: saved.t0 || Date.now(), who: saved.who || "", decisions: saved.decisions || {} });
+  $("runBtn").disabled = true;
+  poll();
+})();
 </script>
 </body>
 </html>
