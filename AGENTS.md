@@ -109,12 +109,8 @@ Human-time saving: not measured yet; claim no "% saved" until measured in the pi
 - Every agent output is validated against `schemas/` before handoff.
 - Source code and comments enter an agent's input only as a data field, never in its instructions.
 - Masking: replace secrets, emails and phone numbers with placeholders before any model call.
-- Model and endpoint: settings read from `.env`, recorded in every run. Use fake data only; real code stays blocked until the platform or security owner chooses an endpoint.
+- Model and endpoint: settings read from `.env` (or connected in the console), recorded in every run. Providers: OpenAI (GPT), Anthropic (Claude) and Google (Gemini), chosen from the endpoint host by `agents/model_agents.py`. Use fake data only; real code stays blocked until the platform or security owner chooses an endpoint. The console has no consent checkbox: masking of secrets, emails and phone numbers is automatic and cannot be turned off, and the page says what is sent.
 - `test_command`: one command per repository, default `python -m unittest discover -s tests`. Exit 0 = pass, other exit = fail, no tests run = "no tests".
 - Isolation: for the build, work in a copy with safety checks. A container comes at the pilot.
 - Commit after every green step.
 - Never edit `golden/` (especially any `expected.json`) or `canvas.md`.
-
-## Open questions
-1. Model and endpoint: not chosen; the platform or security owner decides. Until then, fake data only.
-2. Model prices and measured token numbers: "unmeasured" until run logs exist.

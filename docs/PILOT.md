@@ -122,14 +122,12 @@ evidence coverage, regression-test pass rate, audit-record completeness (all 100
 This is where the work stands today, not a plan.
 
 1. **No model is connected.** No endpoint is approved; the three agents are offline stand-ins. The pilot needs the platform or
-   security owner to approve an endpoint (AGENTS.md open question 1) and model-backed agents.
+   security owner to approve an endpoint (`AGENTS.md` section 8) and model-backed agents.
 2. **The quality gates do not pass yet.** On the golden set (directional): verified-fix success 50% against 75%, false-fix rate
    25% against 5%.
 3. **Eight of ten red-team attacks currently break the system** (`python evals/redteam.py`), with the smallest fix proposed for each
    and none applied. Those that touch a kill criterion (an agent can edit the project's own tests, secret shapes the masker misses)
    should be fixed or explicitly accepted before real code is used.
-4. **Open inputs:** participants (section 2), the review SLA (section 4), the time-log location (section 3), model prices and the
-   engineer rate (`docs/pricing.json`).
 
 ## 8. Scale-up criteria (canvas section 16)
 

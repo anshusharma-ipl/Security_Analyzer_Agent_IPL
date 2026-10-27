@@ -86,7 +86,7 @@ NOTES: dict[str, dict] = {
         status=["1. Project setup"], commits=["df25847"], docs=["AGENTS.md"], repro=[],
         checks=[("Every number in AGENTS.md has a reason next to it", OK, "Sections 6 and 7 give a Note or Reason for every limit and threshold, and mark starting values 'revisit after pilot'."),
                 ("The NEVER list matches canvas §9 and §5", OK, "Section 4 'NEVER' carries the §9 must-never list plus the §5 non-goals (no redesigns, no ranking developers, and so on)."),
-                ("Remaining open questions answered in writing", PART, "AGENTS.md ends with two open questions: model endpoint (not chosen) and model prices. Both are owner decisions outside the build."),
+                ("Remaining decisions recorded in writing", OK, "AGENTS.md section 8 says real code stays blocked until the platform or security owner chooses a model endpoint, and the owner decisions of 2026-10-27 are recorded in sections 2, 3 and 5."),
                 ("AGENTS.md at most about 120 lines", OK, "118 lines.")],
         note="AGENTS.md was committed together with the project setup (df25847), so there is no separate commit for this step."),
     "2": dict(
@@ -95,8 +95,8 @@ NOTES: dict[str, dict] = {
         checks=[("Every agent has a reason to exist that a plain tool call cannot meet", PART,
                 "roster.md says the Auditor FAILS the test for the pilot rules and recommends option (b), a plain scan step. The Investigator passes. The Fixer & Validator passes, but only for authoring and revising the patch."),
                 ("The agent that writes a fix never decides alone whether it worked", OK, "Status is set by the orchestrator only when tests pass and the re-check is clear; the agent's decision is advisory."),
-                ("You decided option (a) or (b) for the Auditor and wrote the reason", NO,
-                 "status.md 'Open decisions' #1: still open. The code keeps the Auditor as an agent (option a) while roster.md recommends (b). roster.md is still headed 'PROPOSAL, waiting for the team's OK'."),
+                ("You decided option (a) or (b) for the Auditor and wrote the reason", OK,
+                 "Decided 2026-10-27 by the project owner: option (a), the Auditor stays an agent (AGENTS.md section 3, docs/roster.md section 4). The removal test stays a recurring eval."),
                 ("Three agents or fewer", OK, "Three agents plus a plain-code orchestrator.")],
         note="Your decision here is the single most useful cheap experiment in the project: the playbook's 'collapse test' (Appendix A) merges the Auditor into the scan tool and re-runs the evals."),
     "3": dict(

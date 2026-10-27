@@ -30,7 +30,7 @@ Three agents and one plain-code orchestrator. Every handoff goes through the orc
 | **Fixer & Validator** | What happened when the patch ran: whether it applied, whether the code still parses, the test output tail, and why the first attempt failed. Nobody else sees run results. | `request_recheck` | `apply_patch` (temporary copy only), `run_tests` (runs code in the copy, changes nothing else) | `workspace`, `input` (`test_command`, `max_retries`), one `candidate_findings` entry, its `investigations` entry, its own earlier `fix_attempts` | `baseline_tests`, `fix_attempts` | `apply_patch` undoes a patch that does not apply or breaks the syntax. The orchestrator, not the agent, sets the status: `verified_awaiting_approval` only when tests pass and the re-check is clear. `decision` is only a recommendation. A person approves every fix. `verify_originals` runs at the end. |
 | *Workflow orchestrator (not an agent)* | Everything about the run: counters, caps, the handoff log, the approvals. | none (calls helpers and the agents) | the temporary copy (`make_temp_copy`), `review_queue.json`, the log and the report | all fields | `run_id`, `input`, `rules`, `rules_file_version`, `workspace`, `counters`, `handoff_log`, `cap_hit`, `finding_status`, `approvals`, `audit_log`, `originals_unchanged`, `outcome`, `totals` | It is plain code with unit tests; it has no model to fail. A stop or an alert follows the stop rule. |
 
-Two things in this table do not match the canvas wording. They are listed as open questions in section 6.
+Two things in this table do not match the canvas wording, and they are settled as built: the Fixer & Validator has no `read_file`, so the orchestrator passes it the masked source lines as a data field; and `request_recheck` calls `run_security_rules` itself rather than starting an Auditor job.
 
 ---
 
@@ -73,13 +73,13 @@ Reasons given then:
 - **Option (a) has nothing to justify it.** The only candidates are (1) AI-based detection rules, which are out of scope, and (2) AI ranking by context, for example "reachable from a request handler, so first". That second job is exactly the Investigator's job (case_11), so an Auditor doing it duplicates the Investigator and ranks before the evidence exists.
 - **A model in the Auditor can only lose findings.** Every true finding is already found by the tool. A model that "judges" can only drop a real one, silently. High-severity recall has a gate of at least 90%, and the evidence rule already removes the unproven ones without a model.
 - **Cost and risk go down.** One fewer handoff in the step cap, no model call and no code sent to a model for the whole-project scan (up to 200 files), and no context that holds hostile file contents plus a model's ranking power.
-- **The recheck gets simpler.** `request_recheck` already calls `run_security_rules` directly. With the Auditor gone, "ask the Auditor" and the tool are the same thing (see open question 2).
+- **The recheck gets simpler.** `request_recheck` already calls `run_security_rules` directly. With the Auditor gone, "ask the Auditor" and the tool are the same thing.
 
 What (b) would have needed:
 - **Deterministic ranking.** Sort by severity from `rules.json` (high, medium, low), then by the rule's position in `rules.json`, then by file and line. Same input, same order, every run.
 - **Evidence step in code.** Keep a finding only if its `quoted_code` really appears at that file and line (the same check `validate.py` already does); otherwise put it in `dropped_findings` and log it.
 - **Schema change.** The Auditor-owned fields (`file_list`, `skipped_files`, `skipped_rules`, `candidate_findings`, `dropped_findings`, `recheck_results`) get `x-owner: orchestrator`, and `auditor` leaves the actor and agent lists.
-- **Confidence for rule matches.** The schema wants a number on every finding. The 0.70 gate applies to AI-alone findings only, so it does not apply. A constant must be agreed (open question 4).
+- **Confidence for rule matches.** The schema wants a number on every finding. The 0.70 gate applies to AI-alone findings only, so it does not apply. As built, rule matches carry the documented constant 0.90.
 - **`AGENTS.md` update.** Section 3 says the Auditor is "kept for now; test removing it after the evals". Choosing (b) now changes that team decision, so it needs your OK.
 
 ### Roster (a): keep the Auditor as an agent (chosen)
@@ -151,12 +151,3 @@ flowchart TD
 Agents never call each other: the arrows go only between an agent and the orchestrator. Every agent output is validated against `schemas/` before the orchestrator accepts it. The only way an agent reaches code is through its own MCP profile.
 
 ---
-
-## 6. Open questions for the team
-
-1. **The Fixer cannot read the file it patches.** `AGENTS.md` section 4 gives the Fixer & Validator `apply_patch`, `run_tests` and `request_recheck`, and no `read_file`. To write a unified diff it needs the lines it changes. Options: the orchestrator passes the relevant masked lines as a data field with the job, or `read_file` is added to the Fixer's tools (a change to the permissions table). Not decided here.
-2. **`request_recheck` does not use an Auditor.** The canvas says the Fixer "asks the Auditor to run the rules again". In the code, the tool calls `run_security_rules` itself, and `state.schema.json` still lists `recheck_results` as Auditor-owned. With option (a) chosen, either keep it as a plain tool call and say so in the canvas wording (the current behaviour, and what the model-backed version does), or add an explicit Auditor re-check job. Still to settle.
-3. **Settled:** the Auditor stays (option a). `AGENTS.md` section 3 now says so, and the removal test is a recurring eval, not a one-off.
-4. **Confidence for rule-matched findings without a model.** One documented constant, or a value by rule. The 0.70 gate does not apply. A value of 1.0 would claim more than we know.
-
-Decided: option (a). Still open: questions 1, 2 and 4.

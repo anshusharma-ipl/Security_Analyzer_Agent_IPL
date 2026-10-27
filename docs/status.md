@@ -39,7 +39,7 @@ Everything below describes work already committed and pushed to `master`
 
 ### 6. Roster document (`73c00d8`)
 - `docs/roster.md`: single vs multi-agent, three-sentence test per role, Auditor options (a) and (b)
-  with a recommendation for (b), a Mermaid diagram and open questions.
+  with a recommendation for (b) (the owner then chose (a)) and a Mermaid diagram.
 - Added `handoff_log` to the state schema; its length must equal the step count.
 
 ### 7. Agents (`fe66163`)
@@ -103,14 +103,6 @@ tamper detection, edited patches and the `verify_originals` stop rule are untest
 - Case_11 (no callers, should escalate) looks like case_01 in code, so it would get a fix. Needs a model or a decision.
 - The Fixer only writes a patch for `query = f"... '{value}' ..."` followed by `.execute(query)` (cases 01, 09, 10).
 - The Investigator hands case_07 to a person.
-
-## Open decisions (not yet confirmed)
-1. Auditor as an agent (what was built, option a) or `run_security_rules` plus a deterministic ranking
-   (recommended in `docs/roster.md`, option b).
-2. Rule-matched findings get confidence 0.90, which is a placeholder.
-3. The orchestrator passes the Fixer the source lines, because the Fixer has no `read_file`.
-4. `recheck_results` is still Auditor-owned in the schema, while `request_recheck` calls the rules directly.
-5. No model endpoint is approved, so no real code goes to any model.
 
 ## Next steps
 1. Write `tests/test_agents.py` and `tests/test_orchestrator.py`.

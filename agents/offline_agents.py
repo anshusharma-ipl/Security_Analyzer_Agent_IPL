@@ -1,6 +1,6 @@
 """Offline stand-ins for the three agents. NO AI model: plain deterministic code.
 
-Why they exist: no model endpoint is approved yet (AGENTS.md open question 1), and real code must not
+Why they exist: no model endpoint is approved yet (AGENTS.md section 8), and real code must not
 reach a model. Each stand-in does the job its prompt (agents/<name>.md) describes, reaches the code ONLY
 through its own MCP server (`python tools/mcp_server.py --agent <name>`), and returns one JSON object that
 holds only the state fields that agent owns. A model-backed runner replaces these functions later; the
@@ -24,7 +24,7 @@ from . import AgentError
 from .mcp_client import McpClient
 
 SEVERITY_RANK = {"high": 0, "medium": 1, "low": 2}
-RULE_CONFIDENCE = 0.90          # a rule matched; no model judged it (docs/roster.md, open question 4)
+RULE_CONFIDENCE = 0.90          # a rule matched; no model judged it (docs/roster.md)
 PATH_RULES = ("SQLI", "CMDI", "PATH")
 INJECTION = re.compile(
     r"ignore (?:all |your |any )?(?:previous )?(?:rules|instructions)|\bAI assistant\b|curl\s+\S+\s*\|\s*(?:sh|bash)",
