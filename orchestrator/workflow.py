@@ -27,6 +27,7 @@ import shutil
 import sys
 import time
 from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -117,9 +118,11 @@ def _ai_model() -> dict:
 def _with_guard(method):
     """Run a public step (start, finish) with the network guard installed, and always take it off again."""
     def wrapper(self, *args, **kwargs):
-        override = (self._ai_model_override or {}).get("endpoint")       # a model connected in the console, not only .env
-        host = urllib.parse.urlsplit(override).hostname if override and override != "none" else None
-        self.guard = kill_checks.NetworkGuard(approved=host)
+        # The approved host is the model this run is configured with (the console sets it in memory; .env is the fallback),
+        # so a model you connected is not mistaken for an unapproved endpoint.
+        model = (self.state or {}).get("ai_model") or self._ai_model_override or _ai_model()
+        endpoint = str(model.get("endpoint") or "none")
+        self.guard = kill_checks.NetworkGuard(None if endpoint.lower() == "none" else urlsplit(endpoint).hostname)
         self.guard.install()
         try:
             return method(self, *args, **kwargs)

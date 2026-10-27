@@ -241,6 +241,38 @@ class TestKillChecks(KillCase):
         self.assert_killed(self.start(self.project(), {"fixer_validator": pushes}), "vcs_or_deploy")
 
 
+class TestNetworkGuardApprovedEndpoint(KillCase):
+    """The false alarm seen in the console: the approved model endpoint is reached by NAME, but socket.connect() is given the
+    IP address the name resolved to, so a guard that compared names refused the very endpoint it should allow."""
+
+    def test_the_approved_hostname_and_the_addresses_it_resolves_to_are_allowed(self):
+        calls = []
+        real_getaddrinfo, real_connect = socket.getaddrinfo, socket.socket.connect
+        fake_addr = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.66.0.243", 443))]
+        socket.getaddrinfo = lambda host, *a, **k: fake_addr if host == "models.example.test" else real_getaddrinfo(host, *a, **k)
+        socket.socket.connect = lambda sock, address: calls.append(address)       # never touches the network
+        self.addCleanup(setattr, socket, "getaddrinfo", real_getaddrinfo)
+        self.addCleanup(setattr, socket.socket, "connect", real_connect)
+        with kill_checks.NetworkGuard("models.example.test"):
+            found = socket.getaddrinfo("models.example.test", 443)                # the lookup of the approved name
+            socket.socket().connect(found[0][4])                                  # the connect by IP that follows it
+            self.assertEqual(calls, [("172.66.0.243", 443)])
+            with self.assertRaises(_containment.NetworkViolation):                # any other address is still refused
+                socket.socket().connect(("172.66.0.244", 443))
+            with self.assertRaises(_containment.NetworkViolation):                # and so is any other name
+                socket.getaddrinfo("other.example.test", 443)
+
+    def test_the_run_takes_its_approved_host_from_the_model_it_is_configured_with(self):
+        flow = Workflow(agents=dict(HONEST), out_root=os.path.join(self.tmp, "out"),
+                        ai_model={"name": "m", "version": "m", "endpoint": "https://models.example.test/v1"})
+        seen = []
+        real = kill_checks.NetworkGuard.install
+        with mock.patch.object(kill_checks.NetworkGuard, "install", lambda guard: seen.append(guard.approved) or real(guard)):
+            flow.start(self.project("case_04_safe_sql_lookalike"), RULES)
+        self.assertEqual(seen, ["models.example.test"])
+        self.assertEqual(flow.meta["phase"], "done")
+
+
 class TestKillChecksStayQuiet(KillCase):
     def test_an_honest_run_raises_no_alert(self):
         flow = self.start(self.project())

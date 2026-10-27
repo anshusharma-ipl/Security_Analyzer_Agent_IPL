@@ -146,11 +146,13 @@ class NetworkGuard:
         self.approved = approved if approved is not None else approved_host()
         self.events: list[str] = []
         self._saved: dict | None = None
+        self._approved_ips: set[str] = set()      # what the approved hostname resolved to: connect() is given these, not the name
 
     def allowed(self, host) -> bool:
         if not isinstance(host, str):
             return True                                           # a Unix-domain path or a raw number: no network host
-        return host.lower() in self.LOOPBACK or host.startswith("127.") or (self.approved is not None and host.lower() == self.approved.lower())
+        return (host.lower() in self.LOOPBACK or host.startswith("127.") or host in self._approved_ips
+                or (self.approved is not None and host.lower() == self.approved.lower()))
 
     def _refuse(self, host) -> None:
         detail = f"a connection or lookup for {host!r} was attempted; only the approved model endpoint may be contacted"
@@ -178,9 +180,13 @@ class NetworkGuard:
             return real["connect_ex"](sock, address)
 
         def getaddrinfo(host, *args, **kwargs):
-            if isinstance(host, (str, bytes)) and not guard.allowed(host.decode() if isinstance(host, bytes) else host):
+            name = host.decode() if isinstance(host, bytes) else host
+            if isinstance(name, str) and not guard.allowed(name):
                 guard._refuse(host)
-            return real["getaddrinfo"](host, *args, **kwargs)
+            found = real["getaddrinfo"](host, *args, **kwargs)
+            if isinstance(name, str) and guard.approved is not None and name.lower() == guard.approved.lower():
+                guard._approved_ips.update(entry[4][0] for entry in found)       # the approved endpoint's own addresses
+            return found
 
         socket.socket.connect, socket.socket.connect_ex, socket.getaddrinfo = connect, connect_ex, getaddrinfo
 
