@@ -1,2 +1,2 @@
-def run(conn, sql):
-    return conn.execute(sql).fetchall()
+def run(conn, sql, params=()):
+    return conn.execute(sql, params).fetchall()

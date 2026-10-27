@@ -3,22 +3,24 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
-import sqlite3
 
-from helpers import total_by_region
+from helpers import format_price, paginate
 
 
 class Tests(unittest.TestCase):
-    def setUp(self):
-        self.conn = sqlite3.connect(":memory:")
-        self.conn.execute("CREATE TABLE sales (region TEXT, amount INTEGER)")
-        self.conn.executemany("INSERT INTO sales VALUES (?, ?)", [("north", 100), ("north", 50), ("south", 200)])
+    def test_format_price(self):
+        self.assertEqual(format_price(999), "$9.99")
 
-    def test_north(self):
-        self.assertEqual(total_by_region(self.conn, "north"), 150)
+    def test_format_price_zero(self):
+        self.assertEqual(format_price(0), "$0.00")
 
-    def test_south(self):
-        self.assertEqual(total_by_region(self.conn, "south"), 200)
+    def test_paginate_first(self):
+        items = list(range(25))
+        self.assertEqual(paginate(items, 1, 10), list(range(10)))
+
+    def test_paginate_last(self):
+        items = list(range(25))
+        self.assertEqual(paginate(items, 3, 10), list(range(20, 25)))
 
 
 if __name__ == "__main__":

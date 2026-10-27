@@ -17,8 +17,10 @@ class Tests(unittest.TestCase):
             rows = json.load(f)
         self.conn = sqlite3.connect(":memory:")
         self.conn.execute("CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, email TEXT, phone TEXT)")
-        self.conn.executemany("INSERT INTO customers (name, email, phone) VALUES (?, ?, ?)",
-                              [(r["name"], r["email"], r["phone"]) for r in rows])
+        self.conn.executemany(
+            "INSERT INTO customers (name, email, phone) VALUES (?, ?, ?)",
+            [(r["name"], r["email"], r["phone"]) for r in rows],
+        )
 
     def test_found(self):
         self.assertEqual(find_customer(self.conn, "asha@example.test"), (1, "Asha Verma (fake)"))
