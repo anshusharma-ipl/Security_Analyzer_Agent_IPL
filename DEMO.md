@@ -1,11 +1,21 @@
 # Demo script: Security Analyzer Agent
 
-About 12 minutes. Four runs, one idea each. Every command is run from the repository root, in PowerShell or bash.
-Everything below was rehearsed on the real code; what you will see on screen is what is written here.
+Two parts. **Part A** is the console, about 5 minutes, and is the one to show most people. **Part B** is the command line, case by case, about 12 minutes, for people who want to see the handoff trace and the originals-unchanged proof. Commands are run from the repository root, in PowerShell or bash.
 
-**Say this first.** No AI model is connected yet (no endpoint is approved). The three agents are offline stand-ins:
-the orchestrator, the tools, the guardrails, the schemas, the review queue and the report are the real ones. So the
-trace shows `AI calls 0, tokens 0`. A model-backed agent replaces a stand-in without changing anything else.
+**Say this first.** Without a model connected, the three agents are built-in (offline) versions: the orchestrator, the tools, the guardrails, the schemas, the review queue and the report are the real ones, and nothing leaves the computer. So the trace shows `AI calls 0, tokens 0`. A model-backed agent (OpenAI GPT, Anthropic Claude or Google Gemini) replaces a built-in one without changing anything else. Use fake or non-sensitive code with a model until your security team has approved the provider.
+
+## Part A: the console (about 5 minutes)
+
+Start it: double-click `start.bat` (or `python ui/server.py`) and open `http://127.0.0.1:8765`. If it says the port is in use, close the other console first. `http://127.0.0.1:8765/healthz` shows which code is running.
+
+1. **Left panel, Project.** Choose **Use the demo project (all six rule types)**. Say: 13 findings across six rule types, and four files that are safe on purpose.
+2. **Run scan.** On the right, watch the **agent flow** add a step each time something happens: the Auditor listing files and running the rules, the tests passing, the re-check coming back clear. Point out that nothing flickers and nothing is sent anywhere.
+3. **Findings.** Cards appear as they are found. Say: 7 fixes are ready, 6 need you, and each of the 6 says why in plain words. Open one card's **Before and after** to show the fix (a `?` placeholder, a command list with no shell, a path check). Some cards say no caller of the function was found in the project, so where its input comes from is not visible: the fix is proposed anyway (it is small and local), and you decide.
+4. **Approve.** Click **Approve this fix** on a few, or **Approve all fixes**, enter your name and press **Finish**. Say: nothing is applied to your files; approved fixes go into `fixes.patch`.
+5. **What was fixed.** Show the tiles, the fixed list with before and after, and the **Still open: your tasks** list: rotate the key, raise the dependency pin, use a password hash, redesign the raw SQL condition. Download `fixes.patch` and say `git apply fixes.patch` is how you apply it.
+6. **Optional, with a key.** In **Model**, pick OpenAI, Anthropic or Google, paste a key, **Connect**, **Test**, then run again. The two multi-file and `os.system` findings are then attempted by the model.
+
+## Part B: the command line, case by case (about 12 minutes)
 
 ## Before you start (once, 1 minute)
 
@@ -97,7 +107,7 @@ Expect: `run run-002: done` straight away, because no fix is waiting for a perso
 `search_users is called from handle_search in src/views.py`, with the path `src/views.py` then `src/service.py` then
 `src/db.py`. That is the source-to-sink path.
 
-**Note, say it out loud:** the stand-in Fixer only writes the single-file pattern, so here it hands over with
+**Note, say it out loud:** the built-in Fixer only writes single-file patches, so here it hands over with
 `needs_a_person: the fixer could not write a patch`. The tracing works; the multi-file fix is a model's job. Then run
 `python evals/show_trace.py out/demo/run-002` for the trace and the originals proof.
 

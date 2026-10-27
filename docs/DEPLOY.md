@@ -24,14 +24,15 @@ Open `http://localhost:8765/?token=choose-a-long-random-value` once. The token i
 | --- | --- |
 | `CONSOLE_TOKEN` | Required whenever the server listens on a network address. Every request needs it. |
 | `CONSOLE_ALLOWED_HOSTS` | Comma-separated host names the console may answer to (a guard against DNS rebinding). |
-| `PORT` | Port to listen on. Default 8765. |
-| `AI_MODEL_ENDPOINT`, `AI_MODEL_NAME`, `ANTHROPIC_API_KEY` | Optional. Lets the console use a model (see the Guide). Set them as secrets, not in the image. |
+| `PORT` | Port to listen on. Default 8765. If it is already in use the console refuses to start and says what is running there (it never shares a port with an older console). |
+| `AI_MODEL_ENDPOINT`, `AI_MODEL_NAME`, and one of `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` (or `AI_API_KEY`) | Optional. Lets the console use a model: OpenAI (GPT), Anthropic (Claude) or Google (Gemini); the key picks the provider's default endpoint and model, and the two `AI_MODEL_*` settings override them. A person can also connect a model in the console, where the key stays in memory only. Set them as secrets, not in the image. |
+| `/healthz` | Not a setting: a health check that needs no token. The first line is `ok`; the lines below give the commit, a code fingerprint, the folder, the process ID and the start time, so a stale console is easy to recognise. |
 
 ## Risks to accept before putting it on a shared network
 
 - **Remote code execution by design.** Uploaded tests run on the host. Use a container with no secrets, no access to your internal network, a read-only root file system and a CPU and memory limit. Scan only code you trust.
 - **One run at a time.** The tools keep a process-wide event list, so a second scan waits. This is a pilot tool, not a multi-user service.
-- **Data.** Uploads and run folders are kept under `ui_data/` until you delete them. With a model connected, masked code is sent to that endpoint: use fake data until compliance signs off.
+- **Data.** Uploads and run folders are kept under `ui_data/` until you delete them. With a model connected, the code the agents read is sent to that provider (and only that provider) with secrets, emails and phone numbers masked first. The console has no consent checkbox, only a note: use fake or non-sensitive data until compliance signs off.
 - **No accounts.** The token is a shared secret. Put the console behind your own login (a reverse proxy or your platform's access control) before widening access.
 
 ## Publish the site on GitHub Pages

@@ -151,7 +151,7 @@ def build_guide() -> str:
 <ol>
 <li><b>Foundations.</b> Project setup, the written spec, and the agent roster.</li>
 <li><b>Contracts and tools.</b> JSON schemas for the shared state, seven tools, and an MCP server that gives each agent only its own tools.</li>
-<li><b>Agents and workflow.</b> The shared state, the orchestrator, and three agents. No model endpoint is approved yet, so the agents are deterministic stand-ins that follow the same contracts.</li>
+<li><b>Agents and workflow.</b> The shared state, the orchestrator, and three agents. Each agent has a built-in (offline) version that follows the same contracts, so everything runs without a model, and a model-backed version that can use OpenAI (GPT), Anthropic (Claude) or Google (Gemini). No model endpoint is approved yet, so use fake or non-sensitive code with a model.</li>
 <li><b>Guardrails.</b> Containment (originals, secrets, hostile text in code, forbidden commands) and decision rules (evidence, "verified", limits, hand-over).</li>
 <li><b>Measurement.</b> A scoring harness against 21 test cases, a red team of ten attacks, and a cost model.</li>
 <li><b>Pilot gate.</b> Eight kill-switch checks and the pilot plan.</li>
@@ -188,13 +188,14 @@ python kill_checks.py --run      # the eight kill-switch checks</code></pre>
 <p><b>Three providers are supported:</b> OpenAI (GPT), Anthropic (Claude) and Google (Gemini). The request format follows from the provider you pick, so there is no format to choose. <b>Other</b> covers a gateway or self-hosted model that speaks the OpenAI or the Anthropic format; give its endpoint. <b>What has and has not been proven:</b> OpenAI GPT-5 has run live once on the demo project. Anthropic Claude has run with a model answering through a local bridge. The Gemini adapter has only been tested against a mock server, so treat its first live run as a test. What is sent: only when a model is connected, and only to the provider you chose; secrets, emails and phone numbers are replaced with placeholders first, automatically, and there is no setting to turn that off. Use fake or non-sensitive code until your security team has approved the provider.</p>
 
 <h2 id="stands">Where it stands</h2>
-<p>The numbers below are from the latest evaluation run, with the offline stand-in agents. They describe the plumbing and the stand-ins, not a model.</p>
+<p>The numbers below are from the latest evaluation run, with the built-in (offline) agents. They describe the plumbing and those agents, not a model.</p>
 <div class="tw"><table><tr><th></th><th>Measure</th><th>Result</th><th>Required</th></tr>{metrics_rows()}</table></div>
 <ul>
 <li><b>Red team:</b> {held} of 10 attacks were stopped and {broke} broke the system. None of the {broke} is fixed yet.</li>
 <li><b>Kill switches:</b> all eight checks pass.</li>
-<li><b>Tests:</b> 146 of 151 pass. The five that fail test symbolic links and only run on Windows.</li>
-<li><b>Open:</b> a live model run, real reviewers, prices for the cost model, and the owner names in <code>docs/PILOT.md</code>.</li></ul>
+<li><b>Tests:</b> all 173 pass (the full suite, run on Windows).</li>
+<li><b>Models:</b> OpenAI GPT-5 has run live once on the demo project (before the latest fixes). Claude has run with a model answering through a local bridge. The Gemini adapter has only been tested against a mock server.</li>
+</ul>
 <p>The percentages come from about one case per type, so treat them as a direction, not a measurement.</p>
 <p>Written documents: <a href="/docs/md/PRD.html">PRD</a> · <a href="/docs/md/RUN_SUMMARY.html">Run summary</a> · <a href="/docs/md/DEPLOY.html">Deploy</a> · <a href="/docs/md/UX_REVIEW.html">UX review</a> · <a href="{REPO}">Repository</a></p>
 """

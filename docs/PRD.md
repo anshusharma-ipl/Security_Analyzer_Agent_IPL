@@ -1,6 +1,6 @@
 # PRD: Security Analyzer Agent
 
-Status: draft for the capstone review, 2026-10-27. Sources: `canvas.md` (the design), `AGENTS.md` (team decisions), `schemas/` (the contract), `evals/` (the measurements). Numbers are from the latest eval run with the offline stand-in agents and are directional (about one golden case per type).
+Status: draft for the capstone review, 2026-10-27. Sources: `canvas.md` (the design), `AGENTS.md` (team decisions), `schemas/` (the contract), `evals/` (the measurements). Numbers are from the latest eval run with the built-in (offline) agents and are directional (about one golden case per type).
 
 ## 1. Summary
 
@@ -50,6 +50,12 @@ Agents never call each other. Each uses only its own tools through its own MCP p
 
 The agent acts alone inside the temporary copy. It must hand over to a person when: it cannot trace the cause, no tests exist, the fix needs a dependency change or a redesign, retries are used up, a limit is hit, or anything looks unsafe. A person approves every fix.
 
+Two owner decisions (2026-10-27, `AGENTS.md` section 5) refine this. In the console, a finding whose only objection is an unclear cause (no caller visible in the project) still gets a small local fix, prepared for approval and marked "cause not traced" (`fix_when_cause_unclear`; off in the engine and the evals). A needed redesign still goes to a person. Secret, weak-hash and dependency findings are never patched: the console shows each as a task for the person (rotate the key, use a password hash, raise the pin).
+
+### 3.5 The console
+
+A local web page (`python ui/server.py`, or `start.bat`) with the settings on the left and the scan on the right. Left: the project (a folder, a .zip, or the built-in demo with all six rule types) and the model (OpenAI GPT, Anthropic Claude, Google Gemini, or another compatible gateway; the request format follows from the provider). Right: a live agent flow that adds a step as each thing happens, the findings as one card each (updated in place, so nothing flickers), inline approval, and a **What was fixed** screen with before and after, the open tasks and the downloads. A note, not a checkbox, says what leaves the computer: nothing without a model; with one, the masked code the agents read goes to the chosen provider only. Masking is automatic. See `ui/README.md`.
+
 ## 4. Quality bar
 
 Two criteria are non-negotiable: 100% evidence coverage and zero unsafe workspace actions. The rest are pilot thresholds.
@@ -60,13 +66,13 @@ Two criteria are non-negotiable: 100% evidence coverage and zero unsafe workspac
 | Original-file or out-of-workspace writes | 0 | 0 | Met |
 | High-severity detection recall | at least 90% | 100% | Met |
 | Finding precision | at least 85% | 89% | Met |
-| Verified-fix success rate | at least 75% | 60% | Not met |
-| False-fix rate | at most 5% | 33% | Not met |
+| Verified-fix success rate | at least 75% | 80% | Met |
+| False-fix rate | at most 5% | 27% | Not met |
 | Regression-test pass rate for verified fixes | 100% | 100% | Met |
 | Audit-record completeness | 100% | 100% | Met |
 | Human approval rate of verified proposals | at least 70% | not measured | Needs real reviewers |
 
-The two misses come from the stand-in Fixer, which patches only one shape of SQL injection. They are the reason to connect a model; they are not hidden. A model-backed Fixer must be measured against the same table before any pilot.
+The one miss (3 of 11 verified labels wrong) comes from the built-in Fixer and Investigator, which cannot tell case_11 from case_01 and cannot write a multi-file patch. It is the reason to connect a model; it is not hidden. A model-backed Fixer must be measured against the same table before any pilot.
 
 ## 5. Failure modes and guardrails
 
@@ -103,7 +109,7 @@ Red team: 8 of 10 attacks currently break the system. They are listed on the "Ho
 
 ### 5.3 Human in the loop
 
-A review queue holds each proposed fix with its evidence, diff, test results and residual risk. A person approves, edits or rejects each one; rejecting and editing need a reason. An edited patch is run through the same tests and re-check before it counts. The orchestrator confirms that only the four decision fields were changed. Approved fixes become `fixes.patch`, which a person applies. The console shows this as a review desk.
+A review queue holds each proposed fix with its evidence, diff, test results and residual risk. A person approves, edits or rejects each one; rejecting and editing need a reason. An edited patch is run through the same tests and re-check before it counts. The orchestrator confirms that only the four decision fields were changed. Approved fixes become `fixes.patch`, which a person applies. In the console each proposal sits on its finding card with **Approve this fix**, **Reject** and **Edit**, and a sticky bar enables **Finish** once every fix has a decision.
 
 ## 6. Evaluation plan
 
@@ -119,19 +125,10 @@ A review queue holds each proposed fix with its evidence, diff, test results and
 
 ## 7. Cost at production volume
 
-Measured with the stand-in agents, per scan: 4.1 handoffs, about 4,700 input and 740 output tokens (a characters-divided-by-four proxy). Rules cost no tokens. Real use will be higher: a model re-reads its context on every tool turn, writes explanations, and retries. The cost model assumes a multiplier of 3 until measured.
+Measured with the built-in agents, per scan: 4.1 handoffs, about 4,700 input and 740 output tokens (a characters-divided-by-four proxy). Rules cost no tokens. Real use will be higher: a model re-reads its context on every tool turn, writes explanations, and retries. The cost model assumes a multiplier of 3 until measured.
 
 The Guide's [cost page](/docs/cost.html) turns this into tokens and money for any volume: enter your price card and scans per day. Volumes under discussion are 5, 20 and 100 scans per day. Prices, engineer rate and hours per scan are not yet supplied, so no money figure is claimed here. See `docs/cost.md` for the ten unmeasured items.
 
 ## 8. Rollout and kill criteria
 
 Pilot: one non-production repository, Python, three vulnerability classes, three to five engineers, manual and agent-assisted work compared on the same labelled examples. The pilot stops at once if the agent modifies an original, writes outside the copy, contacts an unapproved endpoint, exposes an unmasked secret, applies a fix without approval, fails to write a complete audit log, installs or removes a package, or commits, pushes, merges or deploys. Each of the eight has an automatic check and a test (`kill_checks.py`). Rollback and scale-up criteria are in `docs/PILOT.md`.
-
-## 9. Open questions and risks
-
-1. Which model endpoint is approved, and may masked code be sent to it? Until then the agents are stand-ins and the model path has only been tested against a mock.
-2. Real model results for verified-fix success and false-fix rate.
-3. Who is the security engineer who owns the rules, and who is the product owner? (`docs/PILOT.md`, marked TO FILL.)
-4. Whether `request_recheck` should stay a plain tool call or become an explicit Auditor job (`docs/roster.md`).
-5. The eight red-team failures, starting with case 14 (a false fix labelled verified), which breaks the false-fix gate directly.
-6. Hosting: the console runs uploaded tests, so it needs a container and access control before anyone else uses it (`docs/DEPLOY.md`).
