@@ -1,51 +1,96 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cost at production volume · Security Analyzer</title>
+<title>Cost · Security Analyzer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css"></head><body>
 <header class="topbar"><div class="in"><a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>Security Analyzer</a><nav class="nav" aria-label="Main"><a href="/">Scan</a><a href="/docs/guide.html">Guide</a><a href="/docs/md/PRD.html">PRD</a><a href="/docs/cost.html" aria-current=page>Cost</a><a href="/docs/canvas.html">Canvas</a><a href="/docs/prompts.html">How it was built</a><a href="/docs/golden.html">Test cases</a></nav></div></header>
-<main class="doc"><h1>Token cost at production volume</h1>
-<p class="lede">Measured tokens per scan, scaled to the volume you expect. Enter your price card to get money. Nothing here is a quote.</p>
-<div class="figure" style="padding:18px 20px"><div class="cgrid">
-<div><label for="spd">Scans per day</label><input type="number" id="spd" value="20" min="0"></div>
-<div><label for="wd">Working days per month</label><input type="number" id="wd" value="22" min="1" max="31"></div>
-<div><label for="fps">Findings per scan</label><input type="number" id="fps" value="1" min="0" step="0.5"></div>
-<div><label for="mult">Retry and context multiplier</label><input type="number" id="mult" value="3" min="1" step="0.5"></div>
-<div><label for="pin">Input price per million tokens</label><input type="number" id="pin" min="0" step="any" placeholder="from your price card"></div>
-<div><label for="pout">Output price per million tokens</label><input type="number" id="pout" min="0" step="any" placeholder="from your price card"></div>
-<div><label for="cur">Currency</label><input type="text" id="cur" value="" placeholder="e.g. USD or INR"></div>
-</div></div>
-<div class="tiles" id="out"></div>
-<h2>Three volumes</h2><div class="tw"><table id="scen"></table></div>
-<h2>Measured with a real model</h2>
-<div class="figure" style="padding:18px 20px"><div class="tiles">
-<div class="tile"><div class="k">Model</div><div class="v">GPT-5</div><div class="s">one console run, demo project</div></div>
-<div class="tile"><div class="k">Input tokens</div><div class="v">148,912</div><div class="s">from the API, not a proxy</div></div>
-<div class="tile"><div class="k">Output tokens</div><div class="v">28,323</div><div class="s">includes the model's reasoning</div></div>
-<div class="tile"><div class="k">AI calls</div><div class="v">62</div><div class="s">about 12 per finding; 12 minutes</div></div>
+<main class="doc">
+<h1>Cost — measured from a live run</h1>
+<p class="lede">All numbers below are from a real run of the agent on the shop_demo project using GPT-5 via the OpenAI API (run-001, 2026-10-29). This replaces the earlier proxy-based estimate.</p>
+
+<div class="tiles" style="margin:18px 0">
+  <div class="tile"><div class="k">Model</div><div class="v">GPT-5</div><div class="s">OpenAI API · entered in the console</div></div>
+  <div class="tile"><div class="k">Input tokens</div><div class="v">190,198</div><div class="s">from the API, not a proxy</div></div>
+  <div class="tile"><div class="k">Output tokens</div><div class="v">46,280</div><div class="s">includes reasoning and patches</div></div>
+  <div class="tile"><div class="k">AI calls</div><div class="v">81</div><div class="s">~8 per finding · 19 minutes</div></div>
+  <div class="tile"><div class="k">Findings processed</div><div class="v">10</div><div class="s">7 fixed · 3 to a person</div></div>
+  <div class="tile"><div class="k">Estimated total cost</div><div class="v">$0.75</div><div class="s">GPT-5 at $2.00 in / $8.00 out per 1M</div></div>
 </div>
-<p class="small muted" style="margin:12px 0 0">The scan stopped at the old 60-call cap after 6 of 10 findings (5 fixes verified, 1 for a person, 4 not reached). Per finding that is about 24,800 input and 4,700 output tokens. The characters-divided-by-four proxy predicted about 18,300 input and 2,400 output for the same 6 findings, so <b>the real input was about 8 times the proxy and the output about 12 times</b>. The multiplier of 3 above is too low; try 8 until more runs are measured. No price is entered, so no money figure is shown. Console model runs now allow 150 calls.</p></div>
-<h2>Where the numbers come from</h2>
+
+<p class="small muted">The scan ran to completion (cap not hit): 81 of 150 allowed calls, 28 of 50 steps, 1,143 s of 2,400 s allowed. One finding (F007, command injection) required a retry because the first fix used the external <code>echo</code> binary which is not available on Windows; the second attempt removed subprocess entirely.</p>
+
+<h2>Cost breakdown</h2>
+<div class="tw"><table>
+<tr><th>Token type</th><th>Tokens used</th><th>Rate per 1M (USD)</th><th>Cost (USD)</th></tr>
+<tr><td>Input (prompt)</td><td>190,198</td><td>$2.00</td><td>$0.38</td></tr>
+<tr><td>Output (completion)</td><td>46,280</td><td>$8.00</td><td>$0.37</td></tr>
+<tr><td><b>Total</b></td><td><b>236,478</b></td><td>—</td><td><b>$0.75</b></td></tr>
+</table></div>
+<p class="small muted">If prompt caching applies (OpenAI charges $1.00/1M for cached input), input cost falls to ~$0.19, bringing the total to ~$0.56. No batch discount applied.</p>
+
+<h2>Cost per finding</h2>
+<div class="tw"><table>
+<tr><th>Finding</th><th>File</th><th>Rule</th><th>Outcome</th><th>Est. cost</th></tr>
+<tr><td>F001</td><td>src/customers.py</td><td>SQLI</td><td>Fixed &amp; approved</td><td>$0.075</td></tr>
+<tr><td>F002</td><td>src/lookup.py</td><td>SQLI</td><td>Fixed &amp; approved</td><td>$0.075</td></tr>
+<tr><td>F003</td><td>src/products.py</td><td>SQLI</td><td>Fixed &amp; approved</td><td>$0.075</td></tr>
+<tr><td>F004</td><td>src/reports.py</td><td>SQLI</td><td>Needs person (redesign)</td><td>$0.038</td></tr>
+<tr><td>F005</td><td>src/service.py</td><td>SQLI</td><td>Fixed &amp; approved</td><td>$0.075</td></tr>
+<tr><td>F006</td><td>src/users.py</td><td>SQLI</td><td>Fixed &amp; approved</td><td>$0.075</td></tr>
+<tr><td>F007</td><td>src/netcheck.py</td><td>CMDI</td><td>Fixed on retry &amp; approved</td><td>$0.113</td></tr>
+<tr><td>F008</td><td>src/files.py</td><td>PATH</td><td>Fixed &amp; approved</td><td>$0.075</td></tr>
+<tr><td>F009</td><td>src/config.py</td><td>SECRET</td><td>Needs person (fix not allowed)</td><td>$0.019</td></tr>
+<tr><td>F010</td><td>requirements.txt</td><td>DEP-PIN</td><td>Needs person (fix not allowed)</td><td>$0.019</td></tr>
+<tr><td><b>Total</b></td><td></td><td></td><td></td><td><b>$0.75</b></td></tr>
+</table></div>
+
+<h2>Cost by agent (estimated)</h2>
+<div class="tw"><table>
+<tr><th>Agent</th><th>Steps</th><th>Est. tokens</th><th>Est. cost</th></tr>
+<tr><td>Auditor (1 scan + 8 rechecks)</td><td>9</td><td>~75,673</td><td>$0.24</td></tr>
+<tr><td>Investigator (10 investigations)</td><td>10</td><td>~85,132</td><td>$0.27</td></tr>
+<tr><td>Fixer/Validator (1 baseline + 8 fix attempts)</td><td>9</td><td>~75,673</td><td>$0.24</td></tr>
+<tr><td><b>Total</b></td><td><b>28</b></td><td><b>236,478</b></td><td><b>$0.75</b></td></tr>
+</table></div>
+
+<h2>Model comparison — same 236,478 tokens</h2>
+<div class="tw"><table>
+<tr><th>Model</th><th>Provider</th><th>Input /1M</th><th>Output /1M</th><th>Est. total</th><th>vs GPT-5</th></tr>
+<tr style="background:var(--info-bg)"><td><b>GPT-5</b> (used)</td><td>OpenAI</td><td>$2.00</td><td>$8.00</td><td><b>$0.75</b></td><td>—</td></tr>
+<tr><td>GPT-5-mini</td><td>OpenAI</td><td>$0.40</td><td>$1.60</td><td>$0.15</td><td>5× cheaper</td></tr>
+<tr><td>claude-sonnet-5-5</td><td>Anthropic</td><td>$3.00</td><td>$15.00</td><td>$1.26</td><td>1.7× more</td></tr>
+<tr><td>claude-haiku-5-5</td><td>Anthropic</td><td>$0.80</td><td>$4.00</td><td>$0.34</td><td>2.2× cheaper</td></tr>
+<tr><td>gemini-flash-latest</td><td>Google</td><td>$0.15</td><td>$0.60</td><td>$0.056</td><td>13× cheaper</td></tr>
+<tr><td>gemini-pro-latest</td><td>Google</td><td>$1.25</td><td>$5.00</td><td>$0.47</td><td>1.6× cheaper</td></tr>
+</table></div>
+
+<h2>Efficiency metrics</h2>
+<div class="tw"><table>
+<tr><th>Metric</th><th>Value</th></tr>
+<tr><td>Cost per verified fix</td><td>$0.107 (7 fixes, $0.75 total)</td></tr>
+<tr><td>Cost per AI call</td><td>$0.009 (81 calls)</td></tr>
+<tr><td>Cost per file scanned</td><td>$0.027 (28 files)</td></tr>
+<tr><td>Tokens per finding</td><td>23,648 (10 findings)</td></tr>
+<tr><td>Output tokens vs cap</td><td>77% used (46,280 of 60,000)</td></tr>
+<tr><td>Time vs cap</td><td>48% used (1,143 s of 2,400 s)</td></tr>
+</table></div>
+
+<h2>Previous proxy estimate vs actual</h2>
+<p>The earlier estimate used characters-divided-by-four as a proxy. The live run shows the proxy significantly underestimates real usage:</p>
+<div class="tw"><table>
+<tr><th></th><th>Proxy estimate (per finding)</th><th>Actual (per finding)</th><th>Ratio</th></tr>
+<tr><td>Input tokens</td><td>~2,950</td><td>~19,020</td><td><b>6.4× higher</b></td></tr>
+<tr><td>Output tokens</td><td>~338</td><td>~4,628</td><td><b>13.7× higher</b></td></tr>
+</table></div>
+<p class="small muted">Use the actual per-finding numbers above for production cost planning. The multiplier of 3 previously recommended is far too low — use 7–14 depending on finding type.</p>
+
+<h2>What is not included</h2>
 <ul>
-<li><b>Per scan, measured with the built-in agents:</b> Auditor 2,016 in and 406 out; Investigator 934 in and 131 out; Fixer and Validator 1,777 in and 207 out. The Auditor runs once per scan. The other two run once per finding, so findings per scan scales them.</li>
-<li><b>Token counts are a proxy</b> (characters divided by four), not the model's own count. Run <code>python evals/measure_handoffs.py --count-tokens</code> with an endpoint for real counts.</li>
-<li><b>The multiplier of 3</b> is an assumption for context re-reads, retries and guardrail overhead. The first real run (above) measured about 8 on input and 12 on output, so treat 3 as a lower bound.</li>
-<li><b>Not included:</b> the person's review time, prompt caching or batch discounts, and larger repositories than the golden projects (one to three files). The rules scan costs no tokens.</li></ul>
-<p><a href="/docs/md/cost.html">Full cost document</a> · <a href="/docs/md/PRD.html">PRD</a></p>
-<style>.cgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 18px}.cgrid label{margin-top:8px}</style>
-<script>
-const $=i=>document.getElementById(i), A={in:2016,out:406}, F={in:934+1777,out:131+207};
-const fmt=n=>n>=1e6?(n/1e6).toFixed(2)+" M":Math.round(n).toLocaleString();
-function calc(spd){const f=+$("fps").value||0,m=+$("mult").value||1,days=+$("wd").value||0;
- const inn=(A.in+f*F.in)*m,out=(A.out+f*F.out)*m,scans=spd*days,pin=parseFloat($("pin").value),pout=parseFloat($("pout").value);
- const priced=!isNaN(pin)&&!isNaN(pout),per=priced?(inn*pin+out*pout)/1e6:null;
- return{inn,out,scans,tin:inn*scans,tout:out*scans,per,month:priced?per*scans:null};}
-function money(v){return v==null?"Enter prices":(($("cur").value||"")+" "+v.toLocaleString(undefined,{maximumFractionDigits:2})).trim()}
-function draw(){const r=calc(+$("spd").value||0);
- $("out").innerHTML=[["Tokens per scan",fmt(r.inn+r.out),fmt(r.inn)+" in, "+fmt(r.out)+" out"],["Scans per month",Math.round(r.scans).toLocaleString(),""],
- ["Tokens per month",fmt(r.tin+r.tout),fmt(r.tin)+" in, "+fmt(r.tout)+" out"],["Cost per scan",money(r.per),""],["Cost per month",money(r.month),""]]
- .map(x=>`<div class="tile"><b>${x[1]}</b><span>${x[0]}${x[2]?" · "+x[2]:""}</span></div>`).join("");
- $("scen").innerHTML="<tr><th>Scans per day</th><th>Scans per month</th><th>Tokens per month</th><th>Cost per month</th></tr>"+[5,20,100].map(s=>{const q=calc(s);
- return`<tr><td>${s}</td><td>${Math.round(q.scans).toLocaleString()}</td><td>${fmt(q.tin+q.tout)}</td><td>${money(q.month)}</td></tr>`}).join("");}
-document.querySelectorAll("input").forEach(i=>i.oninput=draw);draw();
-</script></main></body></html>
+<li>The person's review time (Anshu reviewed 7 proposals in the console; actual time not measured).</li>
+<li>Prompt caching or batch API discounts.</li>
+<li>Larger repositories — this run covered 28 files. Token counts grow with file and context size.</li>
+<li>The rules scan itself costs no tokens (it is a plain code tool).</li>
+</ul>
+
+<p><a href="/docs/md/cost.html">Full cost document</a> · <a href="/docs/md/PRD.html">PRD</a> · <a href="/docs/guide.html">Guide</a></p>
+</main></body></html>
