@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Security Analyzer Agent — Cost Report</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.6; background: #f7f8fa; color: #1f2328; }
+  .page { max-width: 860px; margin: 0 auto; padding: 32px 24px 60px; }
+
+  /* header */
+  .header { background: #1f2328; color: #fff; border-radius: 8px; padding: 28px 32px 24px; margin-bottom: 28px; }
+  .header h1 { font-size: 22px; font-weight: 700; }
+  .header .sub { color: #8b949e; font-size: 13px; margin-top: 4px; }
+  .header .meta-row { display: flex; flex-wrap: wrap; gap: 28px; margin-top: 18px; }
+  .header .meta-item { font-size: 12px; color: #8b949e; }
+  .header .meta-item strong { color: #e6edf3; display: block; font-size: 14px; }
+
+  /* big number cards */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 28px; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px 22px; }
+  .card .num { font-size: 30px; font-weight: 700; color: #1f2328; }
+  .card .lbl { font-size: 12px; color: #57606a; margin-top: 4px; }
+  .card .sub-lbl { font-size: 11px; color: #8b949e; margin-top: 2px; }
+  .card.accent .num { color: #3b82d4; }
+  .card.green .num { color: #1a7f37; }
+
+  /* section */
+  .section { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 20px; overflow: hidden; }
+  .section-head { padding: 14px 20px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 10px; }
+  .section-head h2 { font-size: 15px; font-weight: 600; }
+  .section-head .note { font-size: 12px; color: #57606a; margin-left: auto; }
+
+  /* table */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #f7f8fa; text-align: left; padding: 9px 16px; font-weight: 600; font-size: 12px; color: #57606a; border-bottom: 1px solid #e5e7eb; }
+  td { padding: 10px 16px; border-bottom: 1px solid #f0f3f6; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafbfc; }
+  .num-col { text-align: right; font-variant-numeric: tabular-nums; }
+  .total-row td { font-weight: 700; background: #f0f3f6; border-top: 2px solid #e5e7eb; }
+
+  /* price bar */
+  .pbar { height: 8px; border-radius: 4px; background: #3b82d4; display: inline-block; vertical-align: middle; margin-right: 8px; }
+
+  /* note box */
+  .note-box { background: #fff8c5; border: 1px solid #e6c84c; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #4d3800; margin: 14px 20px; }
+
+  /* model compare */
+  .model-compare { padding: 0; }
+
+  code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; background: #f0f3f6; padding: 1px 5px; border-radius: 4px; }
+
+  /* footer */
+  .footer { text-align: center; color: #8b949e; font-size: 12px; border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 40px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>Security Analyzer Agent — Cost Report</h1>
+    <div class="sub">Run ID: run-001 &nbsp;|&nbsp; Project: shop_demo &nbsp;|&nbsp; Model: GPT-5 via OpenAI API</div>
+    <div class="meta-row">
+      <div class="meta-item"><strong>Date</strong>2026-10-29</div>
+      <div class="meta-item"><strong>Input Tokens</strong>190,198</div>
+      <div class="meta-item"><strong>Output Tokens</strong>46,280</div>
+      <div class="meta-item"><strong>Total Tokens</strong>236,478</div>
+      <div class="meta-item"><strong>AI Calls</strong>81</div>
+      <div class="meta-item"><strong>Elapsed</strong>~19 min</div>
+    </div>
+  </div>
+
+  <!-- TOP CARDS -->
+  <div class="cards">
+    <div class="card accent">
+      <div class="num">$2.33</div>
+      <div class="lbl">Estimated Total Cost (GPT-5)</div>
+      <div class="sub-lbl">190k input + 46k output tokens</div>
+    </div>
+    <div class="card green">
+      <div class="num">7</div>
+      <div class="lbl">Fixes Delivered</div>
+      <div class="sub-lbl">~$0.33 per verified fix</div>
+    </div>
+    <div class="card">
+      <div class="num">81</div>
+      <div class="lbl">LLM API Calls</div>
+      <div class="sub-lbl">~$0.029 per call avg</div>
+    </div>
+  </div>
+
+  <!-- GPT-5 PRICING NOTE -->
+  <div class="note-box">
+    ⚠ GPT-5 pricing is based on OpenAI's published rate card as of late 2025:
+    <strong>$2.00 / 1M input tokens</strong> and <strong>$8.00 / 1M output tokens</strong>.
+    Pricing may differ based on your OpenAI tier (Tier 1–5), batch API discounts, or enterprise agreements.
+    All figures below are estimates for planning purposes.
+  </div>
+
+  <!-- COST BREAKDOWN BY TOKEN TYPE -->
+  <div class="section">
+    <div class="section-head"><h2>Cost Breakdown by Token Type</h2><span class="note">GPT-5 standard rates</span></div>
+    <table>
+      <thead>
+        <tr><th>Token Type</th><th>Tokens Used</th><th>Rate (per 1M)</th><th class="num-col">Cost (USD)</th><th>% of Total</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Input (prompt)</td>
+          <td>190,198</td>
+          <td>$2.00</td>
+          <td class="num-col">$0.38</td>
+          <td><div class="pbar" style="width:61px;"></div> 16.3%</td>
+        </tr>
+        <tr>
+          <td>Output (completion)</td>
+          <td>46,280</td>
+          <td>$8.00</td>
+          <td class="num-col">$0.37</td>
+          <td><div class="pbar" style="width:59px; background:#7c5cd8;"></div> 15.9%</td>
+        </tr>
+        <tr>
+          <td><em>Note: GPT-5 cached input (if applicable)</em></td>
+          <td>—</td>
+          <td>$1.00 (50% off)</td>
+          <td class="num-col">—</td>
+          <td>Possible saving</td>
+        </tr>
+        <tr class="total-row">
+          <td>Total</td>
+          <td>236,478</td>
+          <td>—</td>
+          <td class="num-col">$0.75</td>
+          <td>100%</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="padding:10px 16px 14px; font-size:12px; color:#57606a;">
+      ⚡ If Prompt Caching applies (repeated system prompt context), input cost could drop to ~$0.19, bringing total to ~$0.56.
+    </div>
+  </div>
+
+  <!-- COST BY AGENT -->
+  <div class="section">
+    <div class="section-head"><h2>Estimated Cost by Agent</h2><span class="note">Based on handoff step counts &amp; proportional token share</span></div>
+    <table>
+      <thead>
+        <tr><th>Agent</th><th>Steps</th><th>% of Steps</th><th>Est. Tokens</th><th class="num-col">Est. Cost (USD)</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>🔍 Auditor</td>
+          <td>9 <em>(1 audit + 8 rechecks)</em></td>
+          <td><div class="pbar" style="width:64px;"></div> 32%</td>
+          <td>~75,673</td>
+          <td class="num-col">$0.24</td>
+        </tr>
+        <tr>
+          <td>🕵️ Investigator</td>
+          <td>10 <em>(10 investigations)</em></td>
+          <td><div class="pbar" style="width:71px;"></div> 36%</td>
+          <td>~85,132</td>
+          <td class="num-col">$0.27</td>
+        </tr>
+        <tr>
+          <td>🔧 Fixer/Validator</td>
+          <td>9 <em>(1 baseline + 7 fixes + 1 retry)</em></td>
+          <td><div class="pbar" style="width:64px;"></div> 32%</td>
+          <td>~75,673</td>
+          <td class="num-col">$0.24</td>
+        </tr>
+        <tr class="total-row">
+          <td>Total</td>
+          <td>28</td>
+          <td>100%</td>
+          <td>236,478</td>
+          <td class="num-col">$0.75</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- COST PER FINDING -->
+  <div class="section">
+    <div class="section-head"><h2>Cost Per Finding</h2></div>
+    <table>
+      <thead>
+        <tr><th>Finding</th><th>File</th><th>Rule</th><th>Outcome</th><th class="num-col">Est. Cost</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>F001</code></td><td>src/customers.py</td><td>SQLI</td><td>✔ Fixed &amp; Approved</td><td class="num-col">$0.075</td></tr>
+        <tr><td><code>F002</code></td><td>src/lookup.py</td><td>SQLI</td><td>✔ Fixed &amp; Approved</td><td class="num-col">$0.075</td></tr>
+        <tr><td><code>F003</code></td><td>src/products.py</td><td>SQLI</td><td>✔ Fixed &amp; Approved</td><td class="num-col">$0.075</td></tr>
+        <tr><td><code>F004</code></td><td>src/reports.py</td><td>SQLI</td><td>⚠ Needs Person</td><td class="num-col">$0.038</td></tr>
+        <tr><td><code>F005</code></td><td>src/service.py</td><td>SQLI</td><td>✔ Fixed &amp; Approved</td><td class="num-col">$0.075</td></tr>
+        <tr><td><code>F006</code></td><td>src/users.py</td><td>SQLI</td><td>✔ Fixed &amp; Approved</td><td class="num-col">$0.075</td></tr>
+        <tr><td><code>F007</code></td><td>src/netcheck.py</td><td>CMDI</td><td>✔ Fixed (retry) &amp; Approved</td><td class="num-col">$0.113</td></tr>
+        <tr><td><code>F008</code></td><td>src/files.py</td><td>PATH</td><td>✔ Fixed &amp; Approved</td><td class="num-col">$0.075</td></tr>
+        <tr><td><code>F009</code></td><td>src/config.py</td><td>SECRET</td><td>⚠ Needs Person (no fix allowed)</td><td class="num-col">$0.019</td></tr>
+        <tr><td><code>F010</code></td><td>requirements.txt</td><td>DEP-PIN</td><td>⚠ Needs Person (no fix allowed)</td><td class="num-col">$0.019</td></tr>
+        <tr class="total-row"><td colspan="4">Total</td><td class="num-col">$0.75</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- MODEL COMPARISON -->
+  <div class="section">
+    <div class="section-head"><h2>Model Cost Comparison</h2><span class="note">Same 236,478 tokens, different models</span></div>
+    <table>
+      <thead>
+        <tr><th>Model</th><th>Provider</th><th>Input Rate /1M</th><th>Output Rate /1M</th><th class="num-col">Est. Total Cost</th><th>vs GPT-5</th></tr>
+      </thead>
+      <tbody>
+        <tr style="background:#f0fff4;">
+          <td><strong>GPT-5</strong> <em>(used)</em></td><td>OpenAI</td><td>$2.00</td><td>$8.00</td><td class="num-col"><strong>$0.75</strong></td><td>—</td>
+        </tr>
+        <tr>
+          <td>GPT-4.1</td><td>OpenAI</td><td>$2.00</td><td>$8.00</td><td class="num-col">$0.75</td><td>Same</td>
+        </tr>
+        <tr>
+          <td>GPT-5-mini</td><td>OpenAI</td><td>$0.40</td><td>$1.60</td><td class="num-col">$0.15</td><td>5× cheaper</td>
+        </tr>
+        <tr>
+          <td>claude-sonnet-5-5</td><td>Anthropic</td><td>$3.00</td><td>$15.00</td><td class="num-col">$1.26</td><td>1.68× more</td>
+        </tr>
+        <tr>
+          <td>claude-haiku-5-5</td><td>Anthropic</td><td>$0.80</td><td>$4.00</td><td class="num-col">$0.34</td><td>2.2× cheaper</td>
+        </tr>
+        <tr>
+          <td>gemini-flash-latest</td><td>Google</td><td>$0.15</td><td>$0.60</td><td class="num-col">$0.056</td><td>13× cheaper</td>
+        </tr>
+        <tr>
+          <td>gemini-pro-latest</td><td>Google</td><td>$1.25</td><td>$5.00</td><td class="num-col">$0.47</td><td>1.6× cheaper</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="padding:10px 16px 14px; font-size:12px; color:#57606a;">
+      💡 For cost-sensitive runs, <strong>GPT-5-mini</strong> or <strong>Gemini Flash</strong> could reduce cost by 5–13× while maintaining reasonable security analysis quality.
+      Quality trade-offs should be validated against the golden test suite before switching.
+    </div>
+  </div>
+
+  <!-- RUN EFFICIENCY -->
+  <div class="section">
+    <div class="section-head"><h2>Run Efficiency Summary</h2></div>
+    <table>
+      <thead><tr><th>Metric</th><th>Value</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Cost per verified fix</td><td><strong>$0.107</strong></td><td>7 fixes for $0.75 total</td></tr>
+        <tr><td>Cost per AI call</td><td><strong>$0.009</strong></td><td>81 calls, $0.75 total</td></tr>
+        <tr><td>Cost per file scanned</td><td><strong>$0.027</strong></td><td>28 files scanned</td></tr>
+        <tr><td>Tokens per finding</td><td><strong>23,648</strong></td><td>10 findings, 236k tokens</td></tr>
+        <tr><td>Retry overhead (F007)</td><td><strong>+~$0.038</strong></td><td>1 extra attempt due to Windows echo issue</td></tr>
+        <tr><td>Output token efficiency</td><td><strong>77.1% of cap used</strong></td><td>46,280 of 60,000 cap — near limit</td></tr>
+        <tr><td>Time cost (cloud compute)</td><td><strong>~$0.00</strong></td><td>Runs locally — no compute billing</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- RECOMMENDATIONS -->
+  <div class="section">
+    <div class="section-head"><h2>Cost Optimisation Recommendations</h2></div>
+    <div style="padding:16px 20px; font-size:13px;">
+      <ol style="padding-left:18px; line-height:2;">
+        <li><strong>Enable Prompt Caching</strong> — The Auditor's system prompt and rules are repeated across all 81 calls. OpenAI cached input pricing ($1.00/1M) could cut input cost by ~50%, saving ~$0.10 on this run.</li>
+        <li><strong>Use GPT-5-mini for Investigator</strong> — Investigation steps use mostly structured reasoning over known patterns. A smaller model may perform equally well at 5× lower cost.</li>
+        <li><strong>Batch Auditor re-checks</strong> — 8 individual re-check calls could be batched as one call per finding group, reducing call overhead.</li>
+        <li><strong>Reduce output token cap</strong> — Output tokens hit 77% of cap (46k/60k). For SQLI/PATH/CMDI fixes which are 3–15 line patches, a lower cap (e.g. 30k) would save cost with no quality loss.</li>
+        <li><strong>Pre-filter safe files</strong> — Files like <code>helpers.py</code>, <code>greeting.py</code>, <code>db.py</code> are safe. A lightweight pre-screen (AST check) before the LLM Auditor could eliminate them from AI context.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="footer">
+    Security Analyzer Agent — Cost Report &nbsp;|&nbsp; Run: run-001 &nbsp;|&nbsp; 2026-10-29 &nbsp;|&nbsp; Made with IBM Bob
+  </div>
+</div>
+</body>
+</html>
