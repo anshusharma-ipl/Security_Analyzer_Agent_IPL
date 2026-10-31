@@ -3,6 +3,45 @@
 *Security Analyzer Agent · IPL Neural Navigators · Cohort ICAIPM2026F*
 
 **Team members:** Anshu, Archana, Bikash
+**The Current Landscape: NorthBridge Technologies**
+         **NorthBridge Technologies** is a mid-to-large B2B SaaS company providing financial and payments software to regulated enterprise clients across India and Southeast Asia. 
+NorthBridge serves banks, fintechs, and insurers, and prides itself on frequent, reliable releases. With a growing engineering organization of ~400 developers across 
+distributed teams, the company ships code continuously and operates under strict regulatory obligations — India's DPDP Act, RBI guidelines, SOC 2, and ISO 27001.
+
+Today, NorthBridge's application-security process works like this:
+1. **Scan:** Automated scanners run against each repository and generate long lists of potential vulnerabilities.
+2. **Triage:** Engineers manually read the results, decide what is genuinely risky, and prioritize.
+3. **Investigate & fix**: They reproduce findings, trace root causes, write fixes one at a time, and re-run tests.
+4. **Prove & document:** They re-scan, gather before-and-after evidence, and prepare it for review and audit.
+
+While scanners are good at flagging possible risks, the expensive work — prioritization, investigation, remediation, regression testing, and evidence collection — remains 
+heavily manual and inconsistent.
+
+**The Unsettling Reality: The "Backlog That Never Closes"**
+
+*"Our scanners produce thousands of findings a quarter, but our engineers spend most of their security time just deciding what's real and what isn't," notes the Head of 
+Application Security. "Serious issues get buried in noise, fixes get delayed before releases, and every audit we scramble to assemble the evidence by hand."*
+
+A senior engineer adds: *"I lose hours reproducing a finding, tracing how bad input reaches it, writing a small fix, and then proving it didn't break anything. It's 
+repetitive, and under release pressure, rushed fixes sometimes break working features."*
+
+This reactive, manual approach leads to:
+* Growing security debt — high-severity issues sitting unresolved in long lists.
+*  Release bottlenecks — security remediation delaying ship dates.
+*  Audit strain — no consistent before-and-after evidence trail.
+*  Engineer burnout — senior talent stuck on repetitive remediation instead of high-value work.
+
+These inefficiencies are estimated to cost NorthBridge a directional $0.75M–$1.5M annually in engineering time and delayed releases (to confirm during the pilot), on top 
+of the unquantified risk of a vulnerability reaching production.
+
+**The Spark of Innovation: Security Analyzer Agent**
+
+Inspired by advances in Agentic AI, NorthBridge envisions the **Security Analyzer Agent** — a multi-agent, fix-and-prove system that checks source code against 
+organization-owned security rules, investigates evidence-backed risks, prepares minimal tested fixes in an isolated copy, and leaves every real code change under human 
+control. It does not replace engineers; it removes the repetitive triage-investigate-prove work so they can focus on judgment and release. This directly advances 
+NorthBridge's strategic goals of **faster, safer releases, audit-readiness, and engineering efficiency — without adding headcount**.
+
+**Scenario note:** NorthBridge Technologies, the organizational details, quoted statements, and the $0.75M–$1.5M annual cost estimate are illustrative assumptions. They will be validated or revised through discovery and pilot measurements.
 
 ## The canvas at a glance
 
@@ -26,20 +65,126 @@
 | **Product owner** | The product manager. Owns the specification, the default rules and the quality thresholds, and decides whether to roll back |
 | **Posture, in one line** | A fix-and-prove agent, not an auto-merge agent. It identifies policy-defined code risks, investigates their causes, prepares minimal fixes in an isolated copy, verifies them, and presents the evidence to a human reviewer. |
 
-### 2. Users and context
+### 2. Target persona, users and unmet needs
+
+> **Evidence status:** Meera is an illustrative persona developed for the NorthBridge scenario. Her workflow, needs, and quotes are hypotheses to validate through interviews and pilot observations—not findings from completed user research.
+
+#### Users and context
 
 | Item | Answer |
 | --- | --- |
 | **Primary user** | Software engineer responsible for resolving application-security findings within a development team |
 | **Secondary users** | Application-security engineers, code reviewers, engineering managers, release managers, and audit or compliance teams |
 | **Context signals** | A release or merge is approaching; a security scan has generated findings; an audit issue or security ticket has been raised |
-| **Key reality** | Developers will not trust the system unless original code remains unchanged, sensitive code is protected, every finding includes evidence, and every fix is reviewable and reversible |
+| **Trust hypothesis** | Engineers need original code to remain unchanged, sensitive information to be protected, findings to include evidence, and proposed fixes to remain reviewable and human-controlled |
 
-**Primary persona: Meera**
-- Software engineer responsible for resolving application-security.
-- Receives lengthy scanner reports without clear remediation priorities.
-- Spends time reproducing findings, tracing causes, making repetitive fixes, and proving that the changes are safe.
-- Needs a ranked, evidence-backed list of findings and small, tested fixes that she can review.
+#### Primary persona: Meera
+
+Meera is a software engineer in one of NorthBridge Technologies’ distributed product-engineering teams. Alongside feature development, she is responsible for resolving application-security findings before code is merged or released.
+
+She works with application-security engineers to interpret findings, code reviewers to approve changes, and release managers to understand delivery implications.
+
+For Meera, success means resolving genuine security risks without breaking expected behavior, delaying releases unnecessarily, or leaving reviewers without sufficient evidence.
+
+#### Current workflow
+
+Meera’s security-remediation work typically begins when a scanner generates findings, an audit raises an issue, or a release approaches with unresolved security tickets.
+
+Today, she manually:
+
+1. Reviews scanner results and separates likely vulnerabilities from false positives.
+2. Reads surrounding code and follows data across files to understand the root cause.
+3. Writes a patch in a development branch, balancing security requirements with existing behavior.
+4. Runs available tests and repeats the security scan.
+5. Collects code references, patch details, and test results for security and code reviewers.
+
+These activities are spread across tools and tickets. There is no consistent, connected evidence trail from the original finding to the proposed fix and its verification.
+
+#### Goals and success criteria
+
+Meera wants to:
+
+- Identify the most important, evidence-backed risks quickly.
+- Understand why an issue occurs before attempting a fix.
+- Make the smallest appropriate change while preserving expected behavior.
+- Distinguish a verified proposal from one that still needs investigation.
+- Give reviewers a clear explanation and reproducible evidence.
+- Retain control over every change applied to the real codebase.
+
+#### Challenges and urgency
+
+| Challenge | Impact on Meera |
+| --- | --- |
+| **Long, noisy finding lists** | Time is spent determining what is real instead of resolving the most important issues |
+| **Fragmented investigation** | She reconstructs context across files, scan reports, and tickets before acting confidently |
+| **Incomplete or unreliable tests** | Passing tests may not establish that a vulnerability is removed or expected behavior is preserved |
+| **Manual evidence preparation** | She repeatedly explains the same investigation to security engineers and code reviewers |
+| **Competing release commitments** | Remediation competes with feature delivery, creating pressure to accept fixes before they are fully understood |
+
+The urgency increases near a release: unresolved findings need a defensible decision, but rushed remediation can introduce regressions.
+
+**Meera needs faster investigation and verification—not simply another list of possible vulnerabilities.**
+
+#### Jobs-to-be-done
+
+**Core job statement**
+
+> When a security finding needs resolution before release, I need to establish whether it represents a genuine risk, understand its cause, and prepare a minimal, evidence-backed fix, so that I can deliver secure code without introducing regressions and help reviewers make a confident decision.
+
+**Supporting jobs**
+
+- **Prioritize:** Separate genuine, high-impact risks from noise.
+- **Investigate:** Trace the relevant source-to-sink path and explain the root cause.
+- **Remediate:** Prepare a focused patch in an isolated workspace.
+- **Verify:** Check that the issue is resolved and expected behavior remains intact.
+- **Communicate:** Present the finding, patch, checks, and remaining uncertainty together.
+- **Escalate:** Recognize when missing context, weak tests, or architectural complexity requires additional human judgment.
+
+#### Unmet needs
+
+| Need type | What Meera needs | Why the current workflow falls short |
+| --- | --- | --- |
+| **Functional: prioritization** | Evidence-backed findings with clear severity and contextual reasoning | Scanner output still requires substantial manual interpretation |
+| **Functional: investigation** | A traceable explanation of how unsafe input reaches a vulnerable operation | Rule matches alone do not establish the complete root cause |
+| **Functional: safe remediation** | Minimal, reviewable patches prepared without changing original files | Investigation, patch preparation, and safe execution are not consistently connected |
+| **Functional: verification** | Before-and-after checks, regression results, and explicit uncertainty | A passing test or clean scan alone may create false confidence |
+| **Functional: review readiness** | One evidence package linking the finding, explanation, patch, and validation | Evidence is assembled manually across tools and tickets |
+| **Emotional** | Confidence, clarity about limitations, and control over changes | Weak evidence and release pressure create uncertainty about whether a fix is genuinely safe |
+| **Social** | A defensible explanation that security engineers and reviewers can independently assess | Fragmented evidence leads to repeated explanations and avoidable review friction |
+
+#### Illustrative voice of the user
+
+*These statements express persona hypotheses; they are not verified interview quotations.*
+
+> “We get these scanner reports every week, and half the time I’m not sure which ones are real.”
+
+> “By the time I finish one issue, I have to explain it again to security and to my reviewer.”
+
+> “I don’t want a patch that looks clever. I want a small fix I can defend, rerun, and prove is safe.”
+
+#### Adoption and trust requirements
+
+Meera is likely to consider the Security Analyzer Agent useful only if:
+
+- Original source files remain unchanged.
+- Confidential code is processed only in approved environments, with secrets and personal data protected.
+- Findings include inspectable code evidence and clear explanations.
+- Proposed patches are small, reviewable, and accompanied by validation results.
+- Uncertain cases are labelled **unverified** and escalated rather than presented as fixed.
+- She can approve, edit, or reject a proposal before applying changes through the team’s normal development process.
+
+#### Persona validation plan
+
+During discovery and the pilot, validate these hypotheses with **3–5 engineers and an application-security reviewer**.
+
+| Hypothesis to validate | Evidence to collect |
+| --- | --- |
+| Triage and investigation consume substantial remediation effort | Observe recent cases and record time spent at each workflow stage |
+| Evidence preparation causes repeated work | Review tickets and review comments for repeated explanations or missing artifacts |
+| Test quality limits trust in proposed fixes | Examine available tests and ask participants what additional checks they require |
+| Isolation and human approval are essential to adoption | Observe acceptance, edits, and rejection; record the reasons |
+| The agent reduces effort without weakening review quality | Compare equivalent manual and agent-assisted tasks, including review time, alongside expert assessment of the resulting fixes |
+
 
 ### 3. The problem, reframed
 
@@ -56,32 +201,157 @@
 
 **The agent's job, in one sentence:** *"Given a source-code folder, its automated tests and an approved security-rules file, the Security Analyzer agent finds and ranks the places that break the rules, investigates their causes and prepares tested fixes in a safe copy, without modifying the original files and without applying an unapproved change."*
 
-### 5. Outcomes, value and non-goals
+### 5. Agentic value proposition, business strategy alignment and outcomes
 
-| Metric | Baseline today | Target | How we measure it |
+#### Value proposition
+
+**For software engineers and application-security teams managing a growing security backlog, the Security Analyzer Agent turns potential vulnerabilities into evidence-backed findings and review-ready fix proposals.**
+
+It coordinates investigation, minimal patch preparation, regression testing, and security rechecks in an isolated workspace. Engineers spend less time on repetitive remediation and documentation while retaining control over changes to the real codebase.
+
+**Our value proposition: less manual security work, better-supported review decisions, and a consistent evidence trail—with human control over every accepted change.**
+
+> **Validation status:** The benefits, financial assumptions, and quality thresholds below are proposed for the pilot. They are not demonstrated results.
+
+#### Why agentic AI creates value
+
+The opportunity is not simply to find more vulnerabilities. It is to connect the manual work that happens after a finding appears.
+
+**Find → Investigate → Prepare a fix → Verify → Human review**
+
+| Component | What it contributes | Expected value |
+| --- | --- | --- |
+| **Auditor** | Assesses and prioritizes findings using approved rules and code evidence | Less time sorting noisy results |
+| **Investigator** | Traces the root cause and determines whether a scoped fix is appropriate | Less repetitive investigation and fewer unsupported fix attempts |
+| **Fixer & Validator** | Prepares a minimal patch in an isolated copy, runs tests, and requests a separate Auditor recheck | Less manual patch preparation and more consistent verification |
+| **Workflow orchestrator** | Controls handoffs, limits, approvals, and evidence assembly | A consistent, reviewable workflow with enforced safety boundaries |
+
+Agentic reasoning is useful because the next action depends on code context, evidence, fixability, and validation results. The system must choose whether to investigate further, prepare a patch, retry, or escalate.
+
+Deterministic tools perform operations such as rule execution, patch application, and test execution. Agents interpret the results and choose among bounded next steps.
+
+#### Business strategy alignment
+
+| Business priority | How the agent supports it | Proposed measure |
+| --- | --- | --- |
+| **Engineering efficiency** | Reduces repetitive triage, investigation, patch preparation, and evidence assembly | At least **30% less human effort** per completed scan-to-review workflow |
+| **Faster, safer releases** | Helps engineers prepare reviewable security fixes sooner without removing human approval | Measure remediation turnaround and security-related release delays; establish the baseline during the pilot |
+| **Security risk management** | Supports detection and remediation within approved vulnerability classes | **High-severity recall ≥90%**, **finding precision ≥85%**, and **false-fix rate ≤5%** on the benchmark |
+| **Audit readiness** | Produces traceable findings, verification results, and decision records | **100% required evidence coverage** and **100% audit-record completeness** |
+| **Capacity and cost control** | Releases engineering time for feature delivery and higher-value security work | Measure hours released, operating cost, and net capacity value |
+
+Passing tests and security rechecks does not guarantee vulnerability-free code. Generated records can support secure-development assurance but do not independently establish regulatory compliance.
+
+#### Directional business case
+
+The following example estimates the value of engineering time released. All assumptions require validation.
+
+| Assumption | Illustrative value |
+| --- | ---: |
+| Annual findings in the addressable workflow | 5,000 |
+| Average manual effort per finding, including review and documentation | 2.5 hours |
+| Loaded engineering cost | $60/hour |
+| Target reduction in human effort | 30% |
+
+**Current annual engineering effort**
+
+    5,000 findings × 2.5 hours = 12,500 hours/year
+
+**Current annual engineering-effort value**
+
+    12,500 hours × $60/hour = $750,000/year
+
+**Potential annual capacity released**
+
+    12,500 hours × 30% = 3,750 hours/year
+
+**Potential gross annual capacity value**
+
+    3,750 hours × $60/hour = $225,000/year
+
+**Interpretation:** If the assumptions hold, achieving the target could release approximately **3,750 engineering hours annually**, valued at **$225,000 before agent operating costs**.
+
+This is potential engineering-capacity value—not guaranteed cash savings or a commitment to reduce headcount.
+
+**Net annual capacity value**
+
+    Gross annual capacity value
+    − Model inference costs
+    − Execution and infrastructure costs
+    − Rule and platform maintenance costs
+    − Incremental oversight costs not already included in measured human effort
+
+Human review remains part of the workflow. Its effort must be included in the manual-versus-agent-assisted comparison and must not be deducted twice.
+
+One-time implementation costs will be assessed separately. Release-delay benefits and avoided incident costs are excluded from this example to avoid unsupported valuation.
+
+If only part of the annual workload is eligible for the MVP, the estimate must be reduced to reflect that addressable volume.
+
+#### Differentiation
+
+**Our proposed differentiator is a controlled, organization-rule-driven “find, investigate, fix, and prove” workflow.**
+
+It combines:
+
+- Organization-owned security rules and severity definitions.
+- Contextual investigation rather than isolated rule matches.
+- Minimal patches prepared in an isolated workspace.
+- Regression testing and a separate Auditor recheck.
+- A consolidated evidence package for reviewers.
+- Human acceptance of every proposed change.
+
+Existing scanners and AI development tools may provide some of these capabilities. The pilot will assess whether this integrated workflow improves outcomes compared with NorthBridge’s current tools and process.
+
+#### Outcomes and measurement
+
+| Metric | Baseline today | Proposed target | How we measure it |
 | --- | --- | --- | --- |
-| **Human time per scan** (main measure) | Measure during pilot| At least 30% lower than manual flow | Compare manual and agent-assisted completion on the same benchmark |
-| **Finding precision** | Measure on benchmark | ≥ 85% | Expert-confirmed findings ÷ all reported findings |
-| **High-severity finding recall** | Measure on benchmark | ≥ 90% | Correctly detected high-severity cases ÷ labelled high-severity cases |
-| **Verified-fix success rate** | Measure on benchmark | ≥ 75% | Fixes that remove the issue, preserve expected behavior, and pass tests |
-| **False fix rate** | Measure on benchmark | ≤ 5% | Fixes labelled verified where the issue remains or behavior is incorrect |
-| **Evidence coverage** | Not applicable | 100% | Every finding contains rule, file, line, and relevant code evidence |
-| **Unsafe actions** | 0 | 0 | Workspace and file-integrity monitoring |
+| **Human effort per completed scan-to-review workflow** | Measure during pilot | At least 30% lower than the manual workflow | Compare equivalent tasks, including triage, investigation, remediation, testing, documentation, and review |
+| **Finding precision** | Measure on labelled benchmark | ≥85% | Expert-confirmed findings ÷ all reported findings |
+| **High-severity finding recall** | Measure on labelled benchmark | ≥90% | Correctly detected high-severity cases ÷ all labelled high-severity cases |
+| **Verified-fix success rate** | Measure on benchmark | ≥75% | Eligible attempted fixes confirmed to remove the issue and preserve expected behavior ÷ all eligible attempted fixes |
+| **False-fix rate** | Measure on benchmark | ≤5% | Proposals labelled verified that expert review finds incorrect ÷ all proposals labelled verified |
+| **Evidence coverage** | Measure current completeness | 100% | Reported findings containing all required evidence fields ÷ all reported findings |
+| **Human approval rate** | Establish during pilot | ≥70% | Verified proposals approved by reviewers ÷ verified proposals reviewed |
+| **Audit-record completeness** | Measure current completeness | 100% | Required audit records captured ÷ required audit records expected |
+| **Unsafe actions** | Measure during testing and pilot | 0 | Monitor original-file integrity, workspace boundaries, network access, and prohibited actions |
 
-**Value type:** ☑ time saved ☑ quality improved ☑ Security risk reduced ☑ new capability (verified evidence of what was found and fixed) ☑ cost reduced
+Report the number of evaluated cases alongside every percentage. Small pilot samples provide directional evidence, not proof of reliable performance at scale.
 
-**Explicit non-goals:**
+#### Pilot business decision
 
-The first version will not:
+Proceed beyond the pilot only if:
+
+- Safety boundaries remain intact.
+- Quality thresholds are supported by a sufficiently representative benchmark.
+- Human effort is reduced without weakening review quality.
+- Reviewers accept at least 70% of verified proposals.
+- Measured benefits justify operating and maintenance costs.
+- Code-processing and model-provider arrangements receive required approval.
+
+#### Long-term risk of maintaining the current workflow
+
+- **Growing security debt:** Finding backlogs may increase as repositories and release frequency grow.
+- **Rising manual effort:** Investigation and evidence preparation continue to consume engineering capacity.
+- **Release friction:** Unresolved security findings can delay release decisions.
+- **Audit burden:** Fragmented evidence requires repeated reconstruction.
+- **Engineer fatigue:** Repetitive remediation competes with higher-value engineering work.
+
+These are risks to assess during discovery, not quantified benefits already achieved by the agent.
+
+#### Explicit non-goals
+
+The MVP will not:
+
 - Modify original source files.
 - Commit, push, merge, deploy, or open pull requests.
 - Install or remove packages.
-- Delete files.
-- Autonomously apply fixes outside the temporary workspace.
+- Delete source files.
+- Apply patches to the real codebase; engineers retain that responsibility.
 - Perform large architectural redesigns.
-- Replace penetration testing, threat modelling, code review, or an organization’s security program.
+- Replace penetration testing, threat modelling, code review, or the organization’s security program.
 - Evaluate or rank developers.
-- Generate security rules without security-engineer ownership.
+- Generate or change security rules without security-owner approval.
 
 ### 6. Why agentic? (and why not)
 
