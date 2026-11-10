@@ -28,6 +28,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
+from langfuse_integration import start_run_trace, update_trace
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
