@@ -28,6 +28,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
+from langfuse_integration import start_run_trace, update_trace
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -200,25 +201,56 @@ class Workflow:
         return f"run-{max(numbers, default=0) + 1:03d}"
 
     # ------------------------------------------------------------------ the run
-    @_with_guard
+       @_with_guard
     def start(self, source_folder: str, rules_file: str, policy: dict | None = None) -> dict:
         """Steps 1 to 5. Stops at step 5 and waits for a person (call resume() after the decisions)."""
         if is_inside(os.path.abspath(source_folder), os.path.abspath(self.out_root)):
             raise ValueError("the out folder is inside the project folder; the end-of-run check would see the "
                              "report files as changes to the originals. Choose an out folder outside the project.")
+
         run_id = self._next_run_id()
         self.run_dir = os.path.join(self.out_root, run_id)
         os.makedirs(os.path.join(self.run_dir, "states"))
+
         self.state = {
             "run_id": run_id,
-            "input": {"source_folder": os.path.abspath(source_folder), "rules_file": os.path.abspath(rules_file),
-                      "policy": {**DEFAULT_POLICY, **(policy or {})}},
-            "counters": {"steps": 0, "ai_calls": 0, "tokens": {"input": 0, "output": 0}, "elapsed_seconds": 0},
-            "handoff_log": [], "cap_hit": None, "ai_model": self._ai_model_override or _ai_model(), "sensitive_items_hidden": 0,
-            "finding_status": [], "approvals": [], "audit_log": [], "originals_unchanged": None,
+            "input": {
+                "source_folder": os.path.abspath(source_folder),
+                "rules_file": os.path.abspath(rules_file),
+                "policy": {**DEFAULT_POLICY, **(policy or {})},
+            },
+            "counters": {
+                "steps": 0,
+                "ai_calls": 0,
+                "tokens": {"input": 0, "output": 0},
+                "elapsed_seconds": 0,
+            },
+            "handoff_log": [],
+            "cap_hit": None,
+            "ai_model": self._ai_model_override or _ai_model(),
+            "sensitive_items_hidden": 0,
+            "finding_status": [],
+            "approvals": [],
+            "audit_log": [],
+            "originals_unchanged": None,
         }
-        self.meta = {"run_id": run_id, "phase": "running", "snapshots": 0, "elapsed_before": 0.0}
+
+        self.meta = {
+            "run_id": run_id,
+            "phase": "running",
+            "snapshots": 0,
+            "elapsed_before": 0.0,
+        }
         self._t0 = time.monotonic()
+
+        # Avoid sending local file paths or project contents to the tracing service.
+        trace = start_run_trace(
+            run_id=run_id,
+            input_data={"policy": self.state["input"]["policy"]},
+            model=self.state["ai_model"].get("name"),
+            metadata={"workflow": "security_analysis"},
+        )
+
         self._log("orchestrator", "run_started", f"source {self.state['input']['source_folder']}")
         try:
             self._check_state()
@@ -228,9 +260,20 @@ class Workflow:
             self._step3_audit()
             self._step4_findings()
             if self._step5_review_queue():
-                self._finish()          # nothing is waiting for a person, so go straight to steps 6 and 7
+                self._finish()  # Nothing is waiting for a person.
         except RunStopped as stop:
             self._stop(stop)
+        finally:
+            update_trace(
+                trace,
+                output={
+                    "phase": self.meta.get("phase"),
+                    "run_id": run_id,
+                    "finding_status": self.state.get("finding_status", []),
+                },
+                metadata={"run_id": run_id},
+            )
+
         return self.state
 
     @classmethod
