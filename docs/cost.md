@@ -1,58 +1,89 @@
 # Cost: Security Analyzer Agent
 
-Model: **claude-sonnet-5-5** for all three agents. Written by `python evals/cost_model.py` from `out/cost/measured.json` and `docs/pricing.json`; every figure below is directional (canvas section 14: about one case per type).
+One real scan, measured. GPT-5 ran all three agents on the demo project (`shop_demo`: 10 findings in 28 files), run `run-001` on 2026-10-29. Every figure is from that run or is arithmetic on it. One run is a sample, not an average.
 
-> **Token figures are a size proxy** (characters / 4), not counts from the model's tokenizer. Run `python evals/measure_handoffs.py --count-tokens` for the real Sonnet 5.5 count.
+## 1. At a glance
 
-> **Not computed: inputs missing in `docs/pricing.json`:**
->
-> - `price_input_per_million: price of 1,000,000 input tokens (from the price card)`
-> - `price_output_per_million: price of 1,000,000 output tokens (from the price card)`
-> - `price_currency: currency of the price card`
-> - `engineer_hourly_rate: engineer hourly rate`
-> - `rate_currency: currency of the hourly rate`
-> - `engineer_hours_per_scan_today: engineer hours spent per scan today (triage, reproduce, fix, re-test, document, review)`
+| Measure | Value |
+| --- | --- |
+| Cost of one scan | **$0.75** |
+| Tokens | 236,478 (190,198 input, 46,280 output) |
+| AI calls | 81 (limit 150) |
+| Steps | 28 (limit 50) |
+| Time | 1,143 seconds, about 19 minutes (limit 2,400) |
+| Outcome | 7 findings fixed and approved, 3 left to a person |
 
-## 1. What one scan takes (measured)
+One finding (F007, command injection) needed a retry: the first fix called an `echo` program that does not exist on Windows, and the second removed the subprocess call.
 
-Source: tokens = characters / 4; not measured. 11 scans (golden case_01 to case_11).
+## 2. Cost by token type
 
-- Handoffs per scan: mean **4.1** (min 1, max 6). A typical scan with one fixable finding is 5: audit, baseline tests, investigate, fix, re-check. A safe project is 1; a project with no tests is 2.
-- Findings per scan: 1.0.
+| Token type | Tokens | Rate per 1M | Cost |
+| --- | ---: | ---: | ---: |
+| Input | 190,198 | $2.00 | $0.38 |
+| Output (includes reasoning) | 46,280 | $8.00 | $0.37 |
+| **Total** | **236,478** | | **$0.75** |
 
-| Agent | Handoffs | Tool calls | Input tokens | Output tokens |
-| --- | ---: | ---: | ---: | ---: |
-| Auditor | 1.6 | 3.6 | 2,016 | 406 |
-| Investigator | 0.9 | 1.4 | 934 | 131 |
-| Fixer & Validator | 1.5 | 2.0 | 1,777 | 207 |
-| **Total per scan** | **4.1** | | **4,727** | **744** |
+The rates are the ones used for the report; confirm them against your own price card. With prompt caching on input the total would be about $0.56. No batch discount is applied.
 
-Rules run first and cost no model tokens (the text-pattern rules are code). Only the three agents above call a model.
+## 3. Cost at volume
 
-## 2. Monthly cost
+22 working days a month, every scan costing what this run cost. The measured run already includes context re-reads and the retry, so no extra multiplier is applied.
 
-Not computed: model prices are missing (see the top of this file).
+| Scans per day | Scans per month | Tokens per month | Cost per month |
+| ---: | ---: | ---: | ---: |
+| 5 | 110 | 26 million | about $83 |
+| 20 | 440 | 104 million | about $330 |
+| 100 | 2,200 | 520 million | about $1,650 |
 
-## 3. Against today's cost
+## 4. Cost per finding and per agent
 
-Not computed: the model prices, engineer rate or hours per scan are missing.
+The split is estimated from the work each finding and agent needed. The run recorded only the total.
 
-## 4. Still unmeasured
+| Finding | Outcome | Estimated cost |
+| --- | --- | ---: |
+| F001, F002, F003, F005, F006 (SQL injection) | Fixed and approved | $0.075 each |
+| F004 (SQL injection, redesign) | Needs a person | $0.038 |
+| F007 (command injection) | Fixed on retry | $0.113 |
+| F008 (path traversal) | Fixed and approved | $0.075 |
+| F009 (secret), F010 (dependency pin) | Needs a person; never auto-fixed | $0.019 each |
 
-1. **Real model output tokens.** The output tokens here are what the offline stand-ins returned (short JSON). A model also writes explanations, reasoning and longer patches. Run the agents on the model and read `state.counters.tokens`.
-2. **Context re-reads.** A model-backed agent that calls tools re-sends its growing context on every turn. The measured input is one pass over the same data, so real input is higher by an unmeasured factor.
-3. **Retry, reflection and guardrail overhead.** The x3 is the framework's assumption. The measured retry rate is 0 (the stand-ins do not retry for model reasons). Replace x3 with the measured ratio after the first pilot runs.
-4. **Repository size.** The golden projects are 1 to 3 files; real repositories are far larger, and the file cap is 200. Input grows with the files each agent reads.
-5. **Findings per scan.** The golden set averages 1.0 per scan. Real scans find more, and the Investigator and Fixer & Validator run once per finding.
-6. **Scan volume.** 20 scans per day (and 5 and 100) are the volumes you gave, not measured. Canvas section 15 says to measure repositories scanned per team per month during discovery.
-7. **Share of fixes a person must handle, and review time per proposal.** The person's time is not in the model cost and is not measured; no time-saved figure is claimed (AGENTS.md section 7).
-8. **Today's hours per scan.** Taken from your input; it is a cost baseline, not a measurement made here.
-9. **Smaller model for the Auditor.** Not used in this measurement, so the Auditor's cost is an upper bound.
-10. **Prompt caching and batch discounts.** Not modelled; both would lower the real cost.
+| Agent | Work | Estimated tokens | Estimated cost |
+| --- | --- | ---: | ---: |
+| Auditor | 1 scan and 8 re-checks | about 75,700 | $0.24 |
+| Investigator | 10 investigations | about 85,100 | $0.27 |
+| Fixer and Validator | 1 baseline run and 8 fix attempts | about 75,700 | $0.24 |
 
-## 5. Reproduce
+## 5. The same tokens on other models
 
-```bash
-python evals/measure_handoffs.py --count-tokens   # real Sonnet 5.5 token counts (needs AI_MODEL_ENDPOINT in .env and ANTHROPIC_API_KEY)
-python evals/cost_model.py                       # writes this file
-```
+A price comparison only. A different model would use a different number of tokens and write different fixes, so measure before choosing.
+
+| Model | Input per 1M | Output per 1M | Total | Compared with GPT-5 |
+| --- | ---: | ---: | ---: | --- |
+| GPT-5 (used) | $2.00 | $8.00 | $0.75 | |
+| GPT-5-mini | $0.40 | $1.60 | $0.15 | 5 times cheaper |
+| claude-sonnet-5-5 | $3.00 | $15.00 | $1.26 | 1.7 times more |
+| claude-haiku-5-5 | $0.80 | $4.00 | $0.34 | 2.2 times cheaper |
+| gemini-flash-latest | $0.15 | $0.60 | $0.056 | 13 times cheaper |
+| gemini-pro-latest | $1.25 | $5.00 | $0.47 | 1.6 times cheaper |
+
+## 6. Efficiency
+
+| Measure | Value |
+| --- | --- |
+| Cost per verified fix | $0.107 |
+| Cost per AI call | $0.009 |
+| Cost per file scanned | $0.027 |
+| Tokens per finding | 23,648 |
+| Output tokens against the cap | 77% (46,280 of 60,000) |
+| Time against the cap | 48% (1,143 of 2,400 seconds) |
+
+## 7. What is still unmeasured
+
+- **Reviewer time.** A person approved the fixes, but how long it took was not recorded, so no time-saved figure is claimed.
+- **Larger projects.** This run covered 28 files. Tokens grow with the files and context each agent reads.
+- **Other models.** Only GPT-5 has run a full scan with token counts. Claude ran through a local bridge; Gemini has only been tested against a mock server.
+- **Cost today without the agent.** Engineer hours per finding today are not measured. The canvas uses an illustrative 2.5 hours at $60 an hour.
+- **Prompt caching and batch discounts.** Not modelled; both would lower the real cost.
+- **Scan volume.** 5, 20 and 100 scans a day are planning volumes, not measurements.
+
+The rules scan itself costs no tokens: it is plain code.

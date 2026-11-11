@@ -4,7 +4,7 @@
 
 Reads   out/cost/measured.json   (from evals/measure_handoffs.py: handoffs and tokens per agent per scan)
         docs/pricing.json         (YOUR inputs: model prices, engineer rate, hours per scan today)
-Writes  docs/cost.md
+Writes  docs/cost_proxy.md (the older size-proxy estimate; docs/cost.md is the measured cost, kept by hand)
 
 No number is invented. A price, rate or hours value left as null in docs/pricing.json is listed as missing, and the
 cost sections that need it are written as "not computed" instead of guessed.
@@ -23,7 +23,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MEASURED = os.path.join(ROOT, "out", "cost", "measured.json")
 PRICING = os.path.join(ROOT, "docs", "pricing.json")
-OUT = os.path.join(ROOT, "docs", "cost.md")
+OUT = os.path.join(ROOT, "docs", "cost_proxy.md")
 AGENTS = (("auditor", "Auditor"), ("investigator", "Investigator"), ("fixer_validator", "Fixer & Validator"))
 REQUIRED = {
     "price_input_per_million": "price of 1,000,000 input tokens (from the price card)",
@@ -176,7 +176,7 @@ def main() -> int:
     text, missing = build(measured, pricing)
     with open(OUT, "w", encoding="utf-8", newline="\n") as handle:
         handle.write(text)
-    print(f"wrote docs/cost.md ({'complete' if not missing else 'partial'})")
+    print(f"wrote docs/cost_proxy.md ({'complete' if not missing else 'partial'})")
     for m in missing:
         print(f"  missing: {m}")
     return 0 if not missing else 1
