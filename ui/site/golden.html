@@ -13,8 +13,7 @@
 <tr><td><span class="pill ok">Matches</span></td><td>The agents reported the expected finding and ended in the expected state (a fix ready for approval, or handed to a person, or nothing reported for safe code).</td><td>Nothing. This is the goal.</td></tr>
 <tr><td><span class="pill risk">Differs</span></td><td>The run did not match the answer key: a finding was missed, reported on the wrong line, or ended in a different state, for example handed to a person where a fix was expected.</td><td>Open the case. "What happened" says exactly where it differs. Most differences come from the built-in agents, which patch only some kinds of fixes; a model-backed Fixer is meant to close them.</td></tr>
 <tr><td><span class="pill ok">Red-team: Held</span></td><td>A hostile input was tried and the system stopped it.</td><td>Nothing.</td></tr>
-<tr><td><span class="pill risk">Red-team: Broke it</span></td><td>A hostile input got past a guardrail. These cases are written to find weak spots, so some are expected to break the system today.</td><td>Each is listed below with the smallest fix we propose.</td></tr>
-<tr><td><span class="pill ">Needs adversary run</span></td><td>The case only bites when an agent misbehaves, so a normal run cannot test it. <code>redteam.py</code> runs it with a deliberately broken agent.</td><td>See the red-team result below.</td></tr></table></div>
+<tr><td><span class="pill risk">Red-team: Broke it</span></td><td>A hostile input got past a guardrail. These cases are written to find weak spots, so some are expected to break the system today.</td><td>Each is listed below with the smallest fix we propose.</td></tr></table></div>
 <p class="small muted">Cases 1 to 11 are the types the canvas asks for. Cases 12 to 21 are hostile inputs added for the red team. The score summary for all runs is in the <a href="/docs/md/RUN_SUMMARY.html">results document</a>.</p>
 
 <h2>All 21 cases</h2>

@@ -61,6 +61,21 @@ def slug(text: str) -> str:
 HEADINGS: list = []
 
 
+def md_with_quotes(text: str) -> str:
+    """common.md, plus '> ' lines rendered as a block quote."""
+    parts, run, quote = [], [], False
+    for line in text.split("\n") + [None]:
+        is_q = line is not None and line.startswith(">")
+        if line is not None and is_q == quote:
+            run.append(line[1:].lstrip() if is_q else line)
+            continue
+        if run:
+            body = "\n".join(run)
+            parts.append(f"<blockquote>{common.md(body)}</blockquote>" if quote else common.md(body))
+        run, quote = ([line[1:].lstrip() if is_q else line] if line is not None else []), is_q
+    return "".join(parts)
+
+
 def render_md(text: str) -> str:
     HEADINGS.clear()
     chunks, buf, fence = [], [], False
@@ -83,10 +98,32 @@ def render_md(text: str) -> str:
             HEADINGS.append((val[0], val[1], slug(val[1])))
             out.append(f'<h{val[0]} id="{slug(val[1])}">{common._inline(val[1])}</h{val[0]}>')
         else:
-            out.append(common.md(val))
+            out.append(md_with_quotes(val))
     html = "".join(out)
     html = re.sub(r'<pre([^>]*)>', r'<pre\1>', html)
     return html
+
+
+ARCH = """<svg viewBox="0 0 920 520" role="img" aria-label="Architecture sketch. Inputs and a person feed a workflow orchestrator, which hands work to three agents one at a time. The Auditor reads the source files, the Fixer and Validator writes only in a temporary copy, and all three agents use the AI model service. The orchestrator writes the report, patch file and audit log.">
+<style>.t{font:600 14px var(--sans);fill:var(--ink)}.s{font:12.5px var(--sans);fill:var(--ink-2)}.m{font:12px var(--mono);fill:var(--ink-2)}
+.b{fill:var(--surface);stroke:var(--line);stroke-width:1.5}.o{fill:var(--info-bg);stroke:var(--brand);stroke-width:1.5}.d{fill:var(--sunk);stroke:var(--line);stroke-width:1.5}.a{stroke:var(--ink-3);stroke-width:1.5;fill:none;marker-end:url(#ah)}.a2{stroke:var(--ink-3);stroke-width:1.5;fill:none;marker-end:url(#ah);marker-start:url(#ah)}</style>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--ink-3)"/></marker></defs>
+<rect class="b" x="20" y="10" width="250" height="62" rx="9"/><text class="t" x="36" y="36">Inputs</text><text class="s" x="36" y="56">Code folder, tests, rules.json</text>
+<rect class="b" x="650" y="10" width="250" height="62" rx="9"/><text class="t" x="666" y="36">Person</text><text class="s" x="666" y="56">Approves, edits or rejects each fix</text>
+<path class="a" d="M145 72 L290 128"/><path class="a2" d="M775 72 L630 128"/>
+<rect class="o" x="210" y="128" width="500" height="76" rx="10"/><text class="t" x="228" y="156">Workflow orchestrator (not an agent)</text><text class="s" x="228" y="178">Order, limits, approvals, decision log, report</text>
+<rect class="b" x="750" y="128" width="150" height="76" rx="9"/><text class="t" x="764" y="156">Output</text><text class="s" x="764" y="176">Report, patch file,</text><text class="s" x="764" y="192">audit log</text>
+<path class="a" d="M710 166 L750 166"/>
+<path class="a" d="M290 204 L155 258"/><path class="a" d="M460 204 L460 258"/><path class="a" d="M630 204 L765 258"/>
+<rect class="b" x="20" y="258" width="270" height="104" rx="9"/><text class="t" x="36" y="284">1. Auditor</text><text class="s" x="36" y="304">Finds and ranks findings</text><text class="m" x="36" y="330">list_files, read_file,</text><text class="m" x="36" y="346">run_security_rules</text>
+<rect class="b" x="325" y="258" width="270" height="104" rx="9"/><text class="t" x="341" y="284">2. Investigator</text><text class="s" x="341" y="304">Traces the cause, picks a fix approach</text><text class="m" x="341" y="330">read_file,</text><text class="m" x="341" y="346">read_code_structure</text>
+<rect class="b" x="630" y="258" width="270" height="104" rx="9"/><text class="t" x="646" y="284">3. Fixer and Validator</text><text class="s" x="646" y="304">Fixes, tests, keeps / retries / rejects</text><text class="m" x="646" y="330">apply_patch, run_tests,</text><text class="m" x="646" y="346">request_recheck</text>
+<path class="a" d="M155 362 L155 420"/><path class="a" d="M765 362 L765 420"/>
+<path class="a" d="M200 362 L370 420"/><path class="a" d="M460 362 L460 420"/><path class="a" d="M720 362 L550 420"/>
+<rect class="d" x="20" y="420" width="270" height="80" rx="9"/><text class="t" x="36" y="446">Source files</text><text class="s" x="36" y="466">Read only</text>
+<rect class="o" x="325" y="420" width="270" height="80" rx="9"/><text class="t" x="341" y="446">AI model service</text><text class="s" x="341" y="466">Sees code with sensitive</text><text class="s" x="341" y="482">values hidden</text>
+<rect class="d" x="630" y="420" width="270" height="80" rx="9"/><text class="t" x="646" y="446">Temporary copy</text><text class="s" x="646" y="466">The only place anything is written</text>
+</svg>"""
 
 
 # --------------------------------------------------------------------------- the diagram
@@ -323,8 +360,7 @@ def build_golden() -> str:
 <tr><td>{pill("ok", "Matches")}</td><td>The agents reported the expected finding and ended in the expected state (a fix ready for approval, or handed to a person, or nothing reported for safe code).</td><td>Nothing. This is the goal.</td></tr>
 <tr><td>{pill("risk", "Differs")}</td><td>The run did not match the answer key: a finding was missed, reported on the wrong line, or ended in a different state, for example handed to a person where a fix was expected.</td><td>Open the case. "What happened" says exactly where it differs. Most differences come from the built-in agents, which patch only some kinds of fixes; a model-backed Fixer is meant to close them.</td></tr>
 <tr><td>{pill("ok", "Red-team: Held")}</td><td>A hostile input was tried and the system stopped it.</td><td>Nothing.</td></tr>
-<tr><td>{pill("risk", "Red-team: Broke it")}</td><td>A hostile input got past a guardrail. These cases are written to find weak spots, so some are expected to break the system today.</td><td>Each is listed below with the smallest fix we propose.</td></tr>
-<tr><td>{pill("", "Needs adversary run")}</td><td>The case only bites when an agent misbehaves, so a normal run cannot test it. <code>redteam.py</code> runs it with a deliberately broken agent.</td><td>See the red-team result below.</td></tr></table></div>
+<tr><td>{pill("risk", "Red-team: Broke it")}</td><td>A hostile input got past a guardrail. These cases are written to find weak spots, so some are expected to break the system today.</td><td>Each is listed below with the smallest fix we propose.</td></tr></table></div>
 <p class="small muted">Cases 1 to 11 are the types the canvas asks for. Cases 12 to 21 are hostile inputs added for the red team. The score summary for all runs is in the <a href="/docs/md/RUN_SUMMARY.html">results document</a>.</p>
 
 <h2>All 21 cases</h2>
@@ -353,13 +389,15 @@ DOCS = [
 def build_canvas() -> str:
     with open(os.path.join(ROOT, "canvas.md"), encoding="utf-8") as handle:
         text = handle.read()
-    html = render_md(re.sub(r"^\*(.+)\*$", r"\1", text, flags=re.M))
+    text = re.sub(r"```mermaid.*?```", "ARCHDIAGRAMHERE", text, flags=re.S)
+    html = render_md(re.sub(r"^\*(?!\*)(.+?)(?<!\*)\*$", r"\1", text, flags=re.M))
+    html = html.replace("<p>ARCHDIAGRAMHERE</p>", '<div class="figure">' + ARCH + '</div>').replace("ARCHDIAGRAMHERE", '<div class="figure">' + ARCH + '</div>')
     note = ('<p class="small muted">This is the Agent Opportunity Canvas the project was built from (<code>canvas.md</code>). It is the source for the agent roles, tools, guardrails, quality bar and kill criteria. '
             'If it and another document disagree, the canvas and <a href="/docs/md/AGENTS.html">AGENTS.md</a> win until the team changes them.</p>')
     html = html.replace("</h1>", "</h1>" + note, 1)
     toc = []
     for level, title, sid in HEADINGS:
-        if level == 1:
+        if level in (1, 4):
             continue
         toc.append(f'<a class="{"part" if level == 2 else ""}" href="#{sid}">{e(re.sub(r"[`*]", "", title))}</a>')
     body = f"""<div class="canvas"><nav class="ctoc" aria-label="Canvas sections"><b>The original canvas</b>{"".join(toc)}</nav>
@@ -435,8 +473,7 @@ COST_PAGE = r"""<h1>What a scan costs</h1>
 <tr><td>Tokens per finding</td><td>23,648 (10 findings)</td></tr>
 <tr><td>Output tokens against the cap</td><td>77% used (46,280 of 60,000)</td></tr>
 <tr><td>Time against the cap</td><td>48% used (1,143 of 2,400 seconds)</td></tr></table></div>
-
-<p><a href="/docs/md/cost.html">Cost notes and what is still unmeasured</a> · <a href="/docs/md/PRD.html">PRD</a> · <a href="/docs/guide.html">Guide</a></p>"""
+"""
 
 
 def build_cost() -> str:
