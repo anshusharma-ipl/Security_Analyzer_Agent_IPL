@@ -130,21 +130,11 @@ A person approves every fix. In addition, the agent stops and hands a finding ov
 
 | Situation | What happens |
 | --- | --- |
-| It cannot trace the cause | **Engine and evals:** handed to a person. **Console:** see "Unclear cause" below. |
+| It cannot trace the cause | Handed to a person. (The console still prepares a small local fix for approval, marked "cause not traced".) |
 | No tests exist | Handed over. Without tests a fix cannot be verified. |
 | The fix needs a redesign or a dependency change | Handed over. |
 | Retries are used up, a limit is hit, or anything looks unsafe | Handed over. |
-| The finding is a secret, a weak hash or an unpinned dependency | Reported only. Never patched. See "Report-only findings" below. |
-
-**Unclear cause (console only).** A *caller* is the code that calls the vulnerable function. If no caller is visible in the project, the agent cannot tell whether untrusted input reaches that function. The fix itself, for example replacing a string-built SQL query with a `?` placeholder, is safe either way. So the console still prepares that small local fix and marks it "cause not traced: check where this function's input comes from". The tests and re-check still have to pass, and a person decides. If the fix would need a redesign, it still goes to a person. The engine and the evals keep the stricter rule and hand these findings over.
-
-**Report-only findings.** The agent never patches these three, because a code change cannot fix them:
-
-| Finding | Why no patch | Task shown to the person |
-| --- | --- | --- |
-| Hard-coded secret | The secret is already exposed. The key must be replaced. | Rotate the key and move it out of the code. |
-| Weak password hash | Changing the algorithm breaks stored passwords. | Choose a password hash and plan the migration. |
-| Dependency pin | A new version needs a compatibility check. | Raise the pin and run the tests. |
+| The finding is a secret, a weak hash or an unpinned dependency | Reported only. Never patched. The console shows each as a task for the person. |
 
 ## 4. How safe it is
 
