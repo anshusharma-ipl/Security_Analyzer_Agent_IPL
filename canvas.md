@@ -1,54 +1,58 @@
 # Agent Opportunity Canvas: Security Analyzer Agent
 
-*Security Analyzer Agent · IPL Neural Navigators · Cohort ICAIPM2026F*
+| | |
+| --- | --- |
+| **Agent** | Security Analyzer Agent |
+| **Team** | IPL Neural Navigators, cohort ICAIPM2026F |
+| **Team members** | Anshu, Archana, Bikash |
+| **Scenario company** | NorthBridge Technologies (illustrative, see the note at the end of this section) |
 
-**Team members:** Anshu, Archana, Bikash
-**The Current Landscape: NorthBridge Technologies**
-         **NorthBridge Technologies** is a mid-to-large B2B SaaS company providing financial and payments software to regulated enterprise clients across India and Southeast Asia. 
-NorthBridge serves banks, fintechs, and insurers, and prides itself on frequent, reliable releases. With a growing engineering organization of ~400 developers across 
-distributed teams, the company ships code continuously and operates under strict regulatory obligations — India's DPDP Act, RBI guidelines, SOC 2, and ISO 27001.
+## Context: the scenario
 
-Today, NorthBridge's application-security process works like this:
-1. **Scan:** Automated scanners run against each repository and generate long lists of potential vulnerabilities.
-2. **Triage:** Engineers manually read the results, decide what is genuinely risky, and prioritize.
-3. **Investigate & fix**: They reproduce findings, trace root causes, write fixes one at a time, and re-run tests.
-4. **Prove & document:** They re-scan, gather before-and-after evidence, and prepare it for review and audit.
+### The company
 
-While scanners are good at flagging possible risks, the expensive work — prioritization, investigation, remediation, regression testing, and evidence collection — remains 
-heavily manual and inconsistent.
+**NorthBridge Technologies** is a mid-to-large B2B SaaS company providing financial and payments software to regulated enterprise clients across India and Southeast Asia. It serves banks, fintechs and insurers, and prides itself on frequent, reliable releases. With a growing engineering organization of about 400 developers across distributed teams, it ships code continuously and operates under strict regulatory obligations: India's DPDP Act, RBI guidelines, SOC 2 and ISO 27001.
 
-**The Unsettling Reality: The "Backlog That Never Closes"**
+### How security work happens today
 
-*"Our scanners produce thousands of findings a quarter, but our engineers spend most of their security time just deciding what's real and what isn't," notes the Head of 
-Application Security. "Serious issues get buried in noise, fixes get delayed before releases, and every audit we scramble to assemble the evidence by hand."*
+| Step | What the engineers do |
+| --- | --- |
+| 1. **Scan** | Automated scanners run against each repository and generate long lists of potential vulnerabilities. |
+| 2. **Triage** | Engineers manually read the results, decide what is genuinely risky, and prioritize. |
+| 3. **Investigate and fix** | They reproduce findings, trace root causes, write fixes one at a time, and re-run tests. |
+| 4. **Prove and document** | They re-scan, gather before-and-after evidence, and prepare it for review and audit. |
 
-A senior engineer adds: *"I lose hours reproducing a finding, tracing how bad input reaches it, writing a small fix, and then proving it didn't break anything. It's 
-repetitive, and under release pressure, rushed fixes sometimes break working features."*
+Scanners are good at flagging possible risks. The expensive work (prioritization, investigation, remediation, regression testing and evidence collection) remains heavily manual and inconsistent.
+
+### The problem: a backlog that never closes
+
+> "Our scanners produce thousands of findings a quarter, but our engineers spend most of their security time just deciding what's real and what isn't," notes the Head of Application Security. "Serious issues get buried in noise, fixes get delayed before releases, and every audit we scramble to assemble the evidence by hand."
+
+> A senior engineer adds: "I lose hours reproducing a finding, tracing how bad input reaches it, writing a small fix, and then proving it didn't break anything. It's repetitive, and under release pressure, rushed fixes sometimes break working features."
 
 This reactive, manual approach leads to:
-* Growing security debt — high-severity issues sitting unresolved in long lists.
-*  Release bottlenecks — security remediation delaying ship dates.
-*  Audit strain — no consistent before-and-after evidence trail.
-*  Engineer burnout — senior talent stuck on repetitive remediation instead of high-value work.
 
-These inefficiencies are estimated to cost NorthBridge a directional $0.75M–$1.5M annually in engineering time and delayed releases (to confirm during the pilot), on top 
-of the unquantified risk of a vulnerability reaching production.
+| Consequence | What it looks like |
+| --- | --- |
+| Growing security debt | High-severity issues sitting unresolved in long lists. |
+| Release bottlenecks | Security remediation delaying ship dates. |
+| Audit strain | No consistent before-and-after evidence trail. |
+| Engineer burnout | Senior talent stuck on repetitive remediation instead of high-value work. |
 
-**The Spark of Innovation: Security Analyzer Agent**
+These inefficiencies are estimated to cost NorthBridge a directional **$0.75M to $1.5M a year** in engineering time and delayed releases (to confirm during the pilot), on top of the unquantified risk of a vulnerability reaching production.
 
-Inspired by advances in Agentic AI, NorthBridge envisions the **Security Analyzer Agent** — a multi-agent, fix-and-prove system that checks source code against 
-organization-owned security rules, investigates evidence-backed risks, prepares minimal tested fixes in an isolated copy, and leaves every real code change under human 
-control. It does not replace engineers; it removes the repetitive triage-investigate-prove work so they can focus on judgment and release. This directly advances 
-NorthBridge's strategic goals of **faster, safer releases, audit-readiness, and engineering efficiency — without adding headcount**.
+### The proposed agent
 
-**Scenario note:** NorthBridge Technologies, the organizational details, quoted statements, and the $0.75M–$1.5M annual cost estimate are illustrative assumptions. They will be validated or revised through discovery and pilot measurements.
+Inspired by advances in agentic AI, NorthBridge envisions the **Security Analyzer Agent**: a multi-agent, fix-and-prove system that checks source code against organization-owned security rules, investigates evidence-backed risks, prepares minimal tested fixes in an isolated copy, and leaves every real code change under human control. It does not replace engineers. It removes the repetitive triage, investigate and prove work so they can focus on judgment and release. This directly advances NorthBridge's goals of faster, safer releases, audit-readiness and engineering efficiency, without adding headcount.
+
+**Scenario note.** NorthBridge Technologies, the organizational details, the quoted statements and the $0.75M to $1.5M annual cost estimate are illustrative assumptions. They will be validated or revised through discovery and pilot measurements.
 
 ## The canvas at a glance
 
 | A · WHY | B · WHAT | C · HOW SAFE | D · HOW WE KNOW |
 | --- | --- | --- | --- |
 | **Posture:** it finds problems, prepares tested fixes and shows they work, but a person always decides what is applied | **Trigger:** a person starts it on a code folder, for example before a release or after an audit finding | **Human review:** a person approves every fix, and is also called in whenever the agent cannot decide | **Quality bar:** precision ≥ 85%, high-severity recall ≥ 90%, verified-fix success ≥ 75%, false-fix rate ≤ 5%, 100% evidence coverage, zero unsafe actions |
-| **Problem:** security findings pile up because sorting them, fixing them and proving the fix are all manual work | **Tools:** 7 agent tools (read files, run security rules, read code structure, apply a fix, run tests, request a re-check) | **Main risks:** a wrong fix, code or secrets leaving the company, instructions hidden in code, running untrusted code | **Cost:** to be measured |
+| **Problem:** security findings pile up because sorting them, fixing them and proving the fix are all manual work | **Tools:** 7 agent tools (read files, run security rules, read code structure, apply a fix, run tests, request a re-check) | **Main risks:** a wrong fix, code or secrets leaving the company, instructions hidden in code, running untrusted code | **Cost:** measured on one GPT-5 scan: $0.75, 236,478 tokens, 81 AI calls, 7 of 10 findings fixed |
 | **Outcome:** at least 30% less human time per scan, and a report of what was found and fixed as proof | **Steps:** scan, investigate, fix, verify, then a person approves | **Safeguards:** sensitive data is hidden before anything goes to the AI model, every fix is tested, every decision is logged | **Pilot:** one non-production repository, one language, three vulnerability classes, 3–5 engineers |
 | **Agents:** Auditor, Investigator, Fixer & Validator, plus a workflow orchestrator that is not an agent | **Design:** three agents with separate jobs, coordinated by the workflow orchestrator | **Never allowed:** changing original files, committing or deploying code, sending secrets to the model | **Stop rule:** stop at once if the agent ever touches an original file or writes outside its temporary copy |
 
@@ -479,7 +483,7 @@ A **tool** is something an agent chooses to use while it works. The workflow orc
 | **Investigator** | It decides how untrusted input reaches one weak spot and which kind of fix suits that path. | It chooses between fix approaches and between "fixable" and "hand to a person", using the code structure and the files it reads. | A lookup cannot follow data across several files or decide when the cause is unclear, so fixes would be guesses. | **Passes.** |
 | **Fixer & Validator** | It decides whether a fix is kept, retried once or rejected. | It chooses between those outcomes using the test results and the Auditor's re-check, not its own opinion of its patch. | Running tests is a plain tool, but reading mixed test and re-check results and deciding keep, retry or reject needs judgement. | **Passes.** |
 
-**Limits on each run:** one retry per finding, and caps on files, AI calls and time (values to be identified).
+**Limits on each run:** one retry per finding, at most 200 files, 50 steps, 60 AI calls (150 in the console when a model is used), 400,000 input and 60,000 output tokens, 20 minutes (40 in the console with a model), and each test run stopped after 120 seconds.
 
 **Architecture sketch:**
 
