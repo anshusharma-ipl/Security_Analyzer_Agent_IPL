@@ -443,6 +443,16 @@ def build_cost() -> str:
     return page("cost", "Cost at production volume", COST_PAGE)
 
 
+def doc_body(text: str) -> str:
+    """A document page: an 'On this page' row of section links (when there are several sections) above the rendered text."""
+    html = render_md(text)
+    tops = [(t, sid) for lvl, t, sid in HEADINGS if lvl == 2]
+    toc = ""
+    if len(tops) >= 4:
+        toc = '<p class="small faint" style="margin:0 0 6px">On this page</p><div class="toc docnav">' + "".join(f'<a href="#{sid}">{e(re.sub(r"[`*]", "", t))}</a>' for t, sid in tops) + "</div>"
+    return f'{toc}<div class="md">{html}</div>'
+
+
 def build_documents() -> str:
     parts = []
     for group, items in DOCS:
@@ -459,7 +469,7 @@ def build_documents() -> str:
                 text = handle.read()
             title = (re.search(r"^#\s+(.*)", text, re.M) or [None, slug_])[1]
             title = re.sub(r"[`*]", "", title)
-            write(f"md/{slug_}.html", page("prd" if slug_ == "PRD" else "documents", title, f'<p class="small"><a href="/docs/guide.html">Guide</a> · <span class="faint">{e(path)}</span></p><div class="md">{render_md(text)}</div>', wide=True))
+            write(f"md/{slug_}.html", page("prd" if slug_ == "PRD" else "documents", title, f'<p class="small"><a href="/docs/guide.html">Guide</a> · <span class="faint">{e(path)}</span></p>{doc_body(text)}', wide=True))
             cards.append(f'<a class="card" href="/docs/md/{slug_}.html"><h3>{e(re.sub(chr(96), "", title) if len(title) < 46 else slug_)}</h3><p>{e(blurb)}</p></a>')
         if cards:
             parts.append(f'<h2>{e(group)}</h2><div class="cards">{"".join(cards)}</div>')
