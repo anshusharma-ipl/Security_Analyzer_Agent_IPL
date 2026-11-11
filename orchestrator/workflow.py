@@ -98,7 +98,16 @@ def _write_json(path: str, data) -> None:
     with open(temp, "w", encoding="utf-8", newline="\n") as handle:
         json.dump(data, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
-    os.replace(temp, path)
+    # On Windows the replace fails with "access denied" while another thread, the console or a virus scanner has the file
+    # open for a moment. Retry briefly instead of ending the run.
+    for attempt in range(40):
+        try:
+            os.replace(temp, path)
+            return
+        except PermissionError:
+            if attempt == 39:
+                raise
+            time.sleep(0.05)
 
 
 def _read_json(path: str):
