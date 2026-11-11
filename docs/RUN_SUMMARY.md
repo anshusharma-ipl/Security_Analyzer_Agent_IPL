@@ -48,7 +48,7 @@ planned container is the hard wall). The secret check finds only what the masker
 
 ## 3. Evals on `golden/` (canvas section 14)
 
-The run covers 18 cases: the 11 canvas types plus the 7 red-team inputs that the built-in agents can run alone (cases 16, 17 and 20 need
+The run covers 18 cases: the 11 golden situations plus the 7 red-team inputs that the built-in agents can run alone (cases 16, 17 and 20 need
 a misbehaving agent and are in section 4). Two runs per case. A reviewer approval is **simulated** (11 approvals) and nothing is applied
 to any original. `golden/` was hashed before and after: unchanged. Since the previous run the built-in Fixer also fixes command
 injection (`shell=True`) and path traversal, so cases 02 and 03 now pass.

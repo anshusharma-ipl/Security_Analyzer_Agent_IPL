@@ -4,46 +4,46 @@
 | --- | --- |
 | **Status** | Draft for the capstone review |
 | **Sources** | `canvas.md` (the design), `AGENTS.md` (team decisions), `schemas/` (the contract), `evals/` (the measurements) |
-| **Reading guide** | Sections 1 and 2: what and for whom. Section 3: how it behaves. Section 4: how safe it is. Sections 5 and 6: how we know it works. Sections 7 to 9: cost, rollout and when we stop. |
+| **Reading guide** | 1 and 2: what it is and who it is for. 3: how it works. 4: how it stays safe. 5 and 6: how we know it works. 7 to 9: cost, the pilot and when we stop. |
 
 ## 1. Summary
 
 ### The problem
 
-Application-security scanners produce long lists of findings. Turning a finding into a safe, tested fix is still manual work.
+Security scanners produce long lists of problems. Turning each problem into a safe, tested fix is still manual work.
 
 | Pain | Why it hurts |
 | --- | --- |
 | Long, noisy lists | Many findings are false alarms or low risk. Engineers spend their time working out which are real before they fix anything. |
 | Context is scattered | To understand one finding, an engineer reads several files, the scan report and tickets. |
-| Weak tests | A passing test run does not prove the weakness is gone or that behaviour is unchanged. |
-| Repeated explanations | The same investigation is written up again for the security engineer and the code reviewer. |
+| Weak tests | Passing tests do not prove the weakness is gone, or that the code still behaves the same. |
+| Repeated explanations | The same investigation is written up twice, once for the security engineer and once for the code reviewer. |
 
 These pain points come from the scenario in the Canvas (a fictional company). They are hypotheses to validate in the pilot, not measurements.
 
-**Why trust in scanners falls.** A scanner reports a problem but does not prove it is real, does not explain it and does not fix it. When many reports turn out to be noise, engineers stop believing the list and start ignoring it, so real issues are missed.
+**Why trust in scanners falls.** A scanner reports a problem but does not prove it is real, explain it or fix it. When many reports turn out to be noise, engineers stop trusting the list and ignore it, so real problems are missed.
 
 ### What we are building
 
-An agent team that takes a Python project, its tests and an approved rules file. It finds and ranks weak spots and prepares a tested fix for each one in a temporary copy. It hands every fix to a person, who approves, edits or rejects it. It never changes the original files and never commits or deploys.
+The Security Analyzer is a team of three AI agents: the Auditor, the Investigator, and the Fixer and Validator. You give it a Python project, its tests and an approved rules file. It finds and ranks the weak spots, then prepares and tests a fix for each one in a temporary copy. A person approves, edits or rejects every fix. It never changes your original files, and it never commits or deploys.
 
 ### Who it is for
 
 | Who | Need |
 | --- | --- |
-| Software engineers who resolve security findings and write the fixes alongside feature work (the canvas persona is Meera) | Faster investigation and verification, with the evidence needed to approve a fix confidently. Not another list of possible problems. |
+| Software engineers who fix security findings alongside their feature work (the canvas persona is Meera) | Faster investigation and checking, with enough evidence to approve a fix with confidence. Not another list of possible problems. |
 | The security engineer who owns the rules file | Findings that follow the approved rules, and a record of every decision. |
 
 The pilot has three to five engineers on one non-production repository.
 
 ### Why an agent and not a script
 
-| Part of the work | Done by | Reason |
-| --- | --- | --- |
-| Scanning for weak spots | Code | Exact and repeatable. No judgement needed. |
-| Tracing whether a finding is reachable from untrusted input | Agent | Needs reading code across files. |
-| Choosing the smallest safe fix | Agent | The right answer differs by case. In the golden set `case_01`, `case_05`, `case_07` and `case_11` are all SQL injection with four different right answers. |
-| Deciding when to stop and hand over | Agent, with code rules | Safety depends on knowing what it cannot do. |
+Plain code does the exact work. An agent does the work that needs judgement.
+
+- **Scanning for weak spots: code.** It is exact and repeatable, so it needs no judgement.
+- **Tracing the cause: agent.** It has to read code across several files to see whether untrusted input can reach the weak spot.
+- **Choosing the smallest safe fix: agent.** The right fix differs each time. In the golden set, four SQL injection cases (`case_01`, `case_05`, `case_07`, `case_11`) have four different right fixes.
+- **Deciding when to stop and hand over: agent, with code rules.** Safety depends on knowing what it cannot do.
 
 ### Non-goals
 
@@ -56,7 +56,7 @@ The pilot has three to five engineers on one non-production repository.
 
 | | |
 | --- | --- |
-| **The job** | When a project has security findings, see only proven findings, each with a tested fix, so the safe ones are approved quickly and the time goes to the ones that need a person. |
+| **The job** | When a project has security findings, see only proven ones, each with a tested fix. The safe fixes are approved quickly, and the time goes to the ones that need a person. |
 | **Success in the pilot** | At least 30% less human time per scan (to be measured), no unsafe action, and a false-fix rate at or below 5%. |
 
 ## 3. How it behaves
@@ -66,7 +66,7 @@ The pilot has three to five engineers on one non-production repository.
 | Input | Rule |
 | --- | --- |
 | Source folder | One Python project, read only. At most 200 files are scanned. |
-| Rules file | `rules.json`, checked against `schemas/rules.schema.json` before anything runs. One security engineer owns it. The agent never edits it. |
+| Rules file | `rules.json`, checked against `schemas/rules.schema.json` before anything runs. One security engineer owns it, and the agents never edit it. |
 | Tests | The project's own test command (default `python -m unittest discover -s tests`), run in the temporary copy. Each test run is stopped after **120 seconds**; a run that times out cannot verify a fix. |
 | Limits | The run limits below. |
 
@@ -77,7 +77,7 @@ If a limit is reached, the run stops cleanly: findings not yet handled are marke
 | Limit | Default | What it does |
 | --- | --- | --- |
 | File cap | 200 files | Lists no more than this many files; the rest are not scanned and the report says so. |
-| Step cap | 50 steps | One step is one handoff to an agent. Stops runaway loops. |
+| Step cap | 50 steps | One step is one handoff to an agent. Stops endless loops. |
 | AI-call cap | 60 calls | Counts every model request. The console raises it to 150 for runs with a model. |
 | Token cap | 400,000 in and 60,000 out | Stops spending on a single scan. |
 | Time cap | 20 minutes | Stops a scan that takes too long. The console raises it to 40 minutes for runs with a model. |
@@ -142,80 +142,67 @@ A person approves every fix. In addition, the agent stops and hands a finding ov
 
 ### 4.1 What can go wrong, and what stops it
 
-| Failure | Likelihood, impact (team estimate) | Guardrail | Where it is proved |
-| --- | --- | --- | --- |
-| A false fix: labelled verified but wrong | Medium, high | "Verified" is set only by the orchestrator, from passing tests and a clear re-check. A person approves every fix. | `tests/test_decisions.py`; red-team case 14 still breaks it |
-| A patch causes a regression | Medium, high | Smallest change, tests green first, human review, nothing applied automatically | `tests/test_decisions.py` |
-| Secrets or personal data reach the model vendor | Medium, high | Masking before any model call; a leak scan on the log and report | `tests/test_containment.py`; red-team case 21 (masking gaps remain) |
-| Instructions hidden in code steer the model | Medium, medium | Code is data, never instructions; structured replies only; no free tool access | case 09 passes; red-team cases 12 and 13 still break it |
-| Tests or patches run something harmful | Low, high | Forbidden commands, path allow-list, temporary copy only, network denied by default | `kill_checks.py`; red-team case 20 still breaks it |
-| The model reports problems that are not real | High, medium | A finding must show file, line and code, or it is dropped | `tests/test_decisions.py` |
-| The rules file is wrong or altered | Low, high | Schema check; the version is recorded in every report | Step 1 of every run |
-| The model changes behaviour after an update | Medium, medium | The model version is recorded; the full benchmark runs on every change | `evals/run_evals.py` |
-| The agent changes original files | Low, high | Files fingerprinted before and after; a mismatch stops the run | `kill_checks.py` |
+| What can go wrong | What stops it | Stopped when tested? |
+| --- | --- | --- |
+| A fix is marked verified but is wrong | Only the orchestrator can mark a fix verified, and only after passing tests and a clear re-check | No (red-team case 14) |
+| A fix breaks working code | Tests must pass first, and a person reviews every fix | No (red-team case 14) |
+| Secrets reach the AI provider | They are replaced by placeholders before any model call | No (red-team case 21) |
+| Hidden instructions in code steer the model | Code is read as text and never obeyed | No (red-team cases 12 and 13: ignored, but not logged) |
+| A fix runs something harmful | Forbidden commands are refused, and only the temporary copy is written | No (red-team case 20) |
+| The model reports a problem that is not real | A finding with no file, line and code is dropped | Yes |
+| The rules file is wrong | It is checked against a schema at the start of every run | Yes |
+| Your original files change | They are fingerprinted before and after, and any change stops the run | Yes |
+| The AI provider updates the model and it starts giving different answers | Every run records the model version, so a change can be traced. After a change, the test cases are run again and compared with the earlier results. | By hand (a person has to start the test run) |
 
-Red team: 8 of 10 attacks still break the system. They are listed on the Test cases page with the smallest proposed fix for each. None is fixed yet.
+**Stopped when tested?** **Yes**: the tests pass and no attack gets through. **No**: a red-team attack beat this guardrail, so open the case to see how. **By hand**: a person has to start the check. Nothing runs it automatically.
 
-### 4.2 Guardrails by stage
+The checks come in three kinds. Code tests check that the guardrails work: `tests/test_decisions.py` and `tests/test_containment.py` cover the ones above. `kill_checks.py` checks the eight kill criteria. `evals/run_evals.py` checks how the agents behave on the test cases.
 
-| Stage | Guardrails |
-| --- | --- |
-| Input | The rules file is checked and the file count is capped before anything runs. Only the given folder is read; links that leave it are refused. Secrets, email addresses and phone numbers become placeholders before text reaches a model. Hostile text in code is treated as data and logged as `prompt_injection_attempt`. Test commands that install packages, commit, push or deploy are refused. |
-| Output | Every agent reply must pass its JSON schema. A finding without proof is dropped and logged. A patch must apply and still parse. "Verified" is set only by the orchestrator. The log and report are scanned for unmasked sensitive values. The originals are fingerprinted again at the end; any change stops the run. The model-backed Fixer refuses patches that touch tests, requirements, the rules file or paths outside the copy; the orchestrator does not yet enforce this for every agent (red-team case 20). |
-| Human review | Each proposed fix sits in a review queue with its evidence, diff, test results and residual risk. A person approves, edits or rejects it; rejecting and editing need a reason. An edited patch goes through the same tests and re-check. Approved fixes become `fixes.patch`, which a person applies. |
+Red team: 8 of 10 attacks still get through. They are on the Evals and testing page, each with the smallest proposed fix. None is fixed yet.
+
+### 4.2 The last gate: a person reviews every fix
+
+- Each fix waits in a review queue with its evidence, diff, test results and residual risk.
+- A person approves, edits or rejects it. Editing and rejecting need a reason.
+- Approved fixes become `fixes.patch`. A person applies it. Nothing is applied automatically.
 
 ## 5. Quality bar and where we stand
 
-Two criteria are non-negotiable: **100% evidence coverage** and **zero unsafe workspace actions**. The rest are pilot thresholds. Offline agents are the built-in agents with no model, scored on the 21 golden cases (about one case per type, so a direction, not a proof). The live run is one real scan with GPT-5.
+Two measures must always hold: every finding has evidence, and nothing is written to your original files. The rest are pilot thresholds. **Built-in agents** are the agents with no AI model, scored on the 21 test cases (a direction, not a proof). **Live run** is one real scan with GPT-5.
 
-| Criterion | Required | Offline agents | Live GPT-5 run | Status |
+| Measure | Required | Built-in agents | Live GPT-5 run | Met? |
 | --- | --- | --- | --- | --- |
-| Findings with file, line and code evidence | 100% | 100% | 100% (10 of 10) | Met |
-| Writes to originals or outside the workspace | 0 | 0 | 0 | Met |
-| High-severity detection recall | at least 90% | 100% | n/a | Met |
-| Finding precision | at least 85% | 89% | n/a | Met |
-| Verified-fix success rate | at least 75% | 80% (8 of 10 cases) | 70% (7 of 10 findings) | Met offline; live is close |
-| False-fix rate | at most 5% | 27% (3 of 11 labels wrong) | not measured | Not met |
-| Regression-test pass rate for verified fixes | 100% | 100% | 100% | Met |
-| Audit-record completeness | 100% | 100% | 100% | Met |
-| Human approval rate of verified proposals | at least 70% | n/a | 100% (7 of 7) | Met on one run |
-
-**Reading the blank cells.**
-
-| Entry | Meaning |
-| --- | --- |
-| n/a | The number does not apply. Recall and precision score the deterministic rules. All 10 live findings were found by those rules, not by the model, and the demo project has no answer key, so they are scored on the golden set. Offline runs have no human reviewer, so there is no approval rate. |
-| not measured | The number could be measured but was not. The live false-fix rate needs a person to check each approved fix independently. |
-| Verified-fix success and "9 of 11 golden cases pass" | Different counts. Verified-fix success counts only the cases where a fix was expected. The golden pass count includes cases where the right answer is to hand over to a person. |
+| Every finding has file, line and code evidence | 100% | 100% | 100% (10 of 10) | Yes |
+| Writes to your originals or outside the temporary copy | 0 | 0 | 0 | Yes |
+| Serious problems found (high-severity recall) | at least 90% | 100% | n/a (no answer key for the demo project) | Yes |
+| Findings that are real (precision) | at least 85% | 89% | n/a (no answer key for the demo project) | Yes |
+| Fixes that end up verified (verified-fix success) | at least 75% | 80% (8 of the 10 cases that expect a fix) | 70% (7 of 10 findings) | Built-in: yes. Live: close |
+| Wrong fixes marked verified (false-fix rate) | at most 5% | 27% (3 of 11 labels wrong) | not measured (a person must check each fix) | No |
+| Verified fixes that pass the tests | 100% | 100% | 100% | Yes |
+| Complete audit record | 100% | 100% | 100% | Yes |
+| Verified fixes that people approve | at least 70% | n/a (no human reviewer) | 100% (7 of 7) | Yes, on one run |
 
 ## 6. How we measure
 
 ### 6.1 What we score against
 
-| Item | Detail |
-| --- | --- |
-| Golden dataset | 21 cases. 11 are the canvas types. 10 are red-team attacks. Each has an answer key (`expected.json`). The plan is to grow the set from failed and rejected fixes. |
-| Red-team attacks | Instructions hidden in code, weak tests, a re-check that blocks a pair, broken replies, unparsable patches, safe-looking code, forbidden writes, secrets the masking misses. |
+| Set | Cases | What it holds |
+| --- | ---: | --- |
+| Golden dataset | 11 | Realistic small projects, one for each of the 11 situations the canvas lists. Each has an answer key (`expected.json`). |
+| Red-team attacks | 10 | Cases written to break the system: instructions hidden in code, weak tests, a re-check that blocks a pair, broken replies, unparsable patches, safe-looking code, forbidden writes, secrets the masking misses. Each has an answer key too. |
+
+The plan is to grow both sets from failed and rejected fixes.
 
 ### 6.2 How each result is judged
 
 | Method | Used for | How |
 | --- | --- | --- |
-| Checks in code | Vulnerability present, test outcome, source unchanged, files inside the workspace, valid syntax, patch size, evidence and audit completeness | Exact. Pass or fail. |
-| A second model as judge | Whether the explanation, the patch and the risk note are sound | **Planned, not run yet.** It never changes a status. |
+| Checks in code | Is the weakness there? Did the tests pass? Are your files unchanged? Did everything stay inside the copy? Does the fix parse? Is the evidence and the audit record complete? | Exact. Pass or fail. |
+| A second model as judge | Are the explanation, the fix and the risk note sound? | **Planned, not run yet.** It would never change a status. |
 
-### 6.3 When it should run
+### 6.3 How to run it
 
-Today the evals are run by hand; there is no automated pipeline yet.
-
-| Trigger | Run |
-| --- | --- |
-| Any prompt, rule or model change | The full benchmark |
-| Before a release | The full regression |
-| During the pilot | A sample of approved and rejected fixes |
-| Any unsafe action | An immediate alert |
-
-### 6.4 Commands
+Run these by hand after any prompt, rule or model change, and before a release. There is no automatic pipeline yet.
 
 | Command | What it does |
 | --- | --- |
@@ -247,24 +234,24 @@ The rates used ($2 per million input tokens, $8 per million output tokens) must 
 
 ## 8. Rollout
 
-| Item | Pilot setting |
-| --- | --- |
-| Repository | One non-production repository |
-| Language and classes | Python; SQL injection, command injection, path traversal |
-| People | Three to five engineers; manual and agent-assisted work compared on the same labelled examples |
-| Approval | A person approves every fix. No commits, pull requests, deployments or dependency changes. |
+### What the pilot is
 
-**Scale up only when:**
+- **Where:** one non-production repository.
+- **What it covers:** Python projects, and three kinds of problem: SQL injection, command injection and path traversal.
+- **Who:** three to five engineers. Manual work and agent-assisted work are compared on the same labelled examples.
+- **Approval:** a person approves every fix. There are no commits, pull requests, deployments or dependency changes.
 
-| Condition |
-| --- |
-| All safety gates hold |
-| The benchmark thresholds are met |
-| Reviewers accept at least 70% of verified proposals |
-| No regression is traced to an approved proposal |
-| A second team can adopt the same rule format |
-| Costs stay below the measured manual-review cost |
-| Code-processing and model-provider policies are approved |
+### When we scale up
+
+We scale up only when all of these are true:
+
+- All safety gates hold.
+- The benchmark thresholds are met.
+- Reviewers accept at least 70% of verified proposals.
+- No regression is traced to an approved proposal.
+- A second team can adopt the same rule format.
+- Costs stay below the measured manual-review cost.
+- Code-processing and model-provider policies are approved.
 
 ## 9. Kill criteria and rollback
 
@@ -281,7 +268,7 @@ The rates used ($2 per million input tokens, $8 per million output tokens) must 
 
 Each of the eight has an automatic check and a test (`kill_checks.py`).
 
-### Rollback: go back to the previous rules, prompts, model or scan-only mode if
+### Rollback: the product owner decides to go back to the previous rules, prompts, model or scan-only mode if
 
 | Trigger |
 | --- |

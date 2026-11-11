@@ -23,9 +23,17 @@ One finding (F007, command injection) needed a retry: the first fix called an `e
 | Output (includes reasoning) | 46,280 | $8.00 | $0.37 |
 | **Total** | **236,478** | | **$0.75** |
 
-The rates are assumed, not a quote: tokens and calls are measured, money is calculated from them. Replace the rates with your own price card.
+## 3. What the same tokens would cost on other models
 
-## 3. Cost at volume
+This takes the tokens the real run used (190,198 in, 46,280 out) and prices them at each provider's published rate. It is a price comparison, not a run: only GPT-5 was actually run.
+
+| Provider | Model | Input per 1M tokens | Output per 1M tokens | Cost of this run's tokens |
+| --- | --- | ---: | ---: | ---: |
+| OpenAI | gpt-5 (the model used in this run) | $1.25 | $10.00 | **$0.70** |
+| Anthropic | Claude Sonnet 5.5 | $2.00 | $10.00 | **$0.84** |
+| Google | Gemini 3.8 Flash | $0.75, then $1.50 from 1 Jan 2027 | $3.75, then $7.50 from 1 Jan 2027 | **$0.32**, then **$0.63** |
+
+## 4. Cost at volume
 
 22 working days a month, every scan costing what this run cost. The measured run already includes context re-reads and the retry, so no extra multiplier is applied.
 
@@ -35,34 +43,11 @@ The rates are assumed, not a quote: tokens and calls are measured, money is calc
 | 20 | 440 | 104 million | about $330 |
 | 100 | 2,200 | 520 million | about $1,650 |
 
-## 4. Work done by each agent
-
-The run recorded token totals only, not tokens per agent or per finding, so no cost split by agent or finding is shown.
-
-| Agent | What it did | Handoffs |
-| --- | --- | ---: |
-| Auditor | 1 scan and 8 re-checks | 9 |
-| Investigator | 10 investigations, one per finding | 10 |
-| Fixer and Validator | 1 baseline test run and 8 fix attempts | 9 |
-
-On average a finding cost about $0.075 in tokens ($0.75 over 10 findings), and a verified fix about $0.107 ($0.75 over 7 fixes).
-
-## 5. Efficiency
-
-| Measure | Value |
-| --- | --- |
-| Cost per verified fix | $0.107 |
-| Cost per AI call | $0.009 |
-| Cost per file scanned | $0.027 |
-| Tokens per finding | 23,648 |
-| Output tokens against the cap | 77% (46,280 of 60,000) |
-| Time against the cap | 48% (1,143 of 2,400 seconds) |
-
-## 7. What is still unmeasured
+## 5. What is still unmeasured
 
 - **Reviewer time.** A person approved the fixes, but how long it took was not recorded, so no time-saved figure is claimed.
 - **Larger projects.** This run covered 28 files. Tokens grow with the files and context each agent reads.
-- **Other models.** Only GPT-5 has run a full scan with token counts. Claude ran through a local bridge; Gemini has only been tested against a mock server. No price comparison is shown, because other models' prices were not verified.
+- **Other models.** Only GPT-5 has run a full scan with token counts. Claude ran through a local bridge; Gemini has only been tested against a mock server. The comparison in section 3 prices GPT-5's tokens at other models' published rates; it is not a measurement of those models.
 - **Cost today without the agent.** Engineer hours per finding today are not measured. The canvas uses an illustrative 2.5 hours at $60 an hour.
 - **Prompt caching and batch discounts.** Not modelled; both would lower the real cost.
 - **Scan volume.** 5, 20 and 100 scans a day are planning volumes, not measurements.

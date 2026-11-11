@@ -37,7 +37,7 @@ Open `http://localhost:8765/?token=choose-a-long-random-value` once. The token i
 
 ## Publish the site on GitHub Pages
 
-`.github/workflows/pages.yml` builds a static site (the console replay of recorded runs and the documentation pages: summary, canvas, agent design, how a scan works, guardrails, tests, results, cost, pilot, limits and how it was built) and publishes it on every push to `master`.
+`.github/workflows/pages.yml` builds a static site (the console replay of recorded runs and the documentation pages: problem and idea, canvas, agent design, how we built, evals and testing, how a scan works, guardrails, kill criteria and rollback, cost, results, pilot plan and limits) and publishes it on every push to `master`.
 
 1. In the repository, open Settings > Pages and set Source to **GitHub Actions**.
 2. Merge `feature/console-model-guide` into `master` (or run the "Publish site" workflow by hand).

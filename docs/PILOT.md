@@ -37,7 +37,7 @@ Business owner (owns outcomes): **TO FILL**.
 ## 3. Comparing manual and agent-assisted time on the same labelled examples
 
 **The examples.** The security engineer labels each one before any run: it is a true or false positive, its rule, file and line,
-the right fix approach, and whether it should go to a person. Start from `golden/` (21 cases: the 11 canvas types plus 10 red-team
+the right fix approach, and whether it should go to a person. Start from `golden/` (21 cases: the 11 golden situations plus 10 red-team
 cases) and add the real findings of the pilot repository, up to about 20 labelled examples for the first comparison (AGENTS.md
 section 7). Labels are written to an `expected.json` in the same format and are never changed after a run.
 
