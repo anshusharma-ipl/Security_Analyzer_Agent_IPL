@@ -540,8 +540,8 @@ class Handler(BaseHTTPRequestHandler):
     def _site(self, path: str) -> None:
         """Static files: /static/* from ui/static, /docs/* from ui/site (the built guide). Nothing outside those folders."""
         base, rel = (os.path.join(HERE, "static"), path[len("/static/"):]) if path.startswith("/static/") \
-            else (os.path.join(HERE, "site"), path[len("/docs/"):] if path != "/docs" else "guide.html")
-        rel = unquote(rel) or "guide.html"
+            else (os.path.join(HERE, "site"), path[len("/docs/"):] if path != "/docs" else "summary.html")
+        rel = unquote(rel) or "summary.html"
         target = os.path.realpath(os.path.join(base, rel))
         if not target.startswith(os.path.realpath(base) + os.sep) or not os.path.isfile(target):
             return self._fail(404, "not found")

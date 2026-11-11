@@ -52,11 +52,12 @@ class ConsoleTest(unittest.TestCase):
         self.fail("timeout waiting for " + str(phases))
 
     def test_guide_pages_are_served_and_nothing_outside_the_site_folders(self):
-        s, body = self.call("/docs/guide.html")
+        s, body = self.call("/docs/summary.html")
         self.assertEqual(s, 200)
-        self.assertIn(b"How the Security Analyzer works", body)
+        self.assertIn(b"Summary", body)
         self.assertEqual(self.call("/static/app.css")[0], 200)
-        self.assertEqual(self.call("/docs/md/PRD.html")[0], 200)
+        for page in ("design", "behaves", "safe", "testing", "results", "cost", "pilot", "limits", "prompts", "canvas", "run"):
+            self.assertEqual(self.call(f"/docs/{page}.html")[0], 200, page)
         for bad in ("/docs/../server.py", "/static/../server.py", "/docs/%2e%2e/server.py", "/docs/nothing.html"):
             self.assertEqual(self.call(bad)[0], 404, bad)
 

@@ -21,15 +21,11 @@ rec = read(HERE, "recorded.json")
 
 body = html[html.index('<header class="topbar">'):html.index("<script>")]
 body = body.replace('<a class="brand" href="/">', '<a class="brand" href="#top">')
-NAVLINKS = [("Guide", "guide.html"), ("PRD", "md/PRD.html"), ("Cost", "cost.html"), ("Canvas", "canvas.html"), ("How it was built", "prompts.html"), ("Test cases", "golden.html")]
+NAVLINKS = [("Documentation", "summary.html")]
 nav = '<nav class="nav" aria-label="Main"><a href="#top" aria-current="page">Scan (recorded)</a>' + "".join(f'<a href="docs/{h}">{t}</a>' for t, h in NAVLINKS) + "</nav>"
 body = re.sub(r'<nav class="nav".*?</nav>', nav, body, flags=re.S)
 body = re.sub(r'<div class="notice">.*?</div>', '<div class="notice"><span><b>Replay of real runs.</b> Pick a sample and press Run scan to play back a recorded run made with the offline stand-in agents. Nothing executes in this page. To scan your own code, run the live console from the repository.</span></div>', body, count=1, flags=re.S)
 body = re.sub(r'<div class="footer">.*?</div>', '<div class="footer">Live console: <a href="https://github.com/anshusharma-ipl/Security_Analyzer_Agent_IPL" target="_blank" rel="noopener">repository</a></div>', body, flags=re.S)
-body = body.replace('<a class="small" href="/docs/guide.html">How to connect a model</a>', "")
-body = body.replace('<a class="small" href="/docs/guide.html">Read how it works</a>', "")
-body = body.replace('<p class="small"><a href="/docs/guide.html">Read how it works</a></p>', "")
-body = re.sub(r'<a class="small" href="/docs/guide.html#model">.*?</a>', "", body)
 
 main_js = html[html.index("<script>") + 8:html.rindex("</script>")]
 shim = r"""

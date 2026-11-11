@@ -1,0 +1,56 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent design · Security Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css"></head><body>
+<header class="topbar"><div class="in"><a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>Security Analyzer</a></div></header>
+<div class="shell"><aside class="side" aria-label="Pages"><a class="scan" href="/"><span class="n">&#9654;</span><span>Scan</span></a><a href="/docs/run.html"><span>Try it yourself</span></a><div class="sgrp">The idea</div><a href="/docs/summary.html"><span class="n">1</span><span>Summary</span></a><a href="/docs/canvas.html"><span class="n">2</span><span>Canvas</span></a><a href="/docs/design.html" aria-current="page"><span class="n">3</span><span>Agent design</span></a><div class="sgrp">How it works</div><a href="/docs/behaves.html"><span class="n">4</span><span>How a scan works</span></a><a href="/docs/safe.html"><span class="n">5</span><span>Guardrails and safety</span></a><div class="sgrp">The proof</div><a href="/docs/testing.html"><span class="n">6</span><span>How we test it</span></a><a href="/docs/results.html"><span class="n">7</span><span>Results</span></a><a href="/docs/cost.html"><span class="n">8</span><span>Cost</span></a><div class="sgrp">Delivery</div><a href="/docs/pilot.html"><span class="n">9</span><span>Pilot and kill criteria</span></a><a href="/docs/limits.html"><span class="n">10</span><span>Limits and next steps</span></a><a href="/docs/prompts.html"><span class="n">11</span><span>How it was built</span></a></aside>
+<main class="doc"><h1>Agent design</h1><p class="lede">The design decisions behind the agent team: why an agent, who does what, how they are connected, and which agentic patterns are used.</p>
+<h2>1. Why an agent and not a script</h2>
+<div class="md"><table><tr><th>Part of the work</th><th>Done by</th><th>Reason</th></tr><tr><td>Scanning for weak spots</td><td>Code</td><td>Exact and repeatable. No judgement needed.</td></tr><tr><td>Tracing whether a finding is reachable from untrusted input</td><td>Agent</td><td>Needs reading code across files.</td></tr><tr><td>Choosing the smallest safe fix</td><td>Agent</td><td>The right answer differs by case. In the golden set <code>case_01</code>, <code>case_05</code>, <code>case_07</code> and <code>case_11</code> are all SQL injection with four different right answers.</td></tr><tr><td>Deciding when to stop and hand over</td><td>Agent, with code rules</td><td>Safety depends on knowing what it cannot do.</td></tr></table></div>
+<h2>2. The team</h2>
+<p>Three agents, each with one job and its own tools, and a plain-code orchestrator that is not a model.</p>
+<div class="md"><table><tr><th>Role</th><th>Decides</th><th>Tools</th><th>Never</th></tr><tr><td>Auditor</td><td>Which rule matches are reportable, and their order</td><td><code>list_files</code>, <code>read_file</code>, <code>run_security_rules</code></td><td>Writes anything</td></tr><tr><td>Investigator</td><td>Whether the cause can be traced, and which fix approach suits it, or hand over</td><td><code>read_file</code>, <code>read_code_structure</code></td><td>Writes anything</td></tr><tr><td>Fixer and Validator</td><td>The patch, and whether to keep, retry once or reject</td><td><code>apply_patch</code> (temporary copy only), <code>run_tests</code>, <code>request_recheck</code></td><td>Sets the final status</td></tr><tr><td>Orchestrator (plain code)</td><td>Order, limits, approvals, status, report</td><td>Its own steps</td><td>Is a model</td></tr></table><p>Agents never call each other. Each agent uses only its own tools. The shared state has one owner per field.</p></div>
+<h2>3. The architecture</h2>
+<div class="figure"><svg viewBox="0 0 920 520" role="img" aria-label="Architecture sketch. Inputs and a person feed a workflow orchestrator, which hands work to three agents one at a time. The Auditor reads the source files, the Fixer and Validator writes only in a temporary copy, and all three agents use the AI model service. The orchestrator writes the report, patch file and audit log.">
+<style>.t{font:600 14px var(--sans);fill:var(--ink)}.s{font:12.5px var(--sans);fill:var(--ink-2)}.m{font:12px var(--mono);fill:var(--ink-2)}
+.b{fill:var(--surface);stroke:var(--line);stroke-width:1.5}.o{fill:var(--info-bg);stroke:var(--brand);stroke-width:1.5}.d{fill:var(--sunk);stroke:var(--line);stroke-width:1.5}.a{stroke:var(--ink-3);stroke-width:1.5;fill:none;marker-end:url(#ah)}.a2{stroke:var(--ink-3);stroke-width:1.5;fill:none;marker-end:url(#ah);marker-start:url(#ah)}</style>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--ink-3)"/></marker></defs>
+<rect class="b" x="20" y="10" width="250" height="62" rx="9"/><text class="t" x="36" y="36">Inputs</text><text class="s" x="36" y="56">Code folder, tests, rules.json</text>
+<rect class="b" x="650" y="10" width="250" height="62" rx="9"/><text class="t" x="666" y="36">Person</text><text class="s" x="666" y="56">Approves, edits or rejects each fix</text>
+<path class="a" d="M145 72 L290 128"/><path class="a2" d="M775 72 L630 128"/>
+<rect class="o" x="210" y="128" width="500" height="76" rx="10"/><text class="t" x="228" y="156">Workflow orchestrator (not an agent)</text><text class="s" x="228" y="178">Order, limits, approvals, decision log, report</text>
+<rect class="b" x="750" y="128" width="150" height="76" rx="9"/><text class="t" x="764" y="156">Output</text><text class="s" x="764" y="176">Report, patch file,</text><text class="s" x="764" y="192">audit log</text>
+<path class="a" d="M710 166 L750 166"/>
+<path class="a" d="M290 204 L155 258"/><path class="a" d="M460 204 L460 258"/><path class="a" d="M630 204 L765 258"/>
+<rect class="b" x="20" y="258" width="270" height="104" rx="9"/><text class="t" x="36" y="284">1. Auditor</text><text class="s" x="36" y="304">Finds and ranks findings</text><text class="m" x="36" y="330">list_files, read_file,</text><text class="m" x="36" y="346">run_security_rules</text>
+<rect class="b" x="325" y="258" width="270" height="104" rx="9"/><text class="t" x="341" y="284">2. Investigator</text><text class="s" x="341" y="304">Traces the cause, picks a fix approach</text><text class="m" x="341" y="330">read_file,</text><text class="m" x="341" y="346">read_code_structure</text>
+<rect class="b" x="630" y="258" width="270" height="104" rx="9"/><text class="t" x="646" y="284">3. Fixer and Validator</text><text class="s" x="646" y="304">Fixes, tests, keeps / retries / rejects</text><text class="m" x="646" y="330">apply_patch, run_tests,</text><text class="m" x="646" y="346">request_recheck</text>
+<path class="a" d="M155 362 L155 420"/><path class="a" d="M765 362 L765 420"/>
+<path class="a" d="M200 362 L370 420"/><path class="a" d="M460 362 L460 420"/><path class="a" d="M720 362 L550 420"/>
+<rect class="d" x="20" y="420" width="270" height="80" rx="9"/><text class="t" x="36" y="446">Source files</text><text class="s" x="36" y="466">Read only</text>
+<rect class="o" x="325" y="420" width="270" height="80" rx="9"/><text class="t" x="341" y="446">AI model service</text><text class="s" x="341" y="466">Sees code with sensitive</text><text class="s" x="341" y="482">values hidden</text>
+<rect class="d" x="630" y="420" width="270" height="80" rx="9"/><text class="t" x="646" y="446">Temporary copy</text><text class="s" x="646" y="466">The only place anything is written</text>
+</svg></div>
+<p>Every handoff goes through the orchestrator. The agents never call each other, and the original files are read only.</p>
+<h2>4. Agentic patterns used</h2>
+<div class="tw"><table><tr><th>Pattern</th><th>Used</th><th>How</th></tr>
+<tr><td>Multi-agent with an orchestrator</td><td><span class="pill ok">Yes</span></td><td>Three agents with separate jobs, coordinated by plain code.</td></tr>
+<tr><td>Pipeline</td><td><span class="pill ok">Yes</span></td><td>A scan is seven fixed steps, in a fixed order.</td></tr>
+<tr><td>Tool use with least privilege</td><td><span class="pill ok">Yes</span></td><td>Seven tools. Each agent gets only its own, through its own MCP profile.</td></tr>
+<tr><td>Routing and hand-over</td><td><span class="pill ok">Yes</span></td><td>Each finding is routed: fix, retry, or hand to a person.</td></tr>
+<tr><td>Reflection and retry</td><td><span class="pill ok">Yes</span></td><td>The rules run again on the fixed copy, and a failed fix gets one retry.</td></tr>
+<tr><td>Human in the loop</td><td><span class="pill ok">Yes</span></td><td>A person approves, edits or rejects every fix.</td></tr>
+<tr><td>Parallel agents</td><td><span class="pill ">No</span></td><td>One handoff at a time, so every step is logged in order.</td></tr>
+<tr><td>Free-form planning</td><td><span class="pill ">No</span></td><td>The order is fixed by the orchestrator, not chosen by a model.</td></tr>
+<tr><td>Retraining the model</td><td><span class="pill ">No</span></td><td>The model is not retrained. Failed and rejected fixes are added to the test set instead.</td></tr></table></div>
+<h2>5. State and contracts</h2>
+<div class="tw"><table><tr><th>Part</th><th>How it works</th></tr>
+<tr><td>Shared state</td><td>One document owned by the orchestrator. Each field has one writer, so an agent cannot overwrite what it does not own.</td></tr>
+<tr><td>Contracts</td><td>Every agent reply is checked against a JSON schema before the orchestrator accepts it.</td></tr>
+<tr><td>Decisions</td><td>The orchestrator, not an agent, sets the final status. "Verified" comes from test and re-check results.</td></tr></table></div>
+<h2>6. What each agent is told</h2>
+<p>The text each agent is given at run time is kept in the repository and shown here.</p>
+<div class="cards"><a class="card" href="/docs/md/auditor.html"><h3>Auditor</h3><p>Runs once over the whole project.</p></a><a class="card" href="/docs/md/investigator.html"><h3>Investigator</h3><p>Called once per finding, after the baseline tests pass.</p></a><a class="card" href="/docs/md/fixer_validator.html"><h3>Fixer &amp; Validator</h3><p>Two jobs.</p></a></div>
+<p class="small muted">Source documents: <a href="/docs/md/roster.html">Roster: single or several agents</a> · <a href="/docs/md/AGENTS.html">AGENTS.md: the team spec</a></p>
+<nav class="pager" aria-label="Previous and next page"><a class="prev" href="/docs/canvas.html"><small>Previous</small><span>&larr; Canvas</span></a><a class="next" href="/docs/behaves.html"><small>Next</small><span>How a scan works &rarr;</span></a></nav></main></div></body></html>
