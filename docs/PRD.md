@@ -66,7 +66,7 @@ The pilot has three to five engineers on one non-production repository.
 | Source folder | One Python project, read only. At most 200 files are scanned. |
 | Rules file | `rules.json`, checked against `schemas/rules.schema.json` before anything runs. One security engineer owns it. The agent never edits it. |
 | Tests | The project's own test command (default `python -m unittest discover -s tests`), run in the temporary copy. Each test run is stopped after **120 seconds**; a run that times out cannot verify a fix. |
-| Limits | The run limits in 3.2. |
+| Limits | The run limits below. |
 
 ### 3.2 Limits and default values
 
@@ -164,19 +164,26 @@ Red team: 8 of 10 attacks still break the system. They are listed on the Test ca
 
 ## 5. Quality bar and where we stand
 
-Two criteria are non-negotiable: **100% evidence coverage** and **zero unsafe workspace actions**. The rest are pilot thresholds. Offline agents are the built-in agents with no model; the live run is one real scan with GPT-5 (see the Guide for what each means).
+Two criteria are non-negotiable: **100% evidence coverage** and **zero unsafe workspace actions**. The rest are pilot thresholds. Offline agents are the built-in agents with no model, scored on the 21 golden cases (about one case per type, so a direction, not a proof). The live run is one real scan with GPT-5.
 
 | Criterion | Required | Offline agents | Live GPT-5 run | Status |
 | --- | --- | --- | --- | --- |
-| Findings with file, line and code evidence | 100% | 100% | | Met |
+| Findings with file, line and code evidence | 100% | 100% | 100% (10 of 10) | Met |
 | Writes to originals or outside the workspace | 0 | 0 | 0 | Met |
-| High-severity detection recall | at least 90% | 100% | | Met |
-| Finding precision | at least 85% | 89% | | Met |
+| High-severity detection recall | at least 90% | 100% | n/a | Met |
+| Finding precision | at least 85% | 89% | n/a | Met |
 | Verified-fix success rate | at least 75% | 80% (8 of 10 cases) | 70% (7 of 10 findings) | Met offline; live is close |
 | False-fix rate | at most 5% | 27% (3 of 11 labels wrong) | not measured | Not met |
 | Regression-test pass rate for verified fixes | 100% | 100% | 100% | Met |
 | Audit-record completeness | 100% | 100% | 100% | Met |
-| Human approval rate of verified proposals | at least 70% | | 100% (7 of 7) | Met on one run |
+| Human approval rate of verified proposals | at least 70% | n/a | 100% (7 of 7) | Met on one run |
+
+**Reading the blank cells.**
+
+| Entry | Meaning |
+| --- | --- |
+| n/a | The number does not apply. Recall and precision score the deterministic rules. All 10 live findings were found by those rules, not by the model, and the demo project has no answer key, so they are scored on the golden set. Offline runs have no human reviewer, so there is no approval rate. |
+| not measured | The number could be measured but was not. The live false-fix rate needs a person to check each approved fix independently. |
 
 ## 6. How we measure
 

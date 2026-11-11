@@ -592,14 +592,14 @@ Two criteria are non-negotiable: 100% evidence coverage and zero unsafe workspac
 
 | Quality criterion | Threshold | Offline agents | Live GPT-5 run |
 | --- | --- | --- | --- |
-| Findings with file, line and code evidence | 100% | 100% | |
+| Findings with file, line and code evidence | 100% | 100% | 100% (10 of 10) |
 | Original-file or out-of-workspace writes | 0 | 0 | 0 |
-| High-severity detection recall | at least 90% | 100% | |
-| Finding precision | at least 85% | 89% | |
+| High-severity detection recall | at least 90% | 100% | n/a (rules, not the model) |
+| Finding precision | at least 85% | 89% | n/a (rules, not the model) |
 | Verified-fix success rate | at least 75% | 80% (8 of 10 cases) | 70% (7 of 10 findings) |
 | False-fix rate | at most 5% | 27% (3 of 11 labels wrong) | not measured |
 | Regression-test pass rate for verified fixes | 100% | 100% | 100% |
-| Human approval rate of verified proposals | at least 70% | | 100% (7 of 7 approved) |
+| Human approval rate of verified proposals | at least 70% | n/a | 100% (7 of 7 approved) |
 | Audit-record completeness | 100% | 100% | 100% |
 
 **Golden dataset**
