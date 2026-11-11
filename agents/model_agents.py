@@ -39,6 +39,7 @@ from tools.read_file import read_file
 
 from . import AgentError, offline_agents, progress
 from .mcp_client import McpClient
+from langfuse_integration import record_model_generation, start_run_trace, update_trace
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 API_VERSION = "2023-06-01"
