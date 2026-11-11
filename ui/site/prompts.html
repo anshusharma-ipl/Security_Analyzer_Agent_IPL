@@ -1,14 +1,23 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>How it was built · Security Analyzer</title>
+<title>How we built · Security Analyzer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css"></head><body>
-<header class="topbar"><div class="in"><a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>Security Analyzer</a></div></header>
-<div class="shell"><aside class="side" aria-label="Pages"><a class="scan" href="/"><span class="n">&#9654;</span><span>Scan</span></a><a href="/docs/run.html"><span>Try it yourself</span></a><div class="sgrp">The idea</div><a href="/docs/summary.html"><span class="n">1</span><span>Summary</span></a><a href="/docs/canvas.html"><span class="n">2</span><span>Canvas</span></a><a href="/docs/design.html"><span class="n">3</span><span>Agent design</span></a><div class="sgrp">How it works</div><a href="/docs/behaves.html"><span class="n">4</span><span>How a scan works</span></a><a href="/docs/safe.html"><span class="n">5</span><span>Guardrails and safety</span></a><div class="sgrp">The proof</div><a href="/docs/testing.html"><span class="n">6</span><span>How we test it</span></a><a href="/docs/results.html"><span class="n">7</span><span>Results</span></a><a href="/docs/cost.html"><span class="n">8</span><span>Cost</span></a><div class="sgrp">Delivery</div><a href="/docs/pilot.html"><span class="n">9</span><span>Pilot and kill criteria</span></a><a href="/docs/limits.html"><span class="n">10</span><span>Limits and next steps</span></a><a href="/docs/prompts.html" aria-current="page"><span class="n">11</span><span>How it was built</span></a></aside>
-<main class="doc"><h1>How it was built</h1>
-<p class="lede">These are the fifteen prompts used with Claude Code to build the agents, in the order they were run. Open one to read it.</p>
+<header class="topbar"><div class="in"><a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>Security Analyzer</a><span class="team">IPL Neural Navigators<i>&middot;</i>Cohort ICAIPM2026F</span></div></header>
+<div class="shell"><aside class="side" aria-label="Pages"><a class="scan" href="/"><span class="n">&#9654;</span><span>Scan</span></a><a href="/docs/run.html"><span>Try it yourself</span></a><div class="sgrp">The idea</div><a href="/docs/summary.html"><span class="n">1</span><span>Problem and idea</span></a><a href="/docs/design.html"><span class="n">2</span><span>Agent design</span></a><a href="/docs/prompts.html" aria-current="page"><span class="n">3</span><span>How we built</span></a><a href="/docs/testing.html"><span class="n">4</span><span>Evals and testing</span></a><div class="sgrp">How it runs</div><a href="/docs/behaves.html"><span class="n">5</span><span>How a scan works</span></a><a href="/docs/safe.html"><span class="n">6</span><span>Guardrails</span></a><a href="/docs/kill.html"><span class="n">7</span><span>Kill criteria and rollback</span></a><a href="/docs/cost.html"><span class="n">8</span><span>Cost</span></a><div class="sgrp">Results and plan</div><a href="/docs/results.html"><span class="n">9</span><span>Results</span></a><a href="/docs/pilot.html"><span class="n">10</span><span>Pilot plan</span></a><a href="/docs/limits.html"><span class="n">11</span><span>Limits and next steps</span></a></aside>
+<main class="doc"><h1>How we built</h1>
+<p class="lede">What it does, and the fifteen prompts used with Claude Code to build it, in the order they were run.</p>
+<h2>What it does</h2>
+<p>It scans a Python project for weak spots, proposes a fix for each, tests the fix in a temporary copy, then waits for you to approve, edit or reject it. It never changes your files.</p>
+<div class="cards">
+<div class="card"><h3>Finds</h3><p>SQL injection, command injection and path traversal. It also reports hard-coded secrets, weak password hashes and unpinned packages, but never fixes those.</p></div>
+<div class="card"><h3>Proposes and tests</h3><p>Each fix is applied to a temporary copy, the project's own tests run, and the rules run again. A fix counts as verified only if both pass.</p></div>
+<div class="card"><h3>Asks you</h3><p>Every fix waits for a person. Approved fixes are written to <code>fixes.patch</code>. You apply them yourself.</p></div>
+</div>
+<h2>The prompts</h2>
+<p>Each step says what it does. Open <b>Show the prompt</b> to read the prompt itself.</p>
 <p class="small muted">Each prompt produced code, tests and a commit. How well the result scores is on the <a href="/docs/results.html">Results</a> page, and the agents' instructions are on the <a href="/docs/design.html">Agent design</a> page.</p>
-<div class="phase">Foundations</div><details class="item" id="step-0"><summary><span class="num">0</span><div class="sum"><b>Set up the project</b><span>Creates the project folder with the canvas and golden dataset, starts git, and runs the golden check once, so every later failure is yours to find, not inherited.</span></div></summary><div class="body"><h4>The prompt</h4><pre>We are building the Security Analyzer Agent. Use these three paths and read nothing
+<div class="phase">Foundations</div><div class="step" id="step-0"><div class="stephead"><span class="num">1</span><b>Set up the project</b></div><p>Creates the project folder with the canvas and golden dataset, starts git, and runs the golden check once, so every later failure is yours to find, not inherited.</p><details class="prompt"><summary>Show the prompt</summary><pre>We are building the Security Analyzer Agent. Use these three paths and read nothing
 else on this computer:
   Project folder (create it): &lt;PROJECT_PATH&gt;
   Our canvas file:            &lt;CANVAS_PATH&gt;
@@ -26,7 +35,7 @@ Set up the project and change nothing else.
    the full output.
 5. Write a 5-line README.md: what this project is, where canvas.md is, and how to run
    verify_golden.py.
-Do not write any other code.</pre></div></details><details class="item" id="step-1"><summary><span class="num">1</span><div class="sum"><b>Load the spec</b><span>Turns the canvas into AGENTS.md, a short rulebook the coding agent re-reads before every later prompt: goal, scope, roster, tool permissions, the NEVER list, the per-finding decision order…</span></div></summary><div class="body"><h4>The prompt</h4><pre>You are helping us build the Security Analyzer Agent. canvas.md is the single source
+Do not write any other code.</pre></details></div><div class="step" id="step-1"><div class="stephead"><span class="num">2</span><b>Load the spec</b></div><p>Reads the whole canvas, which stays the single source of truth, and writes AGENTS.md from it: a short rulebook (120 lines at most) that the coding agent re-reads before every later prompt. It holds the goal, scope, roster, tool permissions, the NEVER list, the per-finding decision order, run limits, quality bar and resolved decisions.</p><details class="prompt"><summary>Show the prompt</summary><pre>You are helping us build the Security Analyzer Agent. canvas.md is the single source
 of truth: read all of it. Then read golden/README.md and golden/rules.json.
 Do not write code yet.
 Create AGENTS.md (CLAUDE.md if you are Claude Code), at most 120 lines, containing:
@@ -61,7 +70,7 @@ Create AGENTS.md (CLAUDE.md if you are Claude Code), at most 120 lines, containi
      endpoint, owner of the production rules.json, baseline human time per scan
      (measured in the pilot).
 Where the canvas is silent about anything else, do not invent: list it under &quot;Open
-questions&quot; at the end of AGENTS.md and show me only that list.</pre></div></details><details class="item" id="step-2"><summary><span class="num">2</span><div class="sum"><b>The agent roster</b><span>Makes the coding agent argue the design again: the single-agent version and where it fails the canvas, a roster table, the three-sentence test for each agent, a recommendation on whether…</span></div></summary><div class="body"><h4>The prompt</h4><pre>Read AGENTS.md and canvas.md sections 6 and 10. Do not write code.
+questions&quot; at the end of AGENTS.md and show me only that list.</pre></details></div><div class="step" id="step-2"><div class="stephead"><span class="num">3</span><b>The agent roster</b></div><p>Makes the coding agent argue the design again: the single-agent version and where it fails the canvas, a roster table, the three-sentence test for each agent, a recommendation on whether the Auditor should stay an agent, and a Mermaid diagram.</p><details class="prompt"><summary>Show the prompt</summary><pre>Read AGENTS.md and canvas.md sections 6 and 10. Do not write code.
 1. Describe the single-agent version in one paragraph: one model, all seven tools,
    no orchestrator. Say where it would fail against canvas sections 12 and 13.
 2. Propose the multi-agent version as a roster table, one row per agent:
@@ -76,7 +85,7 @@ questions&quot; at the end of AGENTS.md and show me only that list.</pre></div><
    (b) replace it with run_security_rules plus a deterministic ranking.
 5. Draw the chosen design as a Mermaid diagram. The orchestrator is plain code, every
    handoff goes through it, and the agents never call each other.
-Save everything to docs/roster.md. Stop and wait for my OK before doing anything else.</pre></div></details><div class="phase">Contracts and tools</div><details class="item" id="step-3"><summary><span class="num">3</span><div class="sum"><b>Contracts before code</b><span>Writes the contracts before any code: JSON Schemas for the input, the rules file, the final output, the shared state (one owner per field) and one per tool, plus validate.py to prove bad…</span></div></summary><div class="body"><h4>The prompt</h4><pre>Read canvas.md sections 11, 12 and 13, and AGENTS.md. Before any agent exists, write
+Save everything to docs/roster.md. Stop and wait for my OK before doing anything else.</pre></details></div><div class="phase">Contracts and tools</div><div class="step" id="step-3"><div class="stephead"><span class="num">4</span><b>Contracts before code</b></div><p>Writes the contracts before any code: JSON Schemas for the input, the rules file, the final output, the shared state (one owner per field) and one per tool, plus validate.py to prove bad payloads are rejected loudly.</p><details class="prompt"><summary>Show the prompt</summary><pre>Read canvas.md sections 11, 12 and 13, and AGENTS.md. Before any agent exists, write
 JSON Schemas (draft 2020-12) in schemas/:
 1. input.schema.json: source_folder, rules_file, policy { file_cap, max_retries,
    test_command, ai_call_cap, time_cap_seconds, confidence_gate }.
@@ -98,7 +107,7 @@ and needs_a_person). Define each value in one line. Wait for my OK on the enum.
 Then write validate.py with 3 valid and 3 invalid payloads per schema. Put in code
 the checks JSON Schema cannot express: quoted_code really appears at that file and
 line; confidence is between 0 and 1; patch_diff touches only files in the temporary
-copy. Show me what each invalid payload is rejected for.</pre></div></details><details class="item" id="step-4A"><summary><span class="num">4A</span><div class="sum"><b>Build the seven tools</b><span>Builds the seven agent tools as plain Python functions with schema-checked arguments, a command-line wrapper and the three orchestrator helpers (make_temp_copy, hash_originals…</span></div></summary><div class="body"><h4>The prompt</h4><pre>Read canvas.md section 9 (tools and workflow steps) and section 13 (risks), AGENTS.md
+copy. Show me what each invalid payload is rejected for.</pre></details></div><div class="step" id="step-4A"><div class="stephead"><span class="num">5</span><b>Build the seven tools</b></div><p>Builds the seven agent tools as plain Python functions with schema-checked arguments, a command-line wrapper and the three orchestrator helpers (make_temp_copy, hash_originals, verify_originals). The safety lives here: paths are resolved, links that leave the project are refused, and writes only land in the registered temporary copy.</p><details class="prompt"><summary>Show the prompt</summary><pre>Read canvas.md section 9 (tools and workflow steps) and section 13 (risks), AGENTS.md
 and schemas/. Build the seven agent tools as plain Python functions in tools/, each
 validating its arguments and result against schemas/, plus a command-line wrapper:
   python -m tools.cli &lt;tool_name&gt; &#x27;&lt;json args&gt;&#x27;
@@ -119,7 +128,7 @@ hash_originals, verify_originals.
 Safety in code: resolve every path with realpath; refuse symlinks that leave the
 project; refuse any write to the original folder; return clear error messages.
 Write tests/test_tools.py with one test per tool, including a refused write to the
-original folder and a symlink that leaves the project. Run the tests and show me.</pre></div></details><details class="item" id="step-4B"><summary><span class="num">4B</span><div class="sum"><b>Wrap the tools in an MCP server</b><span>Wraps the seven tools in a small MCP server (JSON-RPC over stdio, standard library only).</span></div></summary><div class="body"><h4>The prompt</h4><pre>Read AGENTS.md, schemas/ and tools/. Wrap the 7 tools in a small MCP server,
+original folder and a symlink that leaves the project. Run the tests and show me.</pre></details></div><div class="step" id="step-4B"><div class="stephead"><span class="num">6</span><b>Wrap the tools in an MCP server</b></div><p>Wraps the seven tools in a small MCP server (JSON-RPC over stdio, standard library only). Each agent is started with --agent &lt;name&gt; and can list and call only its own tools; any other call is refused. No safety rule moves into the wrapper.</p><details class="prompt"><summary>Show the prompt</summary><pre>Read AGENTS.md, schemas/ and tools/. Wrap the 7 tools in a small MCP server,
 tools/mcp_server.py, using the Python standard library only: JSON-RPC 2.0 over stdio
 with initialize, tools/list and tools/call. The tool functions stay unchanged and no
 safety rule moves into the wrapper: every rule still lives in tools/.
@@ -134,11 +143,11 @@ safety rule moves into the wrapper: every rule still lives in tools/.
 - Add a --check flag: start the server for each agent, list its tools, call one tool on
   golden/case_01_sqli_fstring, and prove that a call to a tool the agent does not own
   is refused.
-Write tests/test_mcp.py for the above. Run the tests and show me.</pre></div></details><details class="item" id="step-4C"><summary><span class="num">4C</span><div class="sum"><b>Scan baseline with no AI model</b><span>Runs the tools alone, with no AI, over every golden case and prints rule hits against expected.json.</span></div></summary><div class="body"><h4>The prompt</h4><pre>Using the tools from the last step and no AI model, run list_files, run_security_rules
+Write tests/test_mcp.py for the above. Run the tests and show me.</pre></details></div><div class="step" id="step-4C"><div class="stephead"><span class="num">7</span><b>Scan baseline with no AI model</b></div><p>Runs the tools alone, with no AI, over every golden case and prints rule hits against expected.json. This is the baseline the agents must beat or match: if plain scanning already finds the pattern cases, the agents only add judgement.</p><details class="prompt"><summary>Show the prompt</summary><pre>Using the tools from the last step and no AI model, run list_files, run_security_rules
 and read_code_structure on all 11 golden cases and print a table:
   case | rules found (rule, file, line) | expected in expected.json | match yes/no
 Do not fix a mismatch by editing expected.json. Fix the tool, or tell me why the
-expected answer needs an AI judgement. Do not loosen a rule just to make a row match.</pre></div></details><div class="phase">Agents and workflow</div><details class="item" id="step-5"><summary><span class="num">5</span><div class="sum"><b>State object, orchestrator and agents</b><span>Builds the three runtime agent prompts (agents/*.md), the MCP client, the shared state with a handoff log, and the workflow orchestrator that runs the seven fixed steps and writes…</span></div></summary><div class="body"><h4>The prompt</h4><pre>OPTION A · no API key: the coding agent runs each agent
+expected answer needs an AI judgement. Do not loosen a rule just to make a row match.</pre></details></div><div class="phase">Agents and workflow</div><div class="step" id="step-5"><div class="stephead"><span class="num">8</span><b>State object, orchestrator and agents</b></div><p>Builds the three runtime agent prompts (agents/*.md), the MCP client, the shared state with a handoff log, and the workflow orchestrator that runs the seven fixed steps and writes review_queue.json, then waits for a person.</p><details class="prompt"><summary>Show the prompt</summary><pre>OPTION A · no API key: the coding agent runs each agent
 Read canvas.md sections 9 and 10, AGENTS.md, docs/roster.md and schemas/.
 Use schemas/state.schema.json, and add step_count and handoff_log if missing.
 Build the agents as sub-agents (Claude Code: .claude/agents/auditor.md,
@@ -172,7 +181,7 @@ when done, or when file_cap, ai_call_cap or time_cap is hit, and hand the rest t
 person. Read the API key from .env; never print or log it. Approved fixes are written
 only to out/&lt;run_id&gt;/fixes.patch, never to the original folder. Log every handoff to
 traces/&lt;run_id&gt;.jsonl. Run golden/case_01_sqli_fstring end to end and show me the
-trace and the final report.</pre></div></details><div class="phase">Guardrails</div><details class="item" id="step-6A"><summary><span class="num">6A</span><div class="sum"><b>Containment: tools, originals, injection, privacy</b><span>Puts the containment guardrails into code, so a tricked prompt cannot switch them off: tool ownership, original-file hashing, schema-checked handoffs, injection comments ignored and logged…</span></div></summary><div class="body"><h4>The prompt</h4><pre>Read canvas.md sections 9, 13 and 16, and AGENTS.md. Add these guardrails in code, not
+trace and the final report.</pre></details></div><div class="phase">Guardrails</div><div class="step" id="step-6A"><div class="stephead"><span class="num">9</span><b>Containment: tools, originals, injection, privacy</b></div><p>Puts the containment guardrails into code, so a tricked prompt cannot switch them off: tool ownership, original-file hashing, schema-checked handoffs, injection comments ignored and logged, masking of secrets and personal values, and a ban on commit, push, install, delete, network and rules edits.</p><details class="prompt"><summary>Show the prompt</summary><pre>Read canvas.md sections 9, 13 and 16, and AGENTS.md. Add these guardrails in code, not
 only in prompts, with one unittest each in tests/test_containment.py:
 - tools: each agent can call ONLY its own tools (the MCP server&#x27;s --agent filter plus a
   check in the orchestrator); anything else returns an error
@@ -187,7 +196,7 @@ only in prompts, with one unittest each in tests/test_containment.py:
   rules.json, contact any network host except the approved model endpoint
 Now show each one firing: case_09 (injection comment ignored and logged), case_10 (key
 and personal values masked), one deliberately malformed handoff blocked, and one tool
-call that tries to write into the original folder stopped.</pre></div></details><details class="item" id="step-6B"><summary><span class="num">6B</span><div class="sum"><b>Decisions: evidence, &quot;verified&quot;, limits, hand-over</b><span>Puts the decision guardrails into code: a finding without proof is dropped, &#x27;verified&#x27; needs passing tests AND a clear re-check, one retry per finding, caps stop the run, and every…</span></div></summary><div class="body"><h4>The prompt</h4><pre>Read canvas.md sections 10, 12 and 13, and AGENTS.md. Add these guardrails in code, with
+call that tries to write into the original folder stopped.</pre></details></div><div class="step" id="step-6B"><div class="stephead"><span class="num">10</span><b>Decisions: evidence, &quot;verified&quot;, limits, hand-over</b></div><p>Puts the decision guardrails into code: a finding without proof is dropped, &#x27;verified&#x27; needs passing tests AND a clear re-check, one retry per finding, caps stop the run, and every hand-to-a-person trigger writes the full handoff package.</p><details class="prompt"><summary>Show the prompt</summary><pre>Read canvas.md sections 10, 12 and 13, and AGENTS.md. Add these guardrails in code, with
 one unittest each in tests/test_decisions.py:
 - evidence: a finding without file, line and quoted code is dropped
 - verified: a fix is &quot;verified&quot; only if run_tests passes AND request_recheck is clear
@@ -199,7 +208,7 @@ one unittest each in tests/test_decisions.py:
   Write the full handoff package (canvas section 12) to review_queue.json
 Now show each one firing: case_08 (no tests), case_06 (dependency), case_07 (redesign),
 case_11 (low confidence), a fix whose tests pass but whose re-check is not clear, and a
-run that hits the retry cap.</pre></div></details><div class="phase">Measurement</div><details class="item" id="step-7A"><summary><span class="num">7A</span><div class="sum"><b>Score every case against the answer key</b><span>Scores the whole system against the answer key: every case runs end to end with a simulated reviewer, and the Section 14 metrics are computed in code.</span></div></summary><div class="body"><h4>The prompt</h4><pre>Read canvas.md section 14 and AGENTS.md. Build evals/ on top of golden/. expected.json
+run that hits the retry cap.</pre></details></div><div class="phase">Measurement</div><div class="step" id="step-7A"><div class="stephead"><span class="num">11</span><b>Score every case against the answer key</b></div><p>Scores the whole system against the answer key: every case runs end to end with a simulated reviewer, and the Section 14 metrics are computed in code. With about one case per type every percentage is only directional.</p><details class="prompt"><summary>Show the prompt</summary><pre>Read canvas.md section 14 and AGENTS.md. Build evals/ on top of golden/. expected.json
 is the answer key: never change it.
 1. Check that every case&#x27;s expected.json validates against schemas/ (status in the
    enum; the named file and line exist).
@@ -214,7 +223,7 @@ is the answer key: never change it.
    pass rate for verified fixes, original-file writes, audit-record completeness.
 Record the rules-file version and the model name and version in every eval run.
 Print: pass or fail per case, and the metrics against the thresholds. State clearly
-that with one case per type the percentages are directional.</pre></div></details><details class="item" id="step-7B"><summary><span class="num">7B</span><div class="sum"><b>Which agent broke, how stable it is, and the judge</b><span>Adds three things on top of the scoring: which agent broke first on each failure, a consistency run that flags cases whose status flips between runs, and an LLM judge (a different model…</span></div></summary><div class="body"><h4>The prompt</h4><pre>Extend evals/ with three things:
+that with one case per type the percentages are directional.</pre></details></div><div class="step" id="step-7B"><div class="stephead"><span class="num">12</span><b>Which agent broke, how stable it is, and the judge</b></div><p>Adds three things on top of the scoring: which agent broke first on each failure, a consistency run that flags cases whose status flips between runs, and an LLM judge (a different model from the agents) for only what code cannot check.</p><details class="prompt"><summary>Show the prompt</summary><pre>Extend evals/ with three things:
 4. Per agent: for every failure, report which agent was first to go wrong (Auditor missed
    or invented a finding; Investigator wrong cause or wrong &quot;fixable&quot; call; Fixer &amp;
    Validator kept a bad fix). Print failures grouped by agent.
@@ -222,7 +231,7 @@ that with one case per type the percentages are directional.</pre></div></detail
 6. A judge, using a different model from the agents, only for what code cannot check:
    whether the root-cause explanation is correct, whether the patch is minimal, and
    whether residual risk is stated. Do not let the judge decide anything code can check.
-Print one summary: pass rate, failures by agent, unstable cases, judge scores.</pre></div></details><details class="item" id="step-8"><summary><span class="num">8</span><div class="sum"><b>Red-team the system</b><span>Asks for the failures you did not think of: ten hostile inputs aimed at the seams between agents, each added to golden/ as a new case with an expected.json, with the spec line each one…</span></div></summary><div class="body"><h4>The prompt</h4><pre>Read canvas.md section 13 and AGENTS.md. Act as a red-teamer for our Security Analyzer
+Print one summary: pass rate, failures by agent, unstable cases, judge scores.</pre></details></div><div class="step" id="step-8"><div class="stephead"><span class="num">13</span><b>Red-team the system</b></div><p>Asks for the failures you did not think of: ten hostile inputs aimed at the seams between agents, each added to golden/ as a new case with an expected.json, with the spec line each one breaks and the smallest proposed fix.</p><details class="prompt"><summary>Show the prompt</summary><pre>Read canvas.md section 13 and AGENTS.md. Act as a red-teamer for our Security Analyzer
 Agent. Write 10 inputs most likely to break it, each as a small project like the cases
 in golden/, including:
 - instructions hidden in a docstring, a string literal or a README that one agent
@@ -239,7 +248,7 @@ in golden/, including:
 - one more edge case only code security has: choose it and say why
 Run them. For each failure: name the canvas section or AGENTS.md line it breaks, add it
 to golden/ as a new case with an expected.json in the same format, and propose the
-smallest fix. Do not apply any fix yet.</pre></div></details><details class="item" id="step-9"><summary><span class="num">9</span><div class="sum"><b>Cost and demo</b><span>Measures what one scan costs from the handoff counts, prices it with the model strategy once you supply the price card and rates, and writes DEMO.md: the four-run demo script (case_01…</span></div></summary><div class="body"><h4>The prompt</h4><pre>Read canvas.md section 15. From traces/, compute for each agent the average input and
+smallest fix. Do not apply any fix yet.</pre></details></div><div class="step" id="step-9"><div class="stephead"><span class="num">14</span><b>Cost and demo</b></div><p>Measures what one scan costs from the handoff counts, prices it with the model strategy once you supply the price card and rates, and writes DEMO.md: the four-run demo script (case_01, case_05, case_09, case_08) with exact commands, the trace and originals-unchanged proofs, and reset.</p><details class="prompt"><summary>Show the prompt</summary><pre>Read canvas.md section 15. From traces/, compute for each agent the average input and
 output tokens per scan, and how many handoffs a typical scan takes.
 Price it using the model strategy in the canvas: rules first (no model cost); a smaller
 approved model for the Auditor&#x27;s classification and ranking; the stronger model for
@@ -252,7 +261,7 @@ Write this to docs/cost.md and list what is still unmeasured.
 Then write DEMO.md: the run order (case_01 happy path, then case_05 across three
 files, then case_09 trap comment, then case_08 or case_11 handed to a person), the exact
 inputs, how to show the handoff trace and the originals-unchanged proof on screen, and
-how to reset.</pre></div></details><div class="phase">Pilot gate</div><details class="item" id="step-10"><summary><span class="num">10</span><div class="sum"><b>Pilot gate: prove the kill switches work</b><span>Makes the canvas&#x27;s kill switches executable: docs/PILOT.md, a kill_checks.py with one automatic check per immediate kill criterion, one unit test that deliberately triggers each, and a…</span></div></summary><div class="body"><h4>The prompt</h4><pre>Read canvas.md sections 13 and 16. Create docs/PILOT.md and kill_checks.py.
+how to reset.</pre></details></div><div class="phase">Pilot gate</div><div class="step" id="step-10"><div class="stephead"><span class="num">15</span><b>Pilot gate: prove the kill switches work</b></div><p>Makes the canvas&#x27;s kill switches executable: docs/PILOT.md, a kill_checks.py with one automatic check per immediate kill criterion, one unit test that deliberately triggers each, and a table of rollback criteria pointing to the metric that signals each.</p><details class="prompt"><summary>Show the prompt</summary><pre>Read canvas.md sections 13 and 16. Create docs/PILOT.md and kill_checks.py.
 1. docs/PILOT.md: the pilot as the canvas defines it (one non-production repository,
    Python, SQLI, CMDI and PATH, one security engineer who owns rules.json, three to five
    engineers, approval on every fix, no commits, pull requests, deployments or
@@ -269,5 +278,5 @@ how to reset.</pre></div></details><div class="phase">Pilot gate</div><details c
    stops.
 4. A table of the rollback criteria in canvas section 16, with the metric that signals
    each one and the place in evals/ where it is computed.
-Show me the table: kill criterion | check | test result.</pre></div></details>
-<nav class="pager" aria-label="Previous and next page"><a class="prev" href="/docs/limits.html"><small>Previous</small><span>&larr; Limits and next steps</span></a><span></span></nav></main></div></body></html>
+Show me the table: kill criterion | check | test result.</pre></details></div>
+<nav class="pager" aria-label="Previous and next page"><a class="prev" href="/docs/design.html"><small>Previous</small><span>&larr; Agent design</span></a><a class="next" href="/docs/testing.html"><small>Next</small><span>Evals and testing &rarr;</span></a></nav></main></div></body></html>

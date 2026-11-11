@@ -3,28 +3,25 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css"></head><body>
-<header class="topbar"><div class="in"><a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>Security Analyzer</a></div></header>
-<div class="shell"><aside class="side" aria-label="Pages"><a class="scan" href="/"><span class="n">&#9654;</span><span>Scan</span></a><a href="/docs/run.html"><span>Try it yourself</span></a><div class="sgrp">The idea</div><a href="/docs/summary.html"><span class="n">1</span><span>Summary</span></a><a href="/docs/canvas.html"><span class="n">2</span><span>Canvas</span></a><a href="/docs/design.html"><span class="n">3</span><span>Agent design</span></a><div class="sgrp">How it works</div><a href="/docs/behaves.html"><span class="n">4</span><span>How a scan works</span></a><a href="/docs/safe.html"><span class="n">5</span><span>Guardrails and safety</span></a><div class="sgrp">The proof</div><a href="/docs/testing.html"><span class="n">6</span><span>How we test it</span></a><a href="/docs/results.html"><span class="n">7</span><span>Results</span></a><a href="/docs/cost.html"><span class="n">8</span><span>Cost</span></a><div class="sgrp">Delivery</div><a href="/docs/pilot.html"><span class="n">9</span><span>Pilot and kill criteria</span></a><a href="/docs/limits.html" aria-current="page"><span class="n">10</span><span>Limits and next steps</span></a><a href="/docs/prompts.html"><span class="n">11</span><span>How it was built</span></a></aside>
-<main class="doc"><h1>Limits and next steps</h1><p class="lede">What is not done yet, stated plainly, and what we would do next.</p>
+<header class="topbar"><div class="in"><a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>Security Analyzer</a><span class="team">IPL Neural Navigators<i>&middot;</i>Cohort ICAIPM2026F</span></div></header>
+<div class="shell"><aside class="side" aria-label="Pages"><a class="scan" href="/"><span class="n">&#9654;</span><span>Scan</span></a><a href="/docs/run.html"><span>Try it yourself</span></a><div class="sgrp">The idea</div><a href="/docs/summary.html"><span class="n">1</span><span>Problem and idea</span></a><a href="/docs/design.html"><span class="n">2</span><span>Agent design</span></a><a href="/docs/prompts.html"><span class="n">3</span><span>How we built</span></a><a href="/docs/testing.html"><span class="n">4</span><span>Evals and testing</span></a><div class="sgrp">How it runs</div><a href="/docs/behaves.html"><span class="n">5</span><span>How a scan works</span></a><a href="/docs/safe.html"><span class="n">6</span><span>Guardrails</span></a><a href="/docs/kill.html"><span class="n">7</span><span>Kill criteria and rollback</span></a><a href="/docs/cost.html"><span class="n">8</span><span>Cost</span></a><div class="sgrp">Results and plan</div><a href="/docs/results.html"><span class="n">9</span><span>Results</span></a><a href="/docs/pilot.html"><span class="n">10</span><span>Pilot plan</span></a><a href="/docs/limits.html" aria-current="page"><span class="n">11</span><span>Limits and next steps</span></a></aside>
+<main class="doc"><h1>Limits and next steps</h1><p class="lede">What is not done yet, stated plainly, and what we would do next.</p><div class="plain"><b>In plain words</b><p>What is not done yet, and the order we would fix it in.</p></div>
 <h2>What is not done yet</h2>
 <div class="tw"><table><tr><th>Area</th><th>Where it stands</th></tr>
-<tr><td>Red team</td><td>8 of 10 attacks still break the system. None of the weaknesses is fixed yet.</td></tr>
-<tr><td>False-fix rate</td><td>27% with the built-in agents against a limit of 5%. Not measured on the live run, because nobody independently checked the approved fixes. One example of why that check matters: the accepted fix for the command-injection finding replaced the command with a plain string, which the project's tests cannot tell apart from the original.</td></tr>
-<tr><td>Model coverage</td><td>One full scan with GPT-5. Claude has run through a local bridge. The Gemini adapter has only been tested against a mock server.</td></tr>
-<tr><td>Sample size</td><td>About one test case per type and one live run, so the scores are a direction, not a proof.</td></tr>
-<tr><td>Time saved</td><td>Not measured. Reviewer time per fix, and the manual comparison, need real reviewers.</td></tr>
-<tr><td>Cost baseline</td><td>The price rates need checking against a real price card, and today's engineer hours per finding are not measured.</td></tr>
-<tr><td>Judge model</td><td>Built and tested with a stub, but no judge model is set up, so there is no live result. Before it is relied on, its answers must be compared with a person on at least 20 findings.</td></tr>
-<tr><td>Tracing service</td><td>A tracing integration sends model requests to a third-party service. It must be approved, or switched off, before any pilot.</td></tr>
-<tr><td>Pilot setup</td><td>Participants, the repository and the rules owner are still to be named.</td></tr></table></div>
+<tr><td>Red team</td><td>8 of 10 attacks still break the system. None is fixed yet.</td></tr>
+<tr><td>Models and sample size</td><td>Only GPT-5 ran a full scan, and there is about one test case per type, so the scores show a direction, not a proof.</td></tr>
+<tr><td>False-fix rate</td><td>27% against a limit of 5%. Not measured on the live run.</td></tr>
+<tr><td>Time saved</td><td>Not measured. It needs real reviewers.</td></tr>
+<tr><td>Judge model</td><td>Built, but only tested with a stub.</td></tr>
+<tr><td>Cost and data handling</td><td>The price rates are unchecked, and tracing sends requests to a third-party service.</td></tr>
+<tr><td>Pilot setup</td><td>The participants, repository and rules owner are not named.</td></tr></table></div>
 <h2>Next steps, in order</h2>
-<div class="tw"><table><tr><th>#</th><th>Step</th><th>Why it comes now</th></tr>
-<tr><td>1</td><td>Fix the four most serious red-team failures (secrets reaching run files, patches that edit tests, false fixes, missing usage counts) and re-run.</td><td>They break guardrails a pilot depends on.</td></tr>
-<tr><td>2</td><td>Score a model-backed run on all 21 cases.</td><td>It shows whether a model closes the gaps of the built-in agents.</td></tr>
-<tr><td>3</td><td>Have a person label every approved fix as right or wrong.</td><td>It gives a real false-fix rate on a live run.</td></tr>
-<tr><td>4</td><td>Record reviewer time and compare it with manual work on the same examples.</td><td>It is the only way to claim time saved.</td></tr>
-<tr><td>5</td><td>Set up the judge model and compare it with a person on at least 20 findings.</td><td>It adds a check on explanation and patch quality.</td></tr>
-<tr><td>6</td><td>Confirm the price card, and approve the model provider and the tracing service.</td><td>They fix the cost figure and the data-handling policy.</td></tr>
-<tr><td>7</td><td>Name the pilot participants, repository and rules owner, then start.</td><td>The pilot cannot begin without them.</td></tr></table></div>
-<p class="small muted">Source documents: <a href="/docs/md/PILOT.html">Pilot plan</a> · <a href="/docs/md/RUN_SUMMARY.html">Results of every check run</a></p>
-<nav class="pager" aria-label="Previous and next page"><a class="prev" href="/docs/pilot.html"><small>Previous</small><span>&larr; Pilot and kill criteria</span></a><a class="next" href="/docs/prompts.html"><small>Next</small><span>How it was built &rarr;</span></a></nav></main></div></body></html>
+<ol>
+<li>Fix the four most serious red-team failures (secrets in run files, patches that edit tests, false fixes, missing usage counts) and run them again.</li>
+<li>Score a model-backed run on all 21 cases.</li>
+<li>Have a person label every approved fix as right or wrong, to get a real false-fix rate.</li>
+<li>Record reviewer time and compare it with manual work.</li>
+<li>Set up the judge model and check it against a person on at least 20 findings.</li>
+<li>Confirm the price card, and approve the model provider and the tracing service.</li>
+<li>Name the pilot participants, repository and rules owner, then start.</li></ol>
+<nav class="pager" aria-label="Previous and next page"><a class="prev" href="/docs/pilot.html"><small>Previous</small><span>&larr; Pilot plan</span></a><span></span></nav></main></div></body></html>

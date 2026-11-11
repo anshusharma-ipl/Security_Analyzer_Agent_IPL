@@ -118,7 +118,6 @@ details.plain{border-top:1px solid var(--line);margin-top:14px;padding-top:10px}
 .frow .s{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .fdet{padding:18px 22px;min-width:0}
 .fdet h3{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.kv{display:grid;grid-template-columns:130px minmax(0,1fr);gap:8px 16px;margin:14px 0}
 .kv dt{color:var(--ink-3);font-size:13px} .kv dd{margin:0}
 .code{background:var(--sunk);border-radius:var(--r-sm);padding:10px 0;overflow:auto;font-family:var(--mono);font-size:12.5px;line-height:1.6;margin:10px 0}
 .code .ln{display:grid;grid-template-columns:44px 1fr;white-space:pre}
@@ -265,6 +264,31 @@ a.card{text-decoration:none;color:inherit}a.card:hover{border-color:var(--brand)
 .shell-main{min-width:0}
 .md h4{font-size:14.5px;margin:20px 0 6px;font-weight:700;color:var(--ink)}
 .agenthead{font-size:24px;margin:52px 0 14px;padding:12px 16px;background:var(--sunk);border-left:5px solid var(--brand);border-radius:var(--r-sm);scroll-margin-top:72px}
+.plain{background:var(--sunk);border-left:4px solid var(--brand);border-radius:var(--r-sm);padding:12px 16px;margin:0 0 22px}
+.plain b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--brand);margin-bottom:4px}
+.plain p{margin:0;font-size:16px}
+.agentpart{font-size:17px;margin:34px 0 8px;padding-top:14px;border-top:1px solid var(--line);color:var(--ink);scroll-margin-top:72px}
+.md h5{font-size:12px;margin:18px 0 4px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute);font-weight:700}
+.brand{flex-shrink:0}
+.team{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute);padding-left:16px;border-left:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.team i{font-style:normal;color:var(--faint,var(--mute))}
+@media(max-width:640px){.team{font-size:11.5px;padding-left:10px;gap:5px}.topbar .in{gap:12px}}
+.canvasbtn{display:inline-block;background:var(--brand);color:#fff;text-decoration:none;font-weight:600;padding:8px 16px;border-radius:var(--r-sm);margin-right:12px}
+.canvasbtn:hover{filter:brightness(1.1)}
+.canvasdlg{width:min(1100px,94vw);height:88vh;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink)}
+.canvasdlg[open]{display:flex;flex-direction:column}
+.canvasdlg::backdrop{background:rgba(0,0,0,.55)}
+.dlghead{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line)}
+.dlghead button{background:none;border:0;font-size:26px;line-height:1;cursor:pointer;color:var(--ink-2,var(--ink));padding:0 4px}
+.canvasdlg iframe{flex:1;width:100%;border:0}
+.embed .topbar,.embed .side{display:none}.embed .shell{display:block}
+.step{border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;margin:10px 0;background:var(--surface)}
+.stephead{display:flex;align-items:center;gap:12px;font-size:16.5px}
+.step .num{flex:none;width:28px;height:28px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px}
+.step p{margin:8px 0 8px 40px}
+.step details.prompt{margin-left:40px}
+.step details.prompt summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--brand)}
+.step details.prompt pre{margin-top:8px}
 
 
 #srcTabs,#tab-zip,#tab-dir,#modelDet,#mUse,.side details.plain,#idle .small{display:none}
@@ -282,11 +306,11 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 </style>
 <div id="top"></div>
 <header class="topbar"><div class="in">
-  <a class="brand" href="#top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>Security Analyzer</a>
+  <a class="brand" href="#top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>Security Analyzer</a><span class="team">IPL Neural Navigators<i>&middot;</i>Cohort ICAIPM2026F</span>
   <span class="mode" id="modeLabel" hidden></span>
 </div></header>
 
-<div class="shell"><aside class="side" aria-label="Pages"><!--side--><a class="scan" href="#top" aria-current="page"><span class="n">&#9654;</span><span>Scan</span></a><a href="docs/run.html"><span>Try it yourself</span></a><div class="sgrp">The idea</div><a href="docs/summary.html"><span class="n">1</span><span>Summary</span></a><a href="docs/canvas.html"><span class="n">2</span><span>Canvas</span></a><a href="docs/design.html"><span class="n">3</span><span>Agent design</span></a><div class="sgrp">How it works</div><a href="docs/behaves.html"><span class="n">4</span><span>How a scan works</span></a><a href="docs/safe.html"><span class="n">5</span><span>Guardrails and safety</span></a><div class="sgrp">The proof</div><a href="docs/testing.html"><span class="n">6</span><span>How we test it</span></a><a href="docs/results.html"><span class="n">7</span><span>Results</span></a><a href="docs/cost.html"><span class="n">8</span><span>Cost</span></a><div class="sgrp">Delivery</div><a href="docs/pilot.html"><span class="n">9</span><span>Pilot and kill criteria</span></a><a href="docs/limits.html"><span class="n">10</span><span>Limits and next steps</span></a><a href="docs/prompts.html"><span class="n">11</span><span>How it was built</span></a><!--/side--></aside><div class="shell-main">
+<div class="shell"><aside class="side" aria-label="Pages"><!--side--><a class="scan" href="#top" aria-current="page"><span class="n">&#9654;</span><span>Scan</span></a><a href="docs/run.html"><span>Try it yourself</span></a><div class="sgrp">The idea</div><a href="docs/summary.html"><span class="n">1</span><span>Problem and idea</span></a><a href="docs/design.html"><span class="n">2</span><span>Agent design</span></a><a href="docs/prompts.html"><span class="n">3</span><span>How we built</span></a><a href="docs/testing.html"><span class="n">4</span><span>Evals and testing</span></a><div class="sgrp">How it runs</div><a href="docs/behaves.html"><span class="n">5</span><span>How a scan works</span></a><a href="docs/safe.html"><span class="n">6</span><span>Guardrails</span></a><a href="docs/kill.html"><span class="n">7</span><span>Kill criteria and rollback</span></a><a href="docs/cost.html"><span class="n">8</span><span>Cost</span></a><div class="sgrp">Results and plan</div><a href="docs/results.html"><span class="n">9</span><span>Results</span></a><a href="docs/pilot.html"><span class="n">10</span><span>Pilot plan</span></a><a href="docs/limits.html"><span class="n">11</span><span>Limits and next steps</span></a><!--/side--></aside><div class="shell-main">
 <div class="cx">
   <!-- ============ left: project and model ============ -->
   <aside class="cx-side" aria-label="Scan settings">
