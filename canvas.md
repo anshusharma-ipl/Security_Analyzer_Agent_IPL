@@ -584,6 +584,20 @@ Two criteria are non-negotiable: 100% evidence coverage and zero unsafe workspac
 | **Human approval rate of verified proposals** | ≥ 70% | Low acceptance suggests poor usefulness or trust |
 | **Audit-record completeness** | 100% | Required for governance and evaluation |
 
+**Where the gates stand today.** Offline agents are the built-in agents scored on the 21 golden cases (about one case per type, so directional). The live run is one real scan of the demo project with GPT-5 (10 findings).
+
+| Quality criterion | Threshold | Offline agents | Live GPT-5 run |
+| --- | --- | --- | --- |
+| Findings with file, line and code evidence | 100% | 100% | |
+| Original-file or out-of-workspace writes | 0 | 0 | 0 |
+| High-severity detection recall | at least 90% | 100% | |
+| Finding precision | at least 85% | 89% | |
+| Verified-fix success rate | at least 75% | 80% (8 of 10 cases) | 70% (7 of 10 findings) |
+| False-fix rate | at most 5% | 27% (3 of 11 labels wrong) | not measured |
+| Regression-test pass rate for verified fixes | 100% | 100% | 100% |
+| Human approval rate of verified proposals | at least 70% | | 100% (7 of 7 approved) |
+| Audit-record completeness | 100% | 100% | 100% |
+
 **Golden dataset**
 Start with the minimum: **11 deliberately vulnerable examples, one per type below**, and grow the set as failed or rejected fixes are reviewed. With one example per type the thresholds cannot be measured yet, so early results are directional. Types to include:
 - SQL injection.
@@ -623,14 +637,14 @@ Use expert review for:
 
 ### 15. Cost and feasibility
 
-| Item | Proposed framing |
-| --- | --- |
-| **Volume** | To measure repositories scanned per team per month during discovery |
-| **Tokens per run** (text the AI reads and writes) | To measure separately for scanning, investigation, and fixing |
-| **Which model for which step (Model strategy)** | To use deterministic rules first; use a smaller approved model for finding classification and prioritization; reserve the stronger model for root-cause analysis and patch drafting |
-| **Monthly cost** | To calculate after measuring repository size, findings per run, context size, retry rate, and model selection; include ×3 overhead as required by the framework |
-| **Cost today without the agent** | The Engineering hours spent triaging, reproducing, fixing, re-testing, documenting, and reviewing findings |
-| **Feasibility** | **Data:** the code is local, but a security engineer must write the first rules file. **Tools:** all exist (text search, code-structure reader, test runner, temporary workspaces, AI model service). **Biggest technical risk:** the AI model reporting problems that are not real, and fixes that pass weak tests but are wrong. **Biggest adoption risk:** many projects lack tests anyone can trust |
+| Item | Proposed framing | Measured so far |
+| --- | --- | --- |
+| **Volume** | To measure repositories scanned per team per month during discovery | Not known yet; measure during discovery. The measured unit is one scan of the 28-file demo project (10 findings). |
+| **Tokens per run** (text the AI reads and writes) | To measure separately for scanning, investigation, and fixing | 236,478 tokens for one scan: 190,198 read and 46,280 written, about 23,600 per finding. By agent (estimated): Auditor about 75,700, Investigator about 85,100, Fixer and Validator about 75,700. |
+| **Which model for which step (Model strategy)** | To use deterministic rules first; use a smaller approved model for finding classification and prioritization; reserve the stronger model for root-cause analysis and patch drafting | All three agents ran on GPT-5 in the live run. The plan above (smaller model for classification, stronger for patches) is not tried yet. The same tokens would cost $0.15 on GPT-5-mini, $0.34 on claude-haiku-5-5 and $1.26 on claude-sonnet-5-5 at list prices; quality is not measured. |
+| **Monthly cost** | To calculate after measuring repository size, findings per run, context size, retry rate, and model selection; include ×3 overhead as required by the framework | $0.75 per scan on GPT-5. At 22 working days: about $83 a month at 5 scans a day, $330 at 20, $1,650 at 100. The measured run already includes context re-reads and one retry, so the x3 is not added on top. Reviewer time is not included. |
+| **Cost today without the agent** | The Engineering hours spent triaging, reproducing, fixing, re-testing, documenting, and reviewing findings | Not measured. The illustrative figure in section 5 is 2.5 hours a finding at $60 an hour, about $150 a finding. The agent's tokens cost about $0.075 a finding, before review time. |
+| **Feasibility** | **Data:** the code is local, but a security engineer must write the first rules file. **Tools:** all exist (text search, code-structure reader, test runner, temporary workspaces, AI model service). **Biggest technical risk:** the AI model reporting problems that are not real, and fixes that pass weak tests but are wrong. **Biggest adoption risk:** many projects lack tests anyone can trust | Shown so far: all tools exist and ran. A live scan finished within its limits (81 of 150 calls, 19 minutes). 7 of 10 findings were fixed and approved. See the Cost page for the full tables. |
 
 ### 16. Rollout and kill criteria
 
