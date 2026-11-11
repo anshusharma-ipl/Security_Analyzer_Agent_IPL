@@ -42,7 +42,7 @@
 <tr><td>Human in the loop</td><td><span class="pill ok">Yes</span></td><td>A person approves, edits or rejects every fix.</td></tr>
 <tr><td>Parallel agents</td><td><span class="pill ">No</span></td><td>One handoff at a time, so every step is logged in order.</td></tr>
 <tr><td>Free-form planning</td><td><span class="pill ">No</span></td><td>The order is fixed by the orchestrator, not chosen by a model.</td></tr>
-<tr><td>Retraining the model</td><td><span class="pill ">No</span></td><td>The model is not retrained. Failed and rejected fixes are added to the test set instead.</td></tr></table></div>
+<tr><td>Retraining the model</td><td><span class="pill ">No</span></td><td>The model is not retrained. The plan is to add failed and rejected fixes to the test set instead.</td></tr></table></div>
 <h2>4. State and contracts</h2>
 <div class="tw"><table><tr><th>Part</th><th>How it works</th></tr>
 <tr><td>Shared state</td><td>One document owned by the orchestrator. Each field has one writer, so an agent cannot overwrite what it does not own.</td></tr>

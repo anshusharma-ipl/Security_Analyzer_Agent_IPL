@@ -9,12 +9,12 @@
 <h2>What is not done yet</h2>
 <div class="tw"><table><tr><th>Area</th><th>Where it stands</th></tr>
 <tr><td>Red team</td><td>8 of 10 attacks still break the system. None of the weaknesses is fixed yet.</td></tr>
-<tr><td>False-fix rate</td><td>27% with the built-in agents against a limit of 5%. Not measured on the live run, because nobody independently checked the approved fixes.</td></tr>
+<tr><td>False-fix rate</td><td>27% with the built-in agents against a limit of 5%. Not measured on the live run, because nobody independently checked the approved fixes. One example of why that check matters: the accepted fix for the command-injection finding replaced the command with a plain string, which the project's tests cannot tell apart from the original.</td></tr>
 <tr><td>Model coverage</td><td>One full scan with GPT-5. Claude has run through a local bridge. The Gemini adapter has only been tested against a mock server.</td></tr>
 <tr><td>Sample size</td><td>About one test case per type and one live run, so the scores are a direction, not a proof.</td></tr>
 <tr><td>Time saved</td><td>Not measured. Reviewer time per fix, and the manual comparison, need real reviewers.</td></tr>
 <tr><td>Cost baseline</td><td>The price rates need checking against a real price card, and today's engineer hours per finding are not measured.</td></tr>
-<tr><td>Judge model</td><td>Built and tested with a stub. No judge model is set up, so there is no live result.</td></tr>
+<tr><td>Judge model</td><td>Built and tested with a stub, but no judge model is set up, so there is no live result. Before it is relied on, its answers must be compared with a person on at least 20 findings.</td></tr>
 <tr><td>Tracing service</td><td>A tracing integration sends model requests to a third-party service. It must be approved, or switched off, before any pilot.</td></tr>
 <tr><td>Pilot setup</td><td>Participants, the repository and the rules owner are still to be named.</td></tr></table></div>
 <h2>Next steps, in order</h2>

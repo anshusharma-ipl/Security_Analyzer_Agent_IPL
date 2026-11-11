@@ -23,7 +23,7 @@ One finding (F007, command injection) needed a retry: the first fix called an `e
 | Output (includes reasoning) | 46,280 | $8.00 | $0.37 |
 | **Total** | **236,478** | | **$0.75** |
 
-The rates are the ones used for the report; confirm them against your own price card. With prompt caching on input the total would be about $0.56. No batch discount is applied.
+The rates are assumed, not a quote: tokens and calls are measured, money is calculated from them. Replace the rates with your own price card.
 
 ## 3. Cost at volume
 
@@ -35,38 +35,19 @@ The rates are the ones used for the report; confirm them against your own price 
 | 20 | 440 | 104 million | about $330 |
 | 100 | 2,200 | 520 million | about $1,650 |
 
-## 4. Cost per finding and per agent
+## 4. Work done by each agent
 
-The split is estimated from the work each finding and agent needed. The run recorded only the total.
+The run recorded token totals only, not tokens per agent or per finding, so no cost split by agent or finding is shown.
 
-| Finding | Outcome | Estimated cost |
+| Agent | What it did | Handoffs |
 | --- | --- | ---: |
-| F001, F002, F003, F005, F006 (SQL injection) | Fixed and approved | $0.075 each |
-| F004 (SQL injection, redesign) | Needs a person | $0.038 |
-| F007 (command injection) | Fixed on retry | $0.113 |
-| F008 (path traversal) | Fixed and approved | $0.075 |
-| F009 (secret), F010 (dependency pin) | Needs a person; never auto-fixed | $0.019 each |
+| Auditor | 1 scan and 8 re-checks | 9 |
+| Investigator | 10 investigations, one per finding | 10 |
+| Fixer and Validator | 1 baseline test run and 8 fix attempts | 9 |
 
-| Agent | Work | Estimated tokens | Estimated cost |
-| --- | --- | ---: | ---: |
-| Auditor | 1 scan and 8 re-checks | about 75,700 | $0.24 |
-| Investigator | 10 investigations | about 85,100 | $0.27 |
-| Fixer and Validator | 1 baseline run and 8 fix attempts | about 75,700 | $0.24 |
+On average a finding cost about $0.075 in tokens ($0.75 over 10 findings), and a verified fix about $0.107 ($0.75 over 7 fixes).
 
-## 5. The same tokens on other models
-
-A price comparison only. A different model would use a different number of tokens and write different fixes, so measure before choosing.
-
-| Model | Input per 1M | Output per 1M | Total | Compared with GPT-5 |
-| --- | ---: | ---: | ---: | --- |
-| GPT-5 (used) | $2.00 | $8.00 | $0.75 | |
-| GPT-5-mini | $0.40 | $1.60 | $0.15 | 5 times cheaper |
-| claude-sonnet-5-5 | $3.00 | $15.00 | $1.26 | 1.7 times more |
-| claude-haiku-5-5 | $0.80 | $4.00 | $0.34 | 2.2 times cheaper |
-| gemini-flash-latest | $0.15 | $0.60 | $0.056 | 13 times cheaper |
-| gemini-pro-latest | $1.25 | $5.00 | $0.47 | 1.6 times cheaper |
-
-## 6. Efficiency
+## 5. Efficiency
 
 | Measure | Value |
 | --- | --- |
@@ -81,7 +62,7 @@ A price comparison only. A different model would use a different number of token
 
 - **Reviewer time.** A person approved the fixes, but how long it took was not recorded, so no time-saved figure is claimed.
 - **Larger projects.** This run covered 28 files. Tokens grow with the files and context each agent reads.
-- **Other models.** Only GPT-5 has run a full scan with token counts. Claude ran through a local bridge; Gemini has only been tested against a mock server.
+- **Other models.** Only GPT-5 has run a full scan with token counts. Claude ran through a local bridge; Gemini has only been tested against a mock server. No price comparison is shown, because other models' prices were not verified.
 - **Cost today without the agent.** Engineer hours per finding today are not measured. The canvas uses an illustrative 2.5 hours at $60 an hour.
 - **Prompt caching and batch discounts.** Not modelled; both would lower the real cost.
 - **Scan volume.** 5, 20 and 100 scans a day are planning volumes, not measurements.

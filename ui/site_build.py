@@ -298,7 +298,7 @@ def build_summary() -> str:
     if live:
         cost = live["tokens"]["input"] * 2 / 1e6 + live["tokens"]["output"] * 8 / 1e6
         tiles += (f'<div class="tile"><b>{live["totals"]["fixed_and_verified"]} of {live["totals"]["found"]}</b><span>findings fixed in a live {e(live["model"].upper())} run</span></div>'
-                  f'<div class="tile"><b>about ${cost:.2f}</b><span>per scan of the demo project</span></div>')
+                  f'<div class="tile"><b>about ${cost:.2f}</b><span>per scan of the demo project, at assumed rates</span></div>')
     criteria = [
         ("Problem and user", "summary", "Who has the problem, and why a scanner alone does not solve it"),
         ("Why agentic, and the design", "design", "What the agents decide, the tools each has, and the patterns used"),
@@ -385,7 +385,7 @@ def build_design() -> str:
 <tr><td>Human in the loop</td><td>{pill("ok", "Yes")}</td><td>A person approves, edits or rejects every fix.</td></tr>
 <tr><td>Parallel agents</td><td>{pill("", "No")}</td><td>One handoff at a time, so every step is logged in order.</td></tr>
 <tr><td>Free-form planning</td><td>{pill("", "No")}</td><td>The order is fixed by the orchestrator, not chosen by a model.</td></tr>
-<tr><td>Retraining the model</td><td>{pill("", "No")}</td><td>The model is not retrained. Failed and rejected fixes are added to the test set instead.</td></tr></table></div>
+<tr><td>Retraining the model</td><td>{pill("", "No")}</td><td>The model is not retrained. The plan is to add failed and rejected fixes to the test set instead.</td></tr></table></div>
 <h2>4. State and contracts</h2>
 <div class="tw"><table><tr><th>Part</th><th>How it works</th></tr>
 <tr><td>Shared state</td><td>One document owned by the orchestrator. Each field has one writer, so an agent cannot overwrite what it does not own.</td></tr>
@@ -475,12 +475,12 @@ def build_limits() -> str:
 <h2>What is not done yet</h2>
 <div class="tw"><table><tr><th>Area</th><th>Where it stands</th></tr>
 <tr><td>Red team</td><td>{broke} of 10 attacks still break the system. None of the weaknesses is fixed yet.</td></tr>
-<tr><td>False-fix rate</td><td>27% with the built-in agents against a limit of 5%. Not measured on the live run, because nobody independently checked the approved fixes.</td></tr>
+<tr><td>False-fix rate</td><td>27% with the built-in agents against a limit of 5%. Not measured on the live run, because nobody independently checked the approved fixes. One example of why that check matters: the accepted fix for the command-injection finding replaced the command with a plain string, which the project's tests cannot tell apart from the original.</td></tr>
 <tr><td>Model coverage</td><td>One full scan with GPT-5. Claude has run through a local bridge. The Gemini adapter has only been tested against a mock server.</td></tr>
 <tr><td>Sample size</td><td>About one test case per type and one live run, so the scores are a direction, not a proof.</td></tr>
 <tr><td>Time saved</td><td>Not measured. Reviewer time per fix, and the manual comparison, need real reviewers.</td></tr>
 <tr><td>Cost baseline</td><td>The price rates need checking against a real price card, and today's engineer hours per finding are not measured.</td></tr>
-<tr><td>Judge model</td><td>Built and tested with a stub. No judge model is set up, so there is no live result.</td></tr>
+<tr><td>Judge model</td><td>Built and tested with a stub, but no judge model is set up, so there is no live result. Before it is relied on, its answers must be compared with a person on at least 20 findings.</td></tr>
 <tr><td>Tracing service</td><td>A tracing integration sends model requests to a third-party service. It must be approved, or switched off, before any pilot.</td></tr>
 <tr><td>Pilot setup</td><td>Participants, the repository and the rules owner are still to be named.</td></tr></table></div>
 <h2>Next steps, in order</h2>
@@ -689,7 +689,7 @@ def build_live(inner: bool = False) -> str:
 <tr><td>Tests passed before any change</td><td>{e(run["baseline_tests"] or "")}</td></tr>
 <tr><td>A run limit was hit</td><td>{"No" if not run["cap_hit"] else e(str(run["cap_hit"]))}</td></tr>
 <tr><td>Every fix decided by a person</td><td>Yes: {e(", ".join(reviewers))}. Nothing was applied automatically.</td></tr>
-<tr><td>Sensitive values masked before the model saw them</td><td>{run["sensitive_items_hidden"]} found in this project</td></tr></table></div>
+</table></div>
 """
     return body if inner else page("live", "Live run", body)
 
@@ -739,7 +739,7 @@ COST_PAGE = r"""<h1>What a scan costs</h1>
 <tr><td>Input (what the model reads)</td><td>190,198</td><td>$2.00</td><td>$0.38</td></tr>
 <tr><td>Output (what the model writes, including reasoning)</td><td>46,280</td><td>$8.00</td><td>$0.37</td></tr>
 <tr><td><b>Total</b></td><td><b>236,478</b></td><td></td><td><b>$0.75</b></td></tr></table></div>
-<p class="small muted">The rates are the ones used for this report. Check them against your own price card before planning a budget. With prompt caching on input (if it applies), the total would fall to about $0.56.</p>
+<p class="small muted">The rates are the ones used for this report. They are assumed rates, not a quote: tokens and calls are measured, money is calculated from them. Replace the rates with your own price card before planning a budget.</p>
 
 <h2>2. What it costs at your volume</h2>
 <p>The same scan, repeated. Assumes 22 working days a month and the cost of this run for every scan (the run already includes the model re-reading its context and retrying, so no extra multiplier is added).</p>
@@ -749,40 +749,16 @@ COST_PAGE = r"""<h1>What a scan costs</h1>
 <tr><td>100</td><td>2,200</td><td>520 million</td><td>about $1,650</td></tr></table></div>
 <p class="small muted">A larger project, or one with more findings, costs more: on this run each finding used about 23,600 tokens.</p>
 
-<h2>3. Cost per finding</h2>
-<div class="tw"><table><tr><th>Finding</th><th>File</th><th>Rule</th><th>Outcome</th><th>Estimated cost</th></tr>
-<tr><td>F001</td><td>src/customers.py</td><td>SQL injection</td><td>Fixed and approved</td><td>$0.075</td></tr>
-<tr><td>F002</td><td>src/lookup.py</td><td>SQL injection</td><td>Fixed and approved</td><td>$0.075</td></tr>
-<tr><td>F003</td><td>src/products.py</td><td>SQL injection</td><td>Fixed and approved</td><td>$0.075</td></tr>
-<tr><td>F004</td><td>src/reports.py</td><td>SQL injection</td><td>Needs a person (redesign)</td><td>$0.038</td></tr>
-<tr><td>F005</td><td>src/service.py</td><td>SQL injection</td><td>Fixed and approved</td><td>$0.075</td></tr>
-<tr><td>F006</td><td>src/users.py</td><td>SQL injection</td><td>Fixed and approved</td><td>$0.075</td></tr>
-<tr><td>F007</td><td>src/netcheck.py</td><td>Command injection</td><td>Fixed on retry and approved</td><td>$0.113</td></tr>
-<tr><td>F008</td><td>src/files.py</td><td>Path traversal</td><td>Fixed and approved</td><td>$0.075</td></tr>
-<tr><td>F009</td><td>src/config.py</td><td>Secret</td><td>Needs a person (never auto-fixed)</td><td>$0.019</td></tr>
-<tr><td>F010</td><td>requirements.txt</td><td>Dependency pin</td><td>Needs a person (never auto-fixed)</td><td>$0.019</td></tr>
-<tr><td><b>Total</b></td><td></td><td></td><td></td><td><b>$0.75</b></td></tr></table></div>
-<p class="small muted">The per-finding figures are shares of the total, estimated from how much work each finding needed, not separate meter readings.</p>
+<h2>3. Work done by each agent</h2>
+<p>The run recorded token totals only, not tokens per agent or per finding, so no cost split by agent or finding is shown. What it did record is how many times each agent was called.</p>
+<div class="tw"><table><tr><th>Agent</th><th>What it did</th><th>Handoffs</th></tr>
+<tr><td>Auditor</td><td>1 scan and 8 re-checks</td><td>9</td></tr>
+<tr><td>Investigator</td><td>10 investigations, one per finding</td><td>10</td></tr>
+<tr><td>Fixer and Validator</td><td>1 baseline test run and 8 fix attempts</td><td>9</td></tr>
+<tr><td><b>Total</b></td><td></td><td><b>28</b></td></tr></table></div>
+<p class="small muted">On average a finding cost about $0.075 in tokens ($0.75 over 10 findings), and a verified fix about $0.107 ($0.75 over 7 fixes). Findings left to a person still cost the investigation.</p>
 
-<h2>4. Cost per agent</h2>
-<div class="tw"><table><tr><th>Agent</th><th>What it did</th><th>Steps</th><th>Estimated tokens</th><th>Estimated cost</th></tr>
-<tr><td>Auditor</td><td>1 scan and 8 re-checks</td><td>9</td><td>about 75,700</td><td>$0.24</td></tr>
-<tr><td>Investigator</td><td>10 investigations</td><td>10</td><td>about 85,100</td><td>$0.27</td></tr>
-<tr><td>Fixer and Validator</td><td>1 baseline test run and 8 fix attempts</td><td>9</td><td>about 75,700</td><td>$0.24</td></tr>
-<tr><td><b>Total</b></td><td></td><td><b>28</b></td><td><b>236,478</b></td><td><b>$0.75</b></td></tr></table></div>
-<p class="small muted">The three agents cost about the same. The split is an estimate; the run recorded only the total.</p>
-
-<h2>5. The same tokens on other models</h2>
-<p>What 236,478 tokens would cost at other list prices. This is only a price comparison: a different model would use a different number of tokens and give different fixes, so it has to be measured before it is chosen.</p>
-<div class="tw"><table><tr><th>Model</th><th>Provider</th><th>Input per 1M</th><th>Output per 1M</th><th>Total</th><th>Compared with GPT-5</th></tr>
-<tr><td><b>GPT-5 (used)</b></td><td>OpenAI</td><td>$2.00</td><td>$8.00</td><td>$0.75</td><td></td></tr>
-<tr><td>GPT-5-mini</td><td>OpenAI</td><td>$0.40</td><td>$1.60</td><td>$0.15</td><td>5 times cheaper</td></tr>
-<tr><td>claude-sonnet-5-5</td><td>Anthropic</td><td>$3.00</td><td>$15.00</td><td>$1.26</td><td>1.7 times more</td></tr>
-<tr><td>claude-haiku-5-5</td><td>Anthropic</td><td>$0.80</td><td>$4.00</td><td>$0.34</td><td>2.2 times cheaper</td></tr>
-<tr><td>gemini-flash-latest</td><td>Google</td><td>$0.15</td><td>$0.60</td><td>$0.056</td><td>13 times cheaper</td></tr>
-<tr><td>gemini-pro-latest</td><td>Google</td><td>$1.25</td><td>$5.00</td><td>$0.47</td><td>1.6 times cheaper</td></tr></table></div>
-
-<h2>6. Efficiency</h2>
+<h2>4. Efficiency</h2>
 <div class="tw"><table><tr><th>Measure</th><th>Value</th></tr>
 <tr><td>Cost per verified fix</td><td>$0.107 ($0.75 for 7 fixes)</td></tr>
 <tr><td>Cost per AI call</td><td>$0.009 (81 calls)</td></tr>

@@ -19,6 +19,8 @@ Application-security scanners produce long lists of findings. Turning a finding 
 | Weak tests | A passing test run does not prove the weakness is gone or that behaviour is unchanged. |
 | Repeated explanations | The same investigation is written up again for the security engineer and the code reviewer. |
 
+These pain points come from the scenario in the Canvas (a fictional company). They are hypotheses to validate in the pilot, not measurements.
+
 **Why trust in scanners falls.** A scanner reports a problem but does not prove it is real, does not explain it and does not fix it. When many reports turn out to be noise, engineers stop believing the list and start ignoring it, so real issues are missed.
 
 ### What we are building
@@ -104,7 +106,7 @@ Every finding in the report has the same fields, so a reviewer can decide withou
 | --- | --- |
 | Rule, file, line | What was found and where. |
 | Quoted code | The exact line, as proof. A finding without proof is dropped. |
-| Severity and confidence | How serious it is and how sure the Auditor is. |
+| Severity and confidence | How serious it is, and how sure the finder is. A rule match carries a fixed confidence of 0.90; only a finding the model reports itself carries a model-judged value. |
 | Traced cause | Where the untrusted input comes from, or why that could not be traced. |
 | Diff | The proposed change. |
 | Tests before and after | Whether the project's tests passed before the change and after it. |
@@ -140,7 +142,7 @@ A person approves every fix. In addition, the agent stops and hands a finding ov
 
 ### 4.1 What can go wrong, and what stops it
 
-| Failure | Likelihood, impact | Guardrail | Where it is proved |
+| Failure | Likelihood, impact (team estimate) | Guardrail | Where it is proved |
 | --- | --- | --- | --- |
 | A false fix: labelled verified but wrong | Medium, high | "Verified" is set only by the orchestrator, from passing tests and a clear re-check. A person approves every fix. | `tests/test_decisions.py`; red-team case 14 still breaks it |
 | A patch causes a regression | Medium, high | Smallest change, tests green first, human review, nothing applied automatically | `tests/test_decisions.py` |
@@ -188,13 +190,11 @@ Two criteria are non-negotiable: **100% evidence coverage** and **zero unsafe wo
 
 ## 6. How we measure
 
-We score the agents against a set of small projects with known right answers, then repeat the scoring whenever something changes.
-
 ### 6.1 What we score against
 
 | Item | Detail |
 | --- | --- |
-| Golden dataset | 21 cases. 11 are the canvas types. 10 are red-team attacks. Each has an answer key (`expected.json`). The set grows from failed and rejected fixes. |
+| Golden dataset | 21 cases. 11 are the canvas types. 10 are red-team attacks. Each has an answer key (`expected.json`). The plan is to grow the set from failed and rejected fixes. |
 | Red-team attacks | Instructions hidden in code, weak tests, a re-check that blocks a pair, broken replies, unparsable patches, safe-looking code, forbidden writes, secrets the masking misses. |
 
 ### 6.2 How each result is judged
@@ -202,9 +202,11 @@ We score the agents against a set of small projects with known right answers, th
 | Method | Used for | How |
 | --- | --- | --- |
 | Checks in code | Vulnerability present, test outcome, source unchanged, files inside the workspace, valid syntax, patch size, evidence and audit completeness | Exact. Pass or fail. |
-| A second model as judge | Whether the cause explanation is right, whether the patch is the smallest maintainable one, whether the residual-risk note is accurate | Answers `yes`, `no` or `unsure` from masked text. Never changes a status. Built and tested with a stub; no judge model is set up yet, so there is no live result. Before relying on it, compare it with a person on at least 20 findings. |
+| A second model as judge | Whether the explanation, the patch and the risk note are sound | **Planned, not run yet.** It never changes a status. |
 
-### 6.3 When it runs
+### 6.3 When it should run
+
+Today the evals are run by hand; there is no automated pipeline yet.
 
 | Trigger | Run |
 | --- | --- |
