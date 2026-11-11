@@ -3,7 +3,7 @@
     python ui/site_build.py
 
 Pages: guide, prompts (how it was built), golden (the 21 test cases), documents (project documents, rendered from markdown).
-Inputs: docs_html/data (the parsed playbook, status.md, two captured outputs, case results) and the repository's own .md files.
+Inputs: docs_html/data (the parsed playbook, two captured outputs, case results) and the repository's own .md files.
 Re-run docs_html/collect_cases.py first if the code changed and you want fresh case results.
 """
 from __future__ import annotations
@@ -51,19 +51,39 @@ LOGO = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width
         '<path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>')
 
 
-def page(key: str, title: str, body: str, wide: bool = False, extra_head: str = "", script: str = "") -> str:
+def side_html(key: str) -> str:
+    """The left menu: Scan, Try it yourself, then the numbered tour in groups. `key` marks the current page ("scan" for the console)."""
     def link(k: str, t: str, h: str, n: int | None = None) -> str:
         cur = ' aria-current="page"' if k == key else ""
         badge = f'<span class="n">{n}</span>' if n else ""
         return f'<a href="/docs/{h}"{cur}>{badge}<span>{t}</span></a>'
 
-    side = f'<a class="scan" href="/"><span class="n">&#9654;</span><span>Scan</span></a>{link(*TRY)}'
+    scan_cur = ' aria-current="page"' if key == "scan" else ""
+    side = f'<a class="scan" href="/"{scan_cur}><span class="n">&#9654;</span><span>Scan</span></a>{link(*TRY)}'
     number = 0
     for group, pages in GROUPS:
         side += f'<div class="sgrp">{group}</div>'
         for k, t, h in pages:
             number += 1
             side += link(k, t, h, number)
+    return side
+
+
+def update_console() -> None:
+    """Write the same menu into ui/index.html, between its <!--side--> markers."""
+    path = os.path.join(HERE, "index.html")
+    with open(path, encoding="utf-8", newline="") as handle:
+        raw = handle.read()
+    text = raw.replace("\r\n", "\n")
+    new = re.sub(r"<!--side-->.*?<!--/side-->", lambda m: "<!--side-->" + side_html("scan") + "<!--/side-->", text, count=1, flags=re.S)
+    if new != text:
+        with open(path, "w", encoding="utf-8", newline="") as handle:
+            handle.write(new.replace("\n", "\r\n") if "\r\n" in raw else new)
+        print("updated ui/index.html menu")
+
+
+def page(key: str, title: str, body: str, wide: bool = False, extra_head: str = "", script: str = "") -> str:
+    side = side_html(key)
     pager = ""
     order = [k for k, _, _ in TOUR]
     if key in order:
@@ -293,7 +313,6 @@ def build_summary() -> str:
     ]
     pages = {k: (t, h) for k, t, h in TOUR}
     crit = "".join(f'<tr><td>{c}</td><td><a href="/docs/{pages[k][1]}">{pages[k][0]}</a></td><td>{d}</td></tr>' for c, k, d in criteria)
-    tour = "".join(f'<tr><td>{i + 1}</td><td><a href="/docs/{h}">{t}</a></td><td>{QUESTION[k]}</td></tr>' for i, (k, t, h) in enumerate(TOUR))
     body = lead("Summary", "It scans a Python project for weak spots, proposes a fix for each, tests the fix in a temporary copy, then waits for you to approve, edit or reject it. It never changes your files.") + f"""
 <div class="cards">
 <div class="card"><h3>Finds</h3><p>SQL injection, command injection and path traversal. It also reports hard-coded secrets, weak password hashes and unpinned packages, but never fixes those.</p></div>
@@ -309,25 +328,54 @@ def build_summary() -> str:
 {prd_html(2)}
 <h2>Where to find each capstone criterion</h2>
 <div class="tw"><table><tr><th>Criterion</th><th>Page</th><th>What you will find</th></tr>{crit}</table></div>
-<h2>How to read this site</h2>
-<p>The pages follow one story, in order. Use the menu on the left, or the Next link at the bottom of each page. The source is in the <a href="{REPO}">repository</a>.</p>
-<div class="tw"><table><tr><th>#</th><th>Page</th><th>The question it answers</th></tr>{tour}</table></div>
+<p class="small muted">Use the menu on the left, or the Next link at the bottom of each page, to follow the story in order. The source is in the <a href="{REPO}">repository</a>.</p>
 """
     return page("summary", "Summary", body)
 
 
+AGENT_ORDER = (("auditor", "Auditor"), ("investigator", "Investigator"), ("fixer_validator", "Fixer and Validator"))
+
+
+def agent_instructions(key: str) -> tuple:
+    """(description, tools, markdown body) from agents/<key>.md: front matter read, title line dropped, headings one level down."""
+    with open(os.path.join(ROOT, "agents", key + ".md"), encoding="utf-8") as handle:
+        text = handle.read().replace("\r\n", "\n")
+    desc = tools = ""
+    m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+    if m:
+        for line in m.group(1).split("\n"):
+            if line.startswith("description:"):
+                desc = line.split(":", 1)[1].strip()
+            elif line.startswith("tools:"):
+                tools = line.split(":", 1)[1].strip().strip("[]")
+        text = text[m.end():]
+    text = re.sub(r"(?m)^# .*\n", "", text, count=1)
+    text = re.sub(r"(?m)^## ", "#### ", text)
+    return desc, tools, text.strip()
+
+
+def agent_section(key: str, title: str) -> str:
+    desc, tools, body = agent_instructions(key)
+    html_body = re.sub(r'<h4 id="([^"]+)"', lambda m: f'<h4 id="{key}-{m.group(1)}"', render_md(body))
+    tool_list = ", ".join(f"<code>{e(t.strip())}</code>" for t in tools.split(",") if t.strip())
+    return (f'<h3 class="agenthead" id="agent-{key}">{e(title)}</h3>'
+            f'<div class="tw"><table><tr><td style="width:90px"><b>Decides</b></td><td>{e(desc)}</td></tr><tr><td><b>Tools</b></td><td>{tool_list}</td></tr></table></div>'
+            f'<p class="small muted">What the agent is told at run time, from <code>agents/{key}.md</code>.</p>'
+            f'<div class="md">{html_body}</div>')
+
+
 def build_design() -> str:
-    cards = "".join(f'<a class="card" href="/docs/md/{k}.html"><h3>{e(v["title"])}</h3><p>{e(short(v["plain"], 120))}</p></a>' for k, v in P.AGENT_TEXT.items() if k in ("auditor", "investigator", "fixer_validator"))
+    toc = "".join(f'<a href="#agent-{k}">{t}</a>' for k, t in AGENT_ORDER)
+    sections = "".join(agent_section(k, t) for k, t in AGENT_ORDER)
     body = lead("Agent design", "The design decisions behind the agent team: why an agent, who does what, how they are connected, and which agentic patterns are used.") + f"""
 <h2>1. Why an agent and not a script</h2>
 {prd_sub(1, "Why an agent and not a script")}
-<h2>2. The team</h2>
+<h2>2. The team and how it is connected</h2>
 <p>Three agents, each with one job and its own tools, and a plain-code orchestrator that is not a model.</p>
 {prd_sub(3, "Roles and tools")}
-<h2>3. The architecture</h2>
 <div class="figure">{ARCH}</div>
 <p>Every handoff goes through the orchestrator. The agents never call each other, and the original files are read only.</p>
-<h2>4. Agentic patterns used</h2>
+<h2>3. Agentic patterns used</h2>
 <div class="tw"><table><tr><th>Pattern</th><th>Used</th><th>How</th></tr>
 <tr><td>Multi-agent with an orchestrator</td><td>{pill("ok", "Yes")}</td><td>Three agents with separate jobs, coordinated by plain code.</td></tr>
 <tr><td>Pipeline</td><td>{pill("ok", "Yes")}</td><td>A scan is seven fixed steps, in a fixed order.</td></tr>
@@ -338,14 +386,15 @@ def build_design() -> str:
 <tr><td>Parallel agents</td><td>{pill("", "No")}</td><td>One handoff at a time, so every step is logged in order.</td></tr>
 <tr><td>Free-form planning</td><td>{pill("", "No")}</td><td>The order is fixed by the orchestrator, not chosen by a model.</td></tr>
 <tr><td>Retraining the model</td><td>{pill("", "No")}</td><td>The model is not retrained. Failed and rejected fixes are added to the test set instead.</td></tr></table></div>
-<h2>5. State and contracts</h2>
+<h2>4. State and contracts</h2>
 <div class="tw"><table><tr><th>Part</th><th>How it works</th></tr>
 <tr><td>Shared state</td><td>One document owned by the orchestrator. Each field has one writer, so an agent cannot overwrite what it does not own.</td></tr>
 <tr><td>Contracts</td><td>Every agent reply is checked against a JSON schema before the orchestrator accepts it.</td></tr>
 <tr><td>Decisions</td><td>The orchestrator, not an agent, sets the final status. "Verified" comes from test and re-check results.</td></tr></table></div>
-<h2>6. What each agent is told</h2>
-<p>The text each agent is given at run time is kept in the repository and shown here.</p>
-<div class="cards">{cards}</div>
+<h2>5. The agents in detail</h2>
+<p>Each agent below has its job, its tools, and the instructions it is given at run time. The instructions say what it may decide, which tools it may call, what it must write, and what it must never do.</p>
+<div class="toc">{toc}</div>
+{sections}
 {related(("roster", "Roster: single or several agents"), ("AGENTS", "AGENTS.md: the team spec"))}
 """
     return page("design", "Agent design", body)
@@ -502,7 +551,6 @@ def build_prompts() -> str:
 <p class="lede">These are the fifteen prompts used with Claude Code to build the agents, in the order they were run. Open one to read it.</p>
 <p class="small muted">Each prompt produced code, tests and a commit. How well the result scores is on the <a href="/docs/results.html">Results</a> page, and the agents' instructions are on the <a href="/docs/design.html">Agent design</a> page.</p>
 {"".join(parts)}
-{related(("status", "The coding agent's own status report"))}
 """
     return page("prompts", "How it was built", body)
 
@@ -612,7 +660,7 @@ def build_live(inner: bool = False) -> str:
     reviewers = sorted({(f.get("approval") or {}).get("reviewer", "") for f in run["findings"] if f.get("approval")})
 
     body = f"""<h1>The live run</h1>
-<p class="lede">What a real scan did when the three agents ran on {e(run["model"].upper())} against the demo project. Everything here is taken from that run's own report files. It is one run, not a benchmark.</p>
+<p class="lede">What a real scan did when the three agents ran on {e(run["model"].upper())} against the demo project as it was then (10 findings; it has since grown to 13). Everything here is taken from that run's own report files. It is one run, not a benchmark.</p>
 
 <div class="tiles">
 <div class="tile"><b>{t["found"]}</b><span>findings</span></div>
@@ -651,8 +699,7 @@ DOCS = [
     ("Start here", [("README", "README.md", "What the project is and how to run it"), ("DEMO", "DEMO.md", "A four-run demo script with exact commands"), ("DEPLOY", "docs/DEPLOY.md", "How to host the console, and the risks")]),
     ("Decisions", [("AGENTS", "AGENTS.md", "The team spec: scope, roster, tools, limits"), ("roster", "docs/roster.md", "Single agent or several, and why the Auditor stays"), ("canvas", "canvas.md", "The original canvas: agents, tools, guardrails, quality bar, kill criteria"), ("cost", "docs/cost.md", "What a scan costs, measured on a live run")]),
     ("Pilot", [("PILOT", "docs/PILOT.md", "Pilot setup, kill criteria, rollback and scale-up")]),
-    ("Agent instructions", [("auditor", "agents/auditor.md", "What the Auditor is told"), ("investigator", "agents/investigator.md", "What the Investigator is told"), ("fixer_validator", "agents/fixer_validator.md", "What the Fixer and Validator is told")]),
-    ("Review", [("RUN_SUMMARY", "docs/RUN_SUMMARY.md", "Results of every check run: tests, test cases, red team, kill switches, live model runs"), ("UX_REVIEW", "docs/UX_REVIEW.md", "UX review of the console and what changed"), ("status", "docs_html/data/status.md", "The coding agent's own build status report")]),
+    ("Review", [("RUN_SUMMARY", "docs/RUN_SUMMARY.md", "Results of every check run: tests, test cases, red team, kill switches, live model runs"), ("UX_REVIEW", "docs/UX_REVIEW.md", "UX review of the console and what changed")]),
 ]
 
 
@@ -676,7 +723,7 @@ def build_canvas() -> str:
 
 
 COST_PAGE = r"""<h1>What a scan costs</h1>
-<p class="lede">One real scan, measured: the agents ran on GPT-5 against the demo project (10 findings in 28 files). Every number on this page comes from that run or is simple arithmetic on it.</p>
+<p class="lede">One real scan, measured: the agents ran on GPT-5 against the demo project as it was then (10 findings in 28 files; it has since grown to 13). Every number on this page comes from that run or is simple arithmetic on it.</p>
 
 <h2>At a glance</h2>
 <div class="tiles">
@@ -773,7 +820,8 @@ def build_documents() -> None:
 
 
 def main() -> int:
-    for name in ("guide.html", "measure.html", "quality.html", "live.html", "golden.html", "rollout.html", "kill.html", "documents.html", os.path.join("md", "PRD.html")):
+    for name in ("guide.html", "measure.html", "quality.html", "live.html", "golden.html", "rollout.html", "kill.html", "documents.html", os.path.join("md", "PRD.html"),
+                 os.path.join("md", "auditor.html"), os.path.join("md", "investigator.html"), os.path.join("md", "fixer_validator.html"), os.path.join("md", "status.html")):
         old = os.path.join(OUT, name)                                    # pages that no longer exist
         if os.path.isfile(old):
             os.remove(old)
@@ -790,6 +838,7 @@ def main() -> int:
     write("canvas.html", build_canvas())
     write("cost.html", build_cost())
     build_documents()  # md/*.html: roster, results, pilot plan, deploy notes and the rest
+    update_console()
     return 0
 
 

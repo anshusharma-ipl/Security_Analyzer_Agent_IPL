@@ -184,6 +184,7 @@ Two criteria are non-negotiable: **100% evidence coverage** and **zero unsafe wo
 | --- | --- |
 | n/a | The number does not apply. Recall and precision score the deterministic rules. All 10 live findings were found by those rules, not by the model, and the demo project has no answer key, so they are scored on the golden set. Offline runs have no human reviewer, so there is no approval rate. |
 | not measured | The number could be measured but was not. The live false-fix rate needs a person to check each approved fix independently. |
+| Verified-fix success and "9 of 11 golden cases pass" | Different counts. Verified-fix success counts only the cases where a fix was expected. The golden pass count includes cases where the right answer is to hand over to a person. |
 
 ## 6. How we measure
 

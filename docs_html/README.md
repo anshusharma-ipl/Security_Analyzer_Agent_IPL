@@ -5,5 +5,5 @@ Inputs for the documentation pages that the console serves at `/docs`. The pages
     python docs_html/collect_cases.py   # re-runs every golden case and writes data/cases_data.json
     python ui/site_build.py             # rebuilds the documentation pages (the tour, canvas, prompts, test cases, live run and documents)
 
-- `data/` holds the parsed playbook (the fifteen prompts), the coding agent's `status.md`, two captured outputs (`s4c_golden_table`, `s8_redteam`) and the case results (`cases_data.json`).
+- `data/` holds the parsed playbook (the fifteen prompts), two captured outputs (`s4c_golden_table`, `s8_redteam`) and the case results (`cases_data.json`).
 - `build_prompts.py` holds the prompt notes, agent summaries and red-team rows that `site_build.py` imports; `build_golden.py` holds the case verdict logic.

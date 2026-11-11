@@ -1,6 +1,6 @@
 # Results of the runs
 
-**What this document is.** The record of every check run on the system: the tests, the scored test cases, the red team, the kill switches and the live model runs. Use it to see the raw results behind the quality table in the [PRD](PRD.md) and the Guide. Each test case's own result is on the Test cases page; what a scan costs is in [cost.md](cost.md).
+**What this document is.** The record of every check run on the system: the tests, the scored test cases, the red team, the kill switches and the live model runs. Use it to see the raw results behind the quality table on the Results page. Each test case's own result is on the Test cases page; what a scan costs is in [cost.md](cost.md).
 
 The evals, red team and kill checks below were run on commit `b4ae6fe` (master) with the **built-in (offline) agents**, so those runs show
 `AI calls 0, tokens 0`. One live run with GPT-5 is reported separately in section 7. The orchestrator, tools, guardrails, schemas, review queue and report are the real ones.
@@ -11,7 +11,7 @@ Model recorded in every run: `none (offline stand-in, no AI model)`, version `n/
 
 | # | Run | Command | Result |
 | --- | --- | --- | --- |
-| 1 | Unit and integration tests | `python -m unittest discover -s tests` | **173 tests, OK** |
+| 1 | Unit and integration tests | `python -m unittest discover -s tests` | **176 tests, OK** |
 | 2 | Kill criteria | `python kill_checks.py --run` | **8 of 8 stop the run** |
 | 3 | Evals on `golden/` | `python evals/run_evals.py --repeats 2` | **10 of 18 cases pass; 1 of 8 gates fails** |
 | 4 | Red team | `python evals/redteam.py` | **8 of 10 attacks break the system; 2 held** |
@@ -19,9 +19,9 @@ Model recorded in every run: `none (offline stand-in, no AI model)`, version `n/
 | 6 | Demo rehearsal | see `DEMO.md` | all four command-line runs behaved as scripted; the console demo gives 13 findings (7 fixes ready, 6 need you) |
 | 7 | Golden answer-key check | `python golden/verify_golden.py` | all cases as expected (baseline tests) |
 
-## 1. Tests: 173, OK
+## 1. Tests: 176, OK
 
-The latest full run passed all 173 tests. After the demo project was merged with a teammate's redesign, the UI, model-agent and decision
+The latest full run passed all 176 tests. After the demo project was merged with a teammate's redesign, the UI, model-agent and decision
 tests (42) were re-run and passed; the whole suite was not run again after that merge. One UI test (the live steps) failed once in a
 full run and once in a two-module run, and passed on every other run; it now reports why a scan stopped, so a repeat will show the
 cause. Earlier failures that were fixed: a package scan that took 1.7 s per handoff, a test that expected the old end-of-run detection,

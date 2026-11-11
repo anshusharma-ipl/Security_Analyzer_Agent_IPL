@@ -21,6 +21,7 @@ rec = read(HERE, "recorded.json")
 
 body = html[html.index('<header class="topbar">'):html.index("<script>")]
 body = body.replace('<a class="brand" href="/">', '<a class="brand" href="#top">')
+body = body.replace('<a class="scan" href="/"', '<a class="scan" href="#top"').replace('href="/docs/', 'href="docs/')
 NAVLINKS = [("Documentation", "summary.html")]
 nav = '<nav class="nav" aria-label="Main"><a href="#top" aria-current="page">Scan (recorded)</a>' + "".join(f'<a href="docs/{h}">{t}</a>' for t, h in NAVLINKS) + "</nav>"
 body = re.sub(r'<nav class="nav".*?</nav>', nav, body, flags=re.S)

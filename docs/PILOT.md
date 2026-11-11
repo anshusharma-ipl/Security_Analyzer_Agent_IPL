@@ -121,10 +121,10 @@ evidence coverage, regression-test pass rate, audit-record completeness (all 100
 
 This is where the work stands today, not a plan.
 
-1. **No model is connected.** No endpoint is approved; the three agents are offline stand-ins. The pilot needs the platform or
-   security owner to approve an endpoint (`AGENTS.md` section 8) and model-backed agents.
-2. **The quality gates do not pass yet.** On the golden set (directional): verified-fix success 50% against 75%, false-fix rate
-   25% against 5%.
+1. **No model endpoint is approved yet.** Model-backed agents exist (OpenAI, Anthropic, Google) and one full scan has run with GPT-5,
+   but the platform or security owner must approve an endpoint (`AGENTS.md` section 8) before real code is used.
+2. **The false-fix gate does not pass yet.** On the golden set (directional) it is 27% against 5%. Verified-fix success is 80% with the
+   built-in agents and 70% on the live GPT-5 run, against 75%.
 3. **Eight of ten red-team attacks currently break the system** (`python evals/redteam.py`), with the smallest fix proposed for each
    and none applied. Those that touch a kill criterion (an agent can edit the project's own tests, secret shapes the masker misses)
    should be fixed or explicitly accepted before real code is used.

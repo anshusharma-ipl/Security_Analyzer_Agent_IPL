@@ -262,6 +262,9 @@ a.card{text-decoration:none;color:inherit}a.card:hover{border-color:var(--brand)
 .pager .next{text-align:right;margin-left:auto}
 .pager span{font-weight:650}
 @media (max-width:900px){.shell{grid-template-columns:minmax(0,1fr)}.side{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:6px;padding:12px 16px}.side .sgrp{width:100%;margin:8px 4px 0}.side a{background:var(--surface);border:1px solid var(--line)}.shell .doc>*,.shell .doc.wide>*{max-width:none}}
+.shell-main{min-width:0}
+.md h4{font-size:14.5px;margin:20px 0 6px;font-weight:700;color:var(--ink)}
+.agenthead{font-size:24px;margin:52px 0 14px;padding:12px 16px;background:var(--sunk);border-left:5px solid var(--brand);border-radius:var(--r-sm);scroll-margin-top:72px}
 
 
 #srcTabs,#tab-zip,#tab-dir,#modelDet,#mUse,.side details.plain,#idle .small{display:none}
@@ -280,10 +283,10 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 <div id="top"></div>
 <header class="topbar"><div class="in">
   <a class="brand" href="#top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>Security Analyzer</a>
-  <nav class="nav" aria-label="Main"><a href="#top" aria-current="page">Scan (recorded)</a><a href="docs/summary.html">Documentation</a></nav>
   <span class="mode" id="modeLabel" hidden></span>
 </div></header>
 
+<div class="shell"><aside class="side" aria-label="Pages"><!--side--><a class="scan" href="#top" aria-current="page"><span class="n">&#9654;</span><span>Scan</span></a><a href="docs/run.html"><span>Try it yourself</span></a><div class="sgrp">The idea</div><a href="docs/summary.html"><span class="n">1</span><span>Summary</span></a><a href="docs/canvas.html"><span class="n">2</span><span>Canvas</span></a><a href="docs/design.html"><span class="n">3</span><span>Agent design</span></a><div class="sgrp">How it works</div><a href="docs/behaves.html"><span class="n">4</span><span>How a scan works</span></a><a href="docs/safe.html"><span class="n">5</span><span>Guardrails and safety</span></a><div class="sgrp">The proof</div><a href="docs/testing.html"><span class="n">6</span><span>How we test it</span></a><a href="docs/results.html"><span class="n">7</span><span>Results</span></a><a href="docs/cost.html"><span class="n">8</span><span>Cost</span></a><div class="sgrp">Delivery</div><a href="docs/pilot.html"><span class="n">9</span><span>Pilot and kill criteria</span></a><a href="docs/limits.html"><span class="n">10</span><span>Limits and next steps</span></a><a href="docs/prompts.html"><span class="n">11</span><span>How it was built</span></a><!--/side--></aside><div class="shell-main">
 <div class="cx">
   <!-- ============ left: project and model ============ -->
   <aside class="cx-side" aria-label="Scan settings">
@@ -336,6 +339,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
     </div>
   </main>
 </div>
+</div></div>
 
 
 <script>
