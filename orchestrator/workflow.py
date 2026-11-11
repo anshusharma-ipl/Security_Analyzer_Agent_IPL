@@ -202,6 +202,7 @@ class Workflow:
         return f"run-{max(numbers, default=0) + 1:03d}"
 
     # ------------------------------------------------------------------ the run
+      @_with_guard
        @_with_guard
     def start(self, source_folder: str, rules_file: str, policy: dict | None = None) -> dict:
         """Steps 1 to 5. Stops at step 5 and waits for a person (call resume() after the decisions)."""
