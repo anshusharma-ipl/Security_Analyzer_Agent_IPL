@@ -255,6 +255,14 @@ def _from_gemini(reply: dict) -> dict:
 def _post(cfg: ModelConfig, body: dict) -> dict:
     openai, gemini = cfg.api_style == "openai", cfg.api_style == "gemini"
     progress.emit("model", f"Asking {cfg.model}")
+
+    trace = start_run_trace(
+        run_id=f"model-{int(time.time() * 1000)}",
+        input_data={"model": cfg.model, "endpoint": cfg.endpoint, "request": body},
+        model=cfg.model,
+        metadata={"provider": cfg.api_style, "endpoint": cfg.endpoint},
+    )
+
     if openai:
         base = cfg.endpoint[:-3] if cfg.endpoint.endswith("/v1") else cfg.endpoint
         url = base + "/v1/chat/completions"
@@ -264,20 +272,45 @@ def _post(cfg: ModelConfig, body: dict) -> dict:
         base = cfg.endpoint[:-len("/v1beta")] if cfg.endpoint.endswith("/v1beta") else cfg.endpoint
         name = cfg.model[len("models/"):] if cfg.model.startswith("models/") else cfg.model
         url = f"{base}/v1beta/models/{name}:generateContent"
-        headers = {"content-type": "application/json", "x-goog-api-key": cfg.api_key}      # a header, so the key is never in a URL
+        headers = {"content-type": "application/json", "x-goog-api-key": cfg.api_key}
         body = _to_gemini(cfg, body)
     else:
         url = cfg.endpoint + "/v1/messages"
         headers = {"content-type": "application/json", "x-api-key": cfg.api_key, "anthropic-version": API_VERSION}
+
     _containment.check_endpoint(url, cfg.endpoint)
     data = json.dumps(body).encode("utf-8")
     last = ""
+
     for attempt in range(3):
         try:
             request = urllib.request.Request(url, data=data, headers=headers, method="POST")
             with urllib.request.urlopen(request, timeout=cfg.timeout) as reply:
                 parsed = json.loads(reply.read().decode("utf-8"))
-                return _from_openai(parsed) if openai else _from_gemini(parsed) if gemini else parsed
+                result = _from_openai(parsed) if openai else _from_gemini(parsed) if gemini else parsed
+
+                usage = result.get("usage", {})
+                provider = "openai" if openai else "gemini" if gemini else "anthropic"
+
+                record_model_generation(
+                    trace_id=getattr(trace, "id", None) if trace else None,
+                    name=f"llm:{cfg.model}",
+                    model=cfg.model,
+                    provider=provider,
+                    request=body,
+                    response=result,
+                    usage=usage,
+                    metadata={"endpoint": cfg.endpoint},
+                )
+
+                update_trace(
+                    trace,
+                    output=result,
+                    metadata={"provider": provider, "endpoint": cfg.endpoint, "usage": usage},
+                )
+
+                return result
+
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", "replace")[:300]
             last = cfg.redact(f"HTTP {exc.code}: {detail}")

@@ -28,6 +28,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
+from langfuse_integration import start_run_trace, update_trace
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -45,6 +46,7 @@ from tools.orchestrator_helpers import hash_originals, make_temp_copy, verify_or
 from tools.read_file import read_file  # noqa: E402
 from tools.request_recheck import request_recheck  # noqa: E402
 from tools.run_tests import run_tests  # noqa: E402
+from langfuse_integration import start_run_trace, update_trace
 
 DEFAULT_POLICY = {
     "file_cap": 200, "max_retries": 1, "test_command": "python -m unittest discover -s tests",
@@ -201,6 +203,7 @@ class Workflow:
 
     # ------------------------------------------------------------------ the run
       @_with_guard
+       @_with_guard
     def start(self, source_folder: str, rules_file: str, policy: dict | None = None) -> dict:
         """Steps 1 to 5. Stops at step 5 and waits for a person (call resume() after the decisions)."""
         if is_inside(os.path.abspath(source_folder), os.path.abspath(self.out_root)):
