@@ -177,7 +177,7 @@
    }
   ],
   "run": {
-   "phase": "done",
+   "phase": "waiting_for_review",
    "stop_reason": null,
    "outcome": "findings_reported",
    "baseline": {
@@ -193,8 +193,8 @@
      "severity": "high",
      "confidence": 0.9,
      "evidence": "result = subprocess.run(f\"echo checking {host}\", shell=True, capture_output=True, text=True)",
-     "status": "needs_a_person",
-     "reason": "the fixer could not write a patch for this finding",
+     "status": "verified_awaiting_approval",
+     "reason": null,
      "investigation": {
       "finding_id": "F001",
       "traced_cause": {
@@ -210,14 +210,14 @@
      "attempts": [
       {
        "attempt": 1,
-       "patch_diff": null,
+       "patch_diff": "--- a/src/netcheck.py\n+++ b/src/netcheck.py\n@@ -4,3 +4,3 @@\n def check_host(host):\n-    result = subprocess.run(f\"echo checking {host}\", shell=True, capture_output=True, text=True)\n+    result = subprocess.run([\"echo\", \"checking\", host], capture_output=True, text=True)\n     return result.stdout.strip()\n",
        "tests": {
         "before": "pass",
-        "after": null
+        "after": "pass"
        },
-       "recheck": "not_run",
-       "decision": "reject",
-       "residual_risk": "No patch was written, so nothing was changed and the weak spot is still there."
+       "recheck": "clear",
+       "decision": "keep",
+       "residual_risk": "Only the project's own tests were run; they may not cover every input to this code."
       }
      ]
     }
@@ -282,7 +282,7 @@
     {
      "event": "status_set",
      "actor": "orchestrator",
-     "detail": "needs_a_person: the fixer could not write a patch for this finding"
+     "detail": "verified_awaiting_approval"
     }
    ],
    "sensitive_hidden": 0,
@@ -322,7 +322,7 @@
    }
   ],
   "run": {
-   "phase": "done",
+   "phase": "waiting_for_review",
    "stop_reason": null,
    "outcome": "findings_reported",
    "baseline": {
@@ -338,8 +338,8 @@
      "severity": "high",
      "confidence": 0.9,
      "evidence": "path = os.path.join(base, name)",
-     "status": "needs_a_person",
-     "reason": "the fixer could not write a patch for this finding",
+     "status": "verified_awaiting_approval",
+     "reason": null,
      "investigation": {
       "finding_id": "F001",
       "traced_cause": {
@@ -355,14 +355,14 @@
      "attempts": [
       {
        "attempt": 1,
-       "patch_diff": null,
+       "patch_diff": "--- a/src/files.py\n+++ b/src/files.py\n@@ -4,3 +4,5 @@\n def read_file(base, name):\n-    path = os.path.join(base, name)\n+    path = os.path.realpath(os.path.join(base, name))\n+    if os.path.commonpath([os.path.realpath(base), path]) != os.path.realpath(base):\n+        raise ValueError(\"the path is outside the allowed folder\")\n     with open(path) as f:\n",
        "tests": {
         "before": "pass",
-        "after": null
+        "after": "pass"
        },
-       "recheck": "not_run",
-       "decision": "reject",
-       "residual_risk": "No patch was written, so nothing was changed and the weak spot is still there."
+       "recheck": "clear",
+       "decision": "keep",
+       "residual_risk": "Only the project's own tests were run; they may not cover every input to this code."
       }
      ]
     }
@@ -427,7 +427,7 @@
     {
      "event": "status_set",
      "actor": "orchestrator",
-     "detail": "needs_a_person: the fixer could not write a patch for this finding"
+     "detail": "verified_awaiting_approval"
     }
    ],
    "sensitive_hidden": 0,
@@ -2802,6 +2802,10 @@
   },
   "index": null,
   "files": [
+   {
+    "path": ".env",
+    "text": "DB_PASSWORD=Hunter2Hunter2Zz\n"
+   },
    {
     "path": "src/billing.py",
     "text": "def find_invoice(conn, ref):\n    # creds: password: Tr0ub4dor&3xyzKey  token c2VjcmV0LXRva2VuLTEyMzQ1Njc4OTA=  PAN ABCDE1234F\n    query = f\"SELECT id FROM invoices WHERE ref = '{ref}'\"\n    return conn.execute(query).fetchone()\n"

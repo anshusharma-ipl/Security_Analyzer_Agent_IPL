@@ -127,7 +127,17 @@ def build_guide() -> str:
     body = f"""
 <h1>How the Security Analyzer works</h1>
 <p class="lede">It scans a Python project for weak spots, proposes a fix for each, tests the fix in a temporary copy, then waits for you to approve, edit or reject it. It never changes your files.</p>
-<div class="toc"><a href="#does">What it does</a><a href="#works">How it works</a><a href="#built">How it was built</a><a href="#run">How to run it</a><a href="#model">Connect a model</a><a href="#stands">Where it stands</a></div>
+<div class="toc"><a href="#pages">What each page is for</a><a href="#does">What it does</a><a href="#works">How it works</a><a href="#run">How to run it</a><a href="#model">Connect a model</a><a href="#stands">Where it stands</a></div>
+
+<h2 id="pages">What each page is for</h2>
+<p>Each page answers one question. You do not need all of them: pick the one that matches what you want to know.</p>
+<div class="tw"><table><tr><th>Page</th><th>Question it answers</th></tr>
+<tr><td><a href="/docs/guide.html">Guide</a> (this page)</td><td>What is this, how do I run it, and does it work?</td></tr>
+<tr><td><a href="/docs/md/PRD.html">PRD</a></td><td>What are we building, for whom, how safe is it, and when do we stop?</td></tr>
+<tr><td><a href="/docs/cost.html">Cost</a></td><td>What does a scan cost, and what would it cost at our volume?</td></tr>
+<tr><td><a href="/docs/canvas.html">Canvas</a></td><td>What was the original design and business case?</td></tr>
+<tr><td><a href="/docs/prompts.html">How it was built</a></td><td>Which prompts were used to build the agents?</td></tr>
+<tr><td><a href="/docs/golden.html">Test cases</a></td><td>How do we know the agents do the right thing?</td></tr></table></div>
 
 <h2 id="does">What it does</h2>
 <div class="cards">
@@ -138,66 +148,72 @@ def build_guide() -> str:
 
 <h2 id="works">How it works</h2>
 <div class="figure">{DIAGRAM}</div>
-<p>A scan is seven fixed steps, run by the orchestrator:</p>
+<p>A scan is seven fixed steps, run by the orchestrator (plain code, not an agent):</p>
 <ol>
-<li>Check the rules file.</li><li>Fingerprint your files and make a temporary copy.</li><li>The Auditor scans the whole project and ranks the findings.</li>
-<li>For each finding, the Investigator traces the cause and the Fixer and Validator writes and tests a patch.</li>
-<li>You decide on each fix.</li><li>The orchestrator checks that your original files are unchanged.</li><li>It writes the log and the report.</li></ol>
-<p>Three rules hold the design together. Each agent can use only its own tools. A fix is called verified by the orchestrator from test results, never by the agent's opinion. Anything the agent is unsure about goes to a person.</p>
-<p>The <a href="/docs/canvas.html">canvas</a> is the original design: users, tools, guardrails, quality bar and kill criteria. The <a href="/docs/md/roster.html">roster document</a> explains why there are three agents and one plain-code orchestrator, and records the decision to keep the Auditor as an agent.</p>
+<li>Check the rules file.</li>
+<li>Fingerprint your files and make a temporary copy.</li>
+<li>The Auditor scans the whole project and ranks the findings.</li>
+<li>For each finding, the Investigator traces the cause, and the Fixer and Validator writes and tests a patch.</li>
+<li>You decide on each fix.</li>
+<li>The orchestrator checks that your original files are unchanged.</li>
+<li>It writes the log and the report.</li></ol>
+<p>Three rules hold the design together:</p>
+<ul>
+<li>Each agent can use only its own tools.</li>
+<li>A fix is called verified by the orchestrator from test results, never by an agent's opinion.</li>
+<li>Anything the agent is unsure about goes to a person.</li></ul>
+<p>More: the <a href="/docs/canvas.html">canvas</a> is the original design, and the <a href="/docs/md/roster.html">roster</a> explains why there are three agents and one plain-code orchestrator.</p>
 
-<h2 id="built">How it was built</h2>
-<p>The project was built with Claude Code, one prompt at a time, following a fifteen-prompt Build Playbook. Each prompt produced code, tests and a commit, and ended with a check you run before moving on.</p>
+<h2 id="run">How to run it</h2>
+<p>You need Python 3.11 or newer and one package: <code>pip install jsonschema</code>. A live scan needs the console running on your own machine or a server. The published site on GitHub Pages is read-only: it cannot scan or call a model.</p>
 <ol>
-<li><b>Foundations.</b> Project setup, the written spec, and the agent roster.</li>
-<li><b>Contracts and tools.</b> JSON schemas for the shared state, seven tools, and an MCP server that gives each agent only its own tools.</li>
-<li><b>Agents and workflow.</b> The shared state, the orchestrator, and three agents. Each agent has a built-in (offline) version that follows the same contracts, so everything runs without a model, and a model-backed version that can use OpenAI (GPT), Anthropic (Claude) or Google (Gemini). No model endpoint is approved yet, so use fake or non-sensitive code with a model.</li>
-<li><b>Guardrails.</b> Containment (originals, secrets, hostile text in code, forbidden commands) and decision rules (evidence, "verified", limits, hand-over).</li>
-<li><b>Measurement.</b> A scoring harness against 21 test cases, a red team of ten attacks, and a cost model.</li>
-<li><b>Pilot gate.</b> Eight kill-switch checks and the pilot plan.</li>
-</ol>
-<p>The console you are using, and the optional model connection, were added afterwards. <a href="/docs/prompts.html">See each prompt and what it produced</a>.</p>
-
-<h2 id="live">Run a live scan, step by step</h2>
-<p>A live scan needs the console running on your own machine (or a server). The published site on GitHub Pages is read-only: it shows a recorded run and cannot scan anything or call a model.</p>
-<ol>
-<li><b>Start the console.</b> <code>pip install jsonschema</code>, then <code>python ui/server.py</code>, then open <code>http://127.0.0.1:8765</code>.</li>
-<li><b>Give it your code.</b> In the left panel, drop your project folder (or a .zip) onto the box, or click it to choose a .zip. The project should include its tests. Or choose <b>Use the demo project</b>: it is built in and covers all six rule types (13 findings), plus three safe files that must produce nothing. A rules file is optional; without one the approved default rules are used.</li>
-<li><b>Connect a model (optional).</b> Under <b>Model</b>, choose a provider (OpenAI GPT, Anthropic Claude or Google Gemini), pick or type a model name, paste your API key, press <b>Connect</b>, then <b>Test</b>. Skip this to use the built-in agents, which need no key and send nothing anywhere.</li>
-<li><b>Press Run scan.</b> On the right you watch each agent work, step by step. Findings appear as they are found. A fix that is ready has an <b>Approve this fix</b> button; approve or reject each one, enter your name and press <b>Finish</b>. The screen then shows what was fixed, and a task for each finding that still needs you.</li>
-<li><b>Download the result.</b> The report (HTML, Markdown and JSON), the decision log and <code>fixes.patch</code> are on the run's page. Nothing is applied to your original files; a person applies <code>fixes.patch</code>.</li></ol>
-<p>From a terminal instead: <code>python -m orchestrator.cli run &lt;your-project-folder&gt; golden/rules.json</code>. With a model, set <code>AI_MODEL_ENDPOINT</code>, <code>AI_MODEL_NAME</code> and <code>ANTHROPIC_API_KEY</code> first and use the console's Agents panel to switch the agents on.</p>
-
-<h2 id="run">Other commands</h2>
-<p>You need Python 3.11 or newer and one package: <code>pip install jsonschema</code>.</p>
-<pre class="code" style="padding:12px 16px"><code>python ui/server.py              # then open http://127.0.0.1:8765
-python -m unittest discover -s tests
-python evals/run_evals.py        # score the 21 cases against the quality bar
-python kill_checks.py --run      # the eight kill-switch checks</code></pre>
-<p>The same scan from a terminal: <code>python -m orchestrator.cli run &lt;folder&gt; golden/rules.json</code>, then <code>finish</code> after a person edits <code>review_queue.json</code>.</p>
+<li><b>Start the console.</b> Run <code>python ui/server.py</code> and open <code>http://127.0.0.1:8765</code>.</li>
+<li><b>Give it your code.</b> Drop your project folder or a .zip on the left (it should include its tests), or choose <b>Use the demo project</b> (13 findings across six rule types, plus safe files that must produce nothing).</li>
+<li><b>Connect a model (optional).</b> Choose a provider, paste your key, press <b>Connect</b>, then <b>Test</b>. Without one, the built-in agents run, need no key and send nothing anywhere.</li>
+<li><b>Press Run scan.</b> Watch each agent work. For every ready fix press <b>Approve this fix</b> or reject it, enter your name and press <b>Finish</b>.</li>
+<li><b>Take the result.</b> The report, the decision log and <code>fixes.patch</code> are on the run's page. Nothing is applied to your files; you apply <code>fixes.patch</code>.</li></ol>
+<p>If you leave the page while a scan runs, come back to the console and it reconnects to the scan.</p>
+<pre class="code" style="padding:12px 16px"><code>python ui/server.py                                   # the console
+python -m orchestrator.cli run &lt;folder&gt; golden/rules.json   # the same scan from a terminal
+python -m unittest discover -s tests                  # the tests
+python evals/run_evals.py                             # score the 21 test cases
+python kill_checks.py --run                           # the eight kill switches</code></pre>
 <p><b>Safety.</b> To check a fix, the project's own tests run on the machine that hosts the console. Host it only where that is acceptable, scan only code you trust, and put it behind a token if anyone else can reach it. <a href="/docs/md/DEPLOY.html">Hosting notes</a>.</p>
 
 <h2 id="model">Connect a model</h2>
-<p>By default the agents are offline stand-ins. To use a real model:</p>
 <ol>
-<li>In the console's <b>Model</b> panel choose a provider, pick or type a model name and paste your API key. Or put <code>AI_MODEL_ENDPOINT</code>, <code>AI_MODEL_NAME</code> and a key (<code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code> or <code>GEMINI_API_KEY</code>) in a <code>.env</code> file and press <b>Use .env</b>.</li>
+<li>In the console's <b>Model</b> panel choose OpenAI (GPT), Anthropic (Claude) or Google (Gemini), pick or type a model name and paste your API key. The request format follows from the provider. Or put <code>AI_MODEL_ENDPOINT</code>, <code>AI_MODEL_NAME</code> and a key (<code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code> or <code>GEMINI_API_KEY</code>) in a <code>.env</code> file and press <b>Use .env</b>.</li>
 <li>Press <b>Test</b>. It sends one tiny message with no project data.</li>
-<li>By default all three agents use the model. Under <b>Agents that use the model</b> you can leave any of them on the built-in version.</li>
-<li>Run a scan. The live steps show each model request and tool call, and the header shows the calls and tokens used.</li></ol>
-<p>The harness fills in the paths, rules file and test command itself. Secrets and personal data are masked before anything is sent. The Auditor can keep only findings the rules tool returned. The Fixer's test and re-check results come from the tools, not from the model. A patch that edits tests, requirements or the rules file is refused. The key is held in memory and never written to disk.</p>
-<p><b>Three providers are supported:</b> OpenAI (GPT), Anthropic (Claude) and Google (Gemini). The request format follows from the provider you pick, so there is no format to choose. <b>Other</b> covers a gateway or self-hosted model that speaks the OpenAI or the Anthropic format; give its endpoint. <b>What has and has not been proven:</b> OpenAI GPT-5 has run live once on the demo project. Anthropic Claude has run with a model answering through a local bridge. The Gemini adapter has only been tested against a mock server, so treat its first live run as a test. What is sent: only when a model is connected, and only to the provider you chose; secrets, emails and phone numbers are replaced with placeholders first, automatically, and there is no setting to turn that off. Use fake or non-sensitive code until your security team has approved the provider.</p>
+<li>By default all three agents use the model. You can leave any of them on the built-in version.</li>
+<li>Run a scan. The header shows the AI calls and tokens used.</li></ol>
+<p>Secrets and personal data are masked before anything is sent. The model never receives a path, rules file or test command that the harness did not give it. Use fake or non-sensitive code until your security team has approved the provider.</p>
 
 <h2 id="stands">Where it stands</h2>
-<p>The numbers below are from the latest evaluation run, with the built-in (offline) agents. They describe the plumbing and those agents, not a model.</p>
-<div class="tw"><table><tr><th></th><th>Measure</th><th>Result</th><th>Required</th></tr>{metrics_rows()}</table></div>
+<p>We measure the agents in two ways. Read the table with these two columns in mind:</p>
 <ul>
-<li><b>Red team:</b> {held} of 10 attacks were stopped and {broke} broke the system. None of the {broke} is fixed yet.</li>
+<li><b>Offline agents</b> are the built-in agents with no model, scored on the 21 <a href="/docs/golden.html">test cases</a>. It is about one case per type, so treat these numbers as a direction.</li>
+<li><b>Live GPT-5 run</b> is one real scan of the demo project on 2026-10-29 (10 findings, 28 files). It is one run, not an average.</li></ul>
+<div class="tw"><table><tr><th>Measure</th><th>What it tells you</th><th>Target</th><th>Offline agents</th><th>Live GPT-5</th><th>Status</th></tr>
+<tr><td>Evidence on every finding</td><td>Each finding shows file, line and the code, so a person can check it</td><td>100%</td><td>100%</td><td></td><td>{pill("ok", "Met")}</td></tr>
+<tr><td>Writes to originals or outside the copy</td><td>The safety boundary held</td><td>0</td><td>0</td><td>0</td><td>{pill("ok", "Met")}</td></tr>
+<tr><td>High-severity recall</td><td>Serious weak spots are not missed</td><td>90% or more</td><td>100%</td><td></td><td>{pill("ok", "Met")}</td></tr>
+<tr><td>Finding precision</td><td>Few false alarms</td><td>85% or more</td><td>89%</td><td></td><td>{pill("ok", "Met")}</td></tr>
+<tr><td>Verified-fix success</td><td>Share of fixable findings that end with a tested fix</td><td>75% or more</td><td>80%</td><td>70% (7 of 10)</td><td>{pill("wait", "Close on the live run")}</td></tr>
+<tr><td>False-fix rate</td><td>How often "verified" is wrong</td><td>5% or less</td><td>27%</td><td>not measured</td><td>{pill("risk", "Not met")}</td></tr>
+<tr><td>Tests pass for verified fixes</td><td>A fix never breaks the project's tests</td><td>100%</td><td>100%</td><td>100%</td><td>{pill("ok", "Met")}</td></tr>
+<tr><td>Audit record complete</td><td>Every decision is logged</td><td>100%</td><td>100%</td><td>100%</td><td>{pill("ok", "Met")}</td></tr>
+<tr><td>Reviewer approval rate</td><td>People accept the fixes that are offered</td><td>70% or more</td><td></td><td>100% (7 of 7)</td><td>{pill("ok", "Met on one run")}</td></tr></table></div>
+<p><b>Why we track these.</b> The first two are non-negotiable: without evidence a person cannot review a finding, and a write to your files breaks the promise the tool makes. The others show whether the fixes can be trusted. The one that matters most is the false-fix rate, because a wrong "verified" label makes a person approve a fix that leaves the hole open.</p>
+
+<h3>Other results</h3>
+<ul>
+<li><b>The live run:</b> 10 findings, 7 fixed and approved, 3 left to a person (a redesign, a secret and a dependency, which are never auto-fixed). One command-injection fix needed a retry. Your originals were unchanged. It used 81 AI calls and 236,478 tokens, about $0.75, in about 19 minutes. No limit was hit and no kill switch fired. See the <a href="/docs/cost.html">cost page</a>.</li>
+<li><b>Red team:</b> {held} of 10 attacks were stopped and {broke} broke the system. None of the {broke} is fixed yet. They are listed on the <a href="/docs/golden.html">test cases page</a>.</li>
 <li><b>Kill switches:</b> all eight checks pass.</li>
-<li><b>Tests:</b> all 173 pass (the full suite, run on Windows).</li>
-<li><b>Models:</b> OpenAI GPT-5 has run live once on the demo project (before the latest fixes). Claude has run with a model answering through a local bridge. The Gemini adapter has only been tested against a mock server.</li>
-</ul>
-<p>The percentages come from about one case per type, so treat them as a direction, not a measurement.</p>
-<p>Written documents: <a href="/docs/md/PRD.html">PRD</a> · <a href="/docs/md/RUN_SUMMARY.html">Run summary</a> · <a href="/docs/md/DEPLOY.html">Deploy</a> · <a href="/docs/md/UX_REVIEW.html">UX review</a> · <a href="{REPO}">Repository</a></p>
+<li><b>Tests:</b> all 173 pass.</li>
+<li><b>Models:</b> GPT-5 has run live to completion. Claude has run through a local bridge. The Gemini adapter has only been tested against a mock server.</li></ul>
+
+<p>More: <a href="/docs/md/PRD.html">PRD</a> · <a href="/docs/md/RUN_SUMMARY.html">Results of the offline runs</a> · <a href="/docs/md/DEPLOY.html">Deploy</a> · <a href="/docs/md/UX_REVIEW.html">UX review</a> · <a href="{REPO}">Repository</a></p>
 """
     return page("guide", "Guide", body)
 
@@ -245,40 +261,9 @@ SUMMARY_MAP = {"4A": [1], "7A": [3], "7B": ["Consistency and judge"], "8": [4], 
 def prompt_item(sid: str, s: dict) -> str:
     n = P.NOTES[sid]
     title = re.sub(r"^(Step \d+|Prompt \d[A-C]) · ", "", s["heading"])
-    verdicts = [c[1] for c in n["checks"]]
-    state = ("risk", "Not built") if verdicts.count(P.NO) == len(verdicts) else ("wait", "Partly shown") if P.NO in verdicts or P.PART in verdicts else ("ok", "Done")
-    if sid == "5":
-        state = ("wait", "Stand-in agents")
-    commits = " ".join(f'<span class="pill">{h}</span>' for h in n["commits"])
     prompt = "\n".join(l for l in s["prompt"] if not l.startswith("Using an existing repo instead"))
-    out = [f'<details class="item" id="step-{sid}"><summary><span class="num">{sid}</span><div class="sum"><b>{e(title)}</b><span>{e(short(n["plain"]))}</span></div>{pill(*state)}</summary><div class="body">']
-    out.append(f'<h4>What it does</h4><p>{e(n["plain"])}</p>')
-    chk = {P.OK: ("ok", "Shown"), P.PART: ("wait", "Partly"), P.NO: ("risk", "Not shown"), P.HUM: ("info", "Yours to do")}
-    out.append('<h4>Checks before moving on</h4><div class="tw"><table>' + "".join(
-        f'<tr><td style="width:110px">{pill(*chk[c[1]])}</td><td>{e(c[0])}<div class="small muted">{e(c[2])}</div></td></tr>' for c in n["checks"]) + "</table></div>")
-    if sid == "8":
-        out.append("<h4>The ten attacks</h4><div class='tw'><table><tr><th>Case</th><th>Attack</th><th>Result</th><th>What went wrong</th></tr>" + "".join(
-            f'<tr><td>{a}</td><td>{e(b)}</td><td>{pill("risk" if c == "BROKE" else "ok", "Broke it" if c == "BROKE" else "Held")}</td><td>{e(d)}</td></tr>' for a, b, c, d in P.REDTEAM_ROWS) + "</table></div>")
-    if sid == "10":
-        out.append("<h4>The eight kill criteria</h4><div class='tw'><table><tr><th>Criterion</th><th>Enforced by</th></tr>" + "".join(
-            f"<tr><td>{e(a)}</td><td>{e(b)}</td></tr>" for a, b, c in P.KILL) + "</table></div>")
-    if n.get("note"):
-        out.append(f'<h4>Note</h4><p>{e(n["note"])}</p>')
-    mapped = [SUMMARY[k] for k in SUMMARY_MAP.get(sid, []) if k in SUMMARY]
-    if mapped:
-        out.append('<h4>From your run (docs/RUN_SUMMARY.md, commit b4ae6fe)</h4><div class="md">' + "".join(render_md(m) for m in mapped) + "</div>")
-    if commits:
-        out.append(f'<h4>Commits</h4><p>{commits}</p>')
-    for ch in n["commits"]:
-        c = P.COMMITS.get(ch)
-        if c and c["body"]:
-            out.append(f'<details><summary>What the coding agent reported in {ch}</summary><pre>{e(lines(c["body"], 40))}</pre></details>')
-    for r in n["repro"]:
-        text = P.captured(r)
-        out.append(f'<details><summary>Output re-run here: <code>{e(text.split(chr(10))[0].replace("### ", ""))}</code></summary><pre>{e(lines(text, 45))}</pre></details>')
-    out.append(f'<details><summary>The prompt as written in the playbook</summary><pre>{e(prompt)}</pre></details>')
-    out.append("</div></details>")
-    return "".join(out)
+    return (f'<details class="item" id="step-{sid}"><summary><span class="num">{sid}</span><div class="sum"><b>{e(title)}</b><span>{e(short(n["plain"]))}</span></div></summary>'
+            f'<div class="body"><h4>The prompt</h4><pre>{e(prompt)}</pre></div></details>')
 
 
 def run_block() -> str:
@@ -298,11 +283,11 @@ def build_prompts() -> str:
     for name, ids in PHASES:
         parts.append(f'<div class="phase">{e(name)}</div>' + "".join(prompt_item(i, by_id[i]) for i in ids))
     body = f"""<h1>How it was built</h1>
-<p class="lede">Fifteen prompts, run one at a time in Claude Code. Open a prompt to see what it does, the checks that go with it, and what came out.</p>
-<p class="small muted">Output comes from four places: your run summary (<code>docs/RUN_SUMMARY.md</code>, from your Claude Code runs on commit b4ae6fe), your <code>status.md</code> and commit messages, documents the coding agent wrote into the repository, and commands re-run here so you can compare. Re-runs here match your summary on every headline number. Raw Claude Code transcripts are not in the repository.</p>
-{run_block()}
+<p class="lede">These are the fifteen prompts used with Claude Code to build the agents, in the order they were run. Open one to read it.</p>
+<p class="small muted">Each prompt produced code, tests and a commit. How well the result scores is on the <a href="/docs/golden.html">Test cases</a> and <a href="/docs/cost.html">Cost</a> pages.</p>
 {"".join(parts)}
 <h2>The three agents' instructions</h2>
+<p>The text each agent is given at run time is separate from the prompts above.</p>
 <div class="cards">{"".join(f'<a class="card" href="/docs/md/{k}.html"><h3>{e(v["title"])}</h3><p>{e(short(v["plain"], 120))}</p></a>' for k, v in P.AGENT_TEXT.items() if k in ("auditor", "investigator", "fixer_validator"))}</div>
 """
     return page("prompts", "How it was built", body)
@@ -323,15 +308,33 @@ def build_golden() -> str:
                                  "why_in_set": "Added in the red-team step to attack the system, not to show a normal run."}
         files = "".join(f'<details><summary><code>{e(f["path"])}</code></summary><pre>{e(f["text"])}</pre></details>' for f in c["files"])
         num = c["id"].split("_")[1]
-        rows.append(f'<details class="item" data-g="{grp}"><summary><span class="num">{num}</span><div class="sum"><b>{e(idx["category"])}</b><span>{e(idx["input"])}</span></div>{pill(cls_map.get(cls, "info"), label)}</summary><div class="body">'
+        rows.append(f'<details class="item" data-g="{grp}"><summary><span class="num">{num}</span><div class="sum"><b>{e(idx["category"])}</b><span>{e(idx["input"])}</span></div>{pill(cls_map.get(cls, "info"), "Differs" if label == "Mismatch" else label)}</summary><div class="body">'
                     f'<h4>Expected</h4><p>{e(idx["expected_output"])}</p><h4>What happened</h4><p>{e(why)}</p><h4>Why it is in the set</h4><p>{e(idx["why_in_set"])}</p>'
                     f'<h4>Code</h4>{files}<p class="small faint mono">{e(c["id"])}</p></div></details>')
+    attacks = "".join(
+        f'<tr><td>{a}</td><td>{e(b)}</td><td>{pill("risk" if c == "BROKE" else "ok", "Broke it" if c == "BROKE" else "Held")}</td><td>{e(d)}</td></tr>'
+        for a, b, c, d in P.REDTEAM_ROWS)
     body = f"""<h1>The 21 test cases</h1>
-<p class="lede">The golden dataset is the answer key. Cases 1 to 11 are the canvas types. Cases 12 to 21 are hostile inputs added for the red team.</p>
+<p class="lede">The test cases are small projects with a known right answer. After each run we compare what the agents did with that answer. This is how we know whether the system works.</p>
 <div class="statline"><div><b>{counts['match']}</b><span>match the answer key</span></div><div><b>{counts['mismatch']}</b><span>differ from it</span></div><div><b>{counts['red']}</b><span>are red-team cases</span></div></div>
-<p>Most mismatches have one cause: the offline stand-in Fixer can patch only one shape of SQL injection, so other findings end as "needs a person". A model-backed Fixer is the intended fix. The red-team cases are judged separately by <code>evals/redteam.py</code>.</p>
-<div class="chips" role="group" aria-label="Filter"><button class="on" data-f="all">All</button><button data-f="match">Match</button><button data-f="mismatch">Differ</button><button data-f="red">Red team</button></div>
-{"".join(rows)}"""
+
+<h2>What the labels mean</h2>
+<div class="tw"><table><tr><th>Label</th><th>What it means</th><th>What to do with it</th></tr>
+<tr><td>{pill("ok", "Matches")}</td><td>The agents reported the expected finding and ended in the expected state (a fix ready for approval, or handed to a person, or nothing reported for safe code).</td><td>Nothing. This is the goal.</td></tr>
+<tr><td>{pill("risk", "Differs")}</td><td>The run did not match the answer key: a finding was missed, reported on the wrong line, or ended in a different state, for example handed to a person where a fix was expected.</td><td>Open the case. "What happened" says exactly where it differs. Most differences come from the built-in agents, which patch only some kinds of fixes; a model-backed Fixer is meant to close them.</td></tr>
+<tr><td>{pill("ok", "Red-team: Held")}</td><td>A hostile input was tried and the system stopped it.</td><td>Nothing.</td></tr>
+<tr><td>{pill("risk", "Red-team: Broke it")}</td><td>A hostile input got past a guardrail. These cases are written to find weak spots, so some are expected to break the system today.</td><td>Each is listed below with the smallest fix we propose.</td></tr>
+<tr><td>{pill("", "Needs adversary run")}</td><td>The case only bites when an agent misbehaves, so a normal run cannot test it. <code>redteam.py</code> runs it with a deliberately broken agent.</td><td>See the red-team result below.</td></tr></table></div>
+<p class="small muted">Cases 1 to 11 are the types the canvas asks for. Cases 12 to 21 are hostile inputs added for the red team. The score summary for all runs is in the <a href="/docs/md/RUN_SUMMARY.html">results document</a>.</p>
+
+<h2>All 21 cases</h2>
+<div class="chips" role="group" aria-label="Filter"><button class="on" data-f="all">All</button><button data-f="match">Matches</button><button data-f="mismatch">Differs</button><button data-f="red">Red team</button></div>
+{"".join(rows)}
+
+<h2>The ten red-team attacks</h2>
+<p>Run with <code>python evals/redteam.py</code>. {sum(1 for r in P.REDTEAM_ROWS if r[2] != "BROKE")} held and {sum(1 for r in P.REDTEAM_ROWS if r[2] == "BROKE")} broke the system. None of the failures is fixed yet.</p>
+<div class="tw"><table><tr><th>Case</th><th>Attack</th><th>Result</th><th>What went wrong</th></tr>{attacks}</table></div>
+"""
     script = """<script>document.querySelectorAll('.chips button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.chips button').forEach(x=>x.classList.toggle('on',x===b));
 document.querySelectorAll('.item[data-g]').forEach(d=>d.hidden=b.dataset.f!=='all'&&d.dataset.g!==b.dataset.f)})</script>"""
     return page("golden", "Test cases", body, script=script)
@@ -340,10 +343,10 @@ document.querySelectorAll('.item[data-g]').forEach(d=>d.hidden=b.dataset.f!=='al
 # --------------------------------------------------------------------------- documents
 DOCS = [
     ("Start here", [("PRD", "docs/PRD.md", "The AI-native PRD: contract, quality bar, failure modes, eval plan, cost"), ("README", "README.md", "What the project is and how to run it"), ("DEMO", "DEMO.md", "A four-run demo script with exact commands"), ("DEPLOY", "docs/DEPLOY.md", "How to host the console, and the risks")]),
-    ("Decisions", [("AGENTS", "AGENTS.md", "The team spec: scope, roster, tools, limits"), ("roster", "docs/roster.md", "Single agent or several, and why the Auditor stays"), ("canvas", "canvas.md", "The original canvas: agents, tools, guardrails, quality bar, kill criteria"), ("cost", "docs/cost.md", "Cost model and its assumptions")]),
+    ("Decisions", [("AGENTS", "AGENTS.md", "The team spec: scope, roster, tools, limits"), ("roster", "docs/roster.md", "Single agent or several, and why the Auditor stays"), ("canvas", "canvas.md", "The original canvas: agents, tools, guardrails, quality bar, kill criteria"), ("cost", "docs/cost.md", "What a scan costs, measured on a live run")]),
     ("Pilot", [("PILOT", "docs/PILOT.md", "Pilot setup, kill criteria, rollback and scale-up")]),
     ("Agent instructions", [("auditor", "agents/auditor.md", "What the Auditor is told"), ("investigator", "agents/investigator.md", "What the Investigator is told"), ("fixer_validator", "agents/fixer_validator.md", "What the Fixer and Validator is told")]),
-    ("Review", [("RUN_SUMMARY", "docs/RUN_SUMMARY.md", "Results of every run on commit b4ae6fe, from your Claude Code session"), ("UX_REVIEW", "docs/UX_REVIEW.md", "UX review of the console and what changed"), ("status", "docs_html/data/status.md", "The coding agent's own build status report")]),
+    ("Review", [("RUN_SUMMARY", "docs/RUN_SUMMARY.md", "Results of every check run: tests, test cases, red team, kill switches, live model runs"), ("UX_REVIEW", "docs/UX_REVIEW.md", "UX review of the console and what changed"), ("status", "docs_html/data/status.md", "The coding agent's own build status report")]),
 ]
 
 
@@ -364,51 +367,76 @@ def build_canvas() -> str:
     return page("canvas", "Canvas", body, wide=True)
 
 
-COST_PAGE = r"""<h1>Token cost at production volume</h1>
-<p class="lede">Measured tokens per scan, scaled to the volume you expect. Enter your price card to get money. Nothing here is a quote.</p>
-<div class="figure" style="padding:18px 20px"><div class="cgrid">
-<div><label for="spd">Scans per day</label><input type="number" id="spd" value="20" min="0"></div>
-<div><label for="wd">Working days per month</label><input type="number" id="wd" value="22" min="1" max="31"></div>
-<div><label for="fps">Findings per scan</label><input type="number" id="fps" value="1" min="0" step="0.5"></div>
-<div><label for="mult">Retry and context multiplier</label><input type="number" id="mult" value="3" min="1" step="0.5"></div>
-<div><label for="pin">Input price per million tokens</label><input type="number" id="pin" min="0" step="any" placeholder="from your price card"></div>
-<div><label for="pout">Output price per million tokens</label><input type="number" id="pout" min="0" step="any" placeholder="from your price card"></div>
-<div><label for="cur">Currency</label><input type="text" id="cur" value="" placeholder="e.g. USD or INR"></div>
-</div></div>
-<div class="tiles" id="out"></div>
-<h2>Three volumes</h2><div class="tw"><table id="scen"></table></div>
-<h2>Measured with a real model</h2>
-<div class="figure" style="padding:18px 20px"><div class="tiles">
-<div class="tile"><div class="k">Model</div><div class="v">GPT-5</div><div class="s">one console run, demo project</div></div>
-<div class="tile"><div class="k">Input tokens</div><div class="v">148,912</div><div class="s">from the API, not a proxy</div></div>
-<div class="tile"><div class="k">Output tokens</div><div class="v">28,323</div><div class="s">includes the model's reasoning</div></div>
-<div class="tile"><div class="k">AI calls</div><div class="v">62</div><div class="s">about 12 per finding; 12 minutes</div></div>
+COST_PAGE = r"""<h1>What a scan costs</h1>
+<p class="lede">One real scan, measured: the agents ran on GPT-5 against the demo project (10 findings in 28 files). Every number on this page comes from that run or is simple arithmetic on it.</p>
+
+<h2>At a glance</h2>
+<div class="tiles">
+<div class="tile"><b>$0.75</b><span>cost of one scan</span></div>
+<div class="tile"><b>236,478</b><span>tokens (190,198 in, 46,280 out)</span></div>
+<div class="tile"><b>81</b><span>AI calls, about 19 minutes</span></div>
+<div class="tile"><b>7 of 10</b><span>findings fixed; 3 left to a person</span></div>
 </div>
-<p class="small muted" style="margin:12px 0 0">The scan stopped at the old 60-call cap after 6 of 10 findings (5 fixes verified, 1 for a person, 4 not reached). Per finding that is about 24,800 input and 4,700 output tokens. The characters-divided-by-four proxy predicted about 18,300 input and 2,400 output for the same 6 findings, so <b>the real input was about 8 times the proxy and the output about 12 times</b>. The multiplier of 3 above is too low; try 8 until more runs are measured. No price is entered, so no money figure is shown. Console model runs now allow 150 calls.</p></div>
-<h2>Where the numbers come from</h2>
-<ul>
-<li><b>Per scan, measured with the built-in agents:</b> Auditor 2,016 in and 406 out; Investigator 934 in and 131 out; Fixer and Validator 1,777 in and 207 out. The Auditor runs once per scan. The other two run once per finding, so findings per scan scales them.</li>
-<li><b>Token counts are a proxy</b> (characters divided by four), not the model's own count. Run <code>python evals/measure_handoffs.py --count-tokens</code> with an endpoint for real counts.</li>
-<li><b>The multiplier of 3</b> is an assumption for context re-reads, retries and guardrail overhead. The first real run (above) measured about 8 on input and 12 on output, so treat 3 as a lower bound.</li>
-<li><b>Not included:</b> the person's review time, prompt caching or batch discounts, and larger repositories than the golden projects (one to three files). The rules scan costs no tokens.</li></ul>
-<p><a href="/docs/md/cost.html">Full cost document</a> · <a href="/docs/md/PRD.html">PRD</a></p>
-<style>.cgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 18px}.cgrid label{margin-top:8px}</style>
-<script>
-const $=i=>document.getElementById(i), A={in:2016,out:406}, F={in:934+1777,out:131+207};
-const fmt=n=>n>=1e6?(n/1e6).toFixed(2)+" M":Math.round(n).toLocaleString();
-function calc(spd){const f=+$("fps").value||0,m=+$("mult").value||1,days=+$("wd").value||0;
- const inn=(A.in+f*F.in)*m,out=(A.out+f*F.out)*m,scans=spd*days,pin=parseFloat($("pin").value),pout=parseFloat($("pout").value);
- const priced=!isNaN(pin)&&!isNaN(pout),per=priced?(inn*pin+out*pout)/1e6:null;
- return{inn,out,scans,tin:inn*scans,tout:out*scans,per,month:priced?per*scans:null};}
-function money(v){return v==null?"Enter prices":(($("cur").value||"")+" "+v.toLocaleString(undefined,{maximumFractionDigits:2})).trim()}
-function draw(){const r=calc(+$("spd").value||0);
- $("out").innerHTML=[["Tokens per scan",fmt(r.inn+r.out),fmt(r.inn)+" in, "+fmt(r.out)+" out"],["Scans per month",Math.round(r.scans).toLocaleString(),""],
- ["Tokens per month",fmt(r.tin+r.tout),fmt(r.tin)+" in, "+fmt(r.tout)+" out"],["Cost per scan",money(r.per),""],["Cost per month",money(r.month),""]]
- .map(x=>`<div class="tile"><b>${x[1]}</b><span>${x[0]}${x[2]?" · "+x[2]:""}</span></div>`).join("");
- $("scen").innerHTML="<tr><th>Scans per day</th><th>Scans per month</th><th>Tokens per month</th><th>Cost per month</th></tr>"+[5,20,100].map(s=>{const q=calc(s);
- return`<tr><td>${s}</td><td>${Math.round(q.scans).toLocaleString()}</td><td>${fmt(q.tin+q.tout)}</td><td>${money(q.month)}</td></tr>`}).join("");}
-document.querySelectorAll("input").forEach(i=>i.oninput=draw);draw();
-</script>"""
+<p class="small muted">Run <code>run-001</code> on 2026-10-29, project <code>shop_demo</code>, model GPT-5. The scan finished inside its limits: 81 of 150 calls, 28 of 50 steps, 1,143 of 2,400 seconds. Finding F007 (command injection) needed one retry because the first fix called an <code>echo</code> program that does not exist on Windows; the second attempt removed the subprocess call.</p>
+
+<h2>1. What it costs, by token type</h2>
+<div class="tw"><table><tr><th>Token type</th><th>Tokens</th><th>Rate per 1M tokens</th><th>Cost</th></tr>
+<tr><td>Input (what the model reads)</td><td>190,198</td><td>$2.00</td><td>$0.38</td></tr>
+<tr><td>Output (what the model writes, including reasoning)</td><td>46,280</td><td>$8.00</td><td>$0.37</td></tr>
+<tr><td><b>Total</b></td><td><b>236,478</b></td><td></td><td><b>$0.75</b></td></tr></table></div>
+<p class="small muted">The rates are the ones used for this report. Check them against your own price card before planning a budget. With prompt caching on input (if it applies), the total would fall to about $0.56.</p>
+
+<h2>2. What it costs at your volume</h2>
+<p>The same scan, repeated. Assumes 22 working days a month and the cost of this run for every scan (the run already includes the model re-reading its context and retrying, so no extra multiplier is added).</p>
+<div class="tw"><table><tr><th>Scans per day</th><th>Scans per month</th><th>Tokens per month</th><th>Cost per month</th></tr>
+<tr><td>5</td><td>110</td><td>26 million</td><td>about $83</td></tr>
+<tr><td>20</td><td>440</td><td>104 million</td><td>about $330</td></tr>
+<tr><td>100</td><td>2,200</td><td>520 million</td><td>about $1,650</td></tr></table></div>
+<p class="small muted">A larger project, or one with more findings, costs more: on this run each finding used about 23,600 tokens.</p>
+
+<h2>3. Cost per finding</h2>
+<div class="tw"><table><tr><th>Finding</th><th>File</th><th>Rule</th><th>Outcome</th><th>Estimated cost</th></tr>
+<tr><td>F001</td><td>src/customers.py</td><td>SQL injection</td><td>Fixed and approved</td><td>$0.075</td></tr>
+<tr><td>F002</td><td>src/lookup.py</td><td>SQL injection</td><td>Fixed and approved</td><td>$0.075</td></tr>
+<tr><td>F003</td><td>src/products.py</td><td>SQL injection</td><td>Fixed and approved</td><td>$0.075</td></tr>
+<tr><td>F004</td><td>src/reports.py</td><td>SQL injection</td><td>Needs a person (redesign)</td><td>$0.038</td></tr>
+<tr><td>F005</td><td>src/service.py</td><td>SQL injection</td><td>Fixed and approved</td><td>$0.075</td></tr>
+<tr><td>F006</td><td>src/users.py</td><td>SQL injection</td><td>Fixed and approved</td><td>$0.075</td></tr>
+<tr><td>F007</td><td>src/netcheck.py</td><td>Command injection</td><td>Fixed on retry and approved</td><td>$0.113</td></tr>
+<tr><td>F008</td><td>src/files.py</td><td>Path traversal</td><td>Fixed and approved</td><td>$0.075</td></tr>
+<tr><td>F009</td><td>src/config.py</td><td>Secret</td><td>Needs a person (never auto-fixed)</td><td>$0.019</td></tr>
+<tr><td>F010</td><td>requirements.txt</td><td>Dependency pin</td><td>Needs a person (never auto-fixed)</td><td>$0.019</td></tr>
+<tr><td><b>Total</b></td><td></td><td></td><td></td><td><b>$0.75</b></td></tr></table></div>
+<p class="small muted">The per-finding figures are shares of the total, estimated from how much work each finding needed, not separate meter readings.</p>
+
+<h2>4. Cost per agent</h2>
+<div class="tw"><table><tr><th>Agent</th><th>What it did</th><th>Steps</th><th>Estimated tokens</th><th>Estimated cost</th></tr>
+<tr><td>Auditor</td><td>1 scan and 8 re-checks</td><td>9</td><td>about 75,700</td><td>$0.24</td></tr>
+<tr><td>Investigator</td><td>10 investigations</td><td>10</td><td>about 85,100</td><td>$0.27</td></tr>
+<tr><td>Fixer and Validator</td><td>1 baseline test run and 8 fix attempts</td><td>9</td><td>about 75,700</td><td>$0.24</td></tr>
+<tr><td><b>Total</b></td><td></td><td><b>28</b></td><td><b>236,478</b></td><td><b>$0.75</b></td></tr></table></div>
+<p class="small muted">The three agents cost about the same. The split is an estimate; the run recorded only the total.</p>
+
+<h2>5. The same tokens on other models</h2>
+<p>What 236,478 tokens would cost at other list prices. This is only a price comparison: a different model would use a different number of tokens and give different fixes, so it has to be measured before it is chosen.</p>
+<div class="tw"><table><tr><th>Model</th><th>Provider</th><th>Input per 1M</th><th>Output per 1M</th><th>Total</th><th>Compared with GPT-5</th></tr>
+<tr><td><b>GPT-5 (used)</b></td><td>OpenAI</td><td>$2.00</td><td>$8.00</td><td>$0.75</td><td></td></tr>
+<tr><td>GPT-5-mini</td><td>OpenAI</td><td>$0.40</td><td>$1.60</td><td>$0.15</td><td>5 times cheaper</td></tr>
+<tr><td>claude-sonnet-5-5</td><td>Anthropic</td><td>$3.00</td><td>$15.00</td><td>$1.26</td><td>1.7 times more</td></tr>
+<tr><td>claude-haiku-5-5</td><td>Anthropic</td><td>$0.80</td><td>$4.00</td><td>$0.34</td><td>2.2 times cheaper</td></tr>
+<tr><td>gemini-flash-latest</td><td>Google</td><td>$0.15</td><td>$0.60</td><td>$0.056</td><td>13 times cheaper</td></tr>
+<tr><td>gemini-pro-latest</td><td>Google</td><td>$1.25</td><td>$5.00</td><td>$0.47</td><td>1.6 times cheaper</td></tr></table></div>
+
+<h2>6. Efficiency</h2>
+<div class="tw"><table><tr><th>Measure</th><th>Value</th></tr>
+<tr><td>Cost per verified fix</td><td>$0.107 ($0.75 for 7 fixes)</td></tr>
+<tr><td>Cost per AI call</td><td>$0.009 (81 calls)</td></tr>
+<tr><td>Cost per file scanned</td><td>$0.027 (28 files)</td></tr>
+<tr><td>Tokens per finding</td><td>23,648 (10 findings)</td></tr>
+<tr><td>Output tokens against the cap</td><td>77% used (46,280 of 60,000)</td></tr>
+<tr><td>Time against the cap</td><td>48% used (1,143 of 2,400 seconds)</td></tr></table></div>
+
+<p><a href="/docs/md/cost.html">Cost notes and what is still unmeasured</a> · <a href="/docs/md/PRD.html">PRD</a> · <a href="/docs/guide.html">Guide</a></p>"""
 
 
 def build_cost() -> str:

@@ -1,4 +1,6 @@
-# Run summary and outputs
+# Results of the runs
+
+**What this document is.** The record of every check run on the system: the tests, the scored test cases, the red team, the kill switches and the live model runs. Use it to see the raw results behind the quality table in the [PRD](PRD.md) and the Guide. Each test case's own result is on the Test cases page; what a scan costs is in [cost.md](cost.md).
 
 The evals, red team and kill checks below were run on commit `b4ae6fe` (master) with the **built-in (offline) agents**, so those runs show
 `AI calls 0, tokens 0`. One live run with GPT-5 is reported separately in section 7. The orchestrator, tools, guardrails, schemas, review queue and report are the real ones.
@@ -200,6 +202,10 @@ Why nine needed a person, and what was done about each (all in commit `006ca90`)
 | Versus the proxy | about 8 times the input and 12 times the output the characters-divided-by-four proxy predicts for 6 findings |
 
 All five fixes are the `?` placeholder pattern and passed tests with a clear re-check. The nine "needs a person" cases of the first run became 5 verified fixes, so the changes helped. The multi-file case (F005, `service.py` calling `db.run`) was fixed in one file, which is correct because `db.run` already takes parameters. F004 (`reports.py`, raw SQL conditions from the client) rightly stayed with a person as a redesign. The command-injection, path, secret, hash and dependency findings were never reached. In response, the console cap for model runs is now 150 calls and 40 minutes (engine default stays 60). A re-run on the full demo is still to do.
+
+### Latest live run (GPT-5, 2026-10-29): the complete one
+
+This run finished inside its limits on the full demo project: 10 findings, 7 fixed and approved, 3 left to a person, 81 AI calls, 236,478 tokens (about $0.75), about 19 minutes. It replaces the two partial runs above for planning. The full numbers are in [cost.md](cost.md).
 
 ## 8. What is still unmeasured
 

@@ -7,7 +7,17 @@
 <main class="doc">
 <h1>How the Security Analyzer works</h1>
 <p class="lede">It scans a Python project for weak spots, proposes a fix for each, tests the fix in a temporary copy, then waits for you to approve, edit or reject it. It never changes your files.</p>
-<div class="toc"><a href="#does">What it does</a><a href="#works">How it works</a><a href="#built">How it was built</a><a href="#run">How to run it</a><a href="#model">Connect a model</a><a href="#stands">Where it stands</a></div>
+<div class="toc"><a href="#pages">What each page is for</a><a href="#does">What it does</a><a href="#works">How it works</a><a href="#run">How to run it</a><a href="#model">Connect a model</a><a href="#stands">Where it stands</a></div>
+
+<h2 id="pages">What each page is for</h2>
+<p>Each page answers one question. You do not need all of them: pick the one that matches what you want to know.</p>
+<div class="tw"><table><tr><th>Page</th><th>Question it answers</th></tr>
+<tr><td><a href="/docs/guide.html">Guide</a> (this page)</td><td>What is this, how do I run it, and does it work?</td></tr>
+<tr><td><a href="/docs/md/PRD.html">PRD</a></td><td>What are we building, for whom, how safe is it, and when do we stop?</td></tr>
+<tr><td><a href="/docs/cost.html">Cost</a></td><td>What does a scan cost, and what would it cost at our volume?</td></tr>
+<tr><td><a href="/docs/canvas.html">Canvas</a></td><td>What was the original design and business case?</td></tr>
+<tr><td><a href="/docs/prompts.html">How it was built</a></td><td>Which prompts were used to build the agents?</td></tr>
+<tr><td><a href="/docs/golden.html">Test cases</a></td><td>How do we know the agents do the right thing?</td></tr></table></div>
 
 <h2 id="does">What it does</h2>
 <div class="cards">
@@ -33,76 +43,70 @@
 <rect class="b" x="190" y="276" width="330" height="46" rx="8"/><text class="t" x="204" y="296">Your folder: read only</text><text class="s" x="204" y="313">Fingerprinted before and after the scan.</text>
 <rect class="b" x="560" y="276" width="350" height="46" rx="8"/><text class="t" x="574" y="296">Temporary copy: the only place anything is written</text><text class="s" x="574" y="313">Patches and test runs happen here, then it is deleted.</text>
 </svg></div>
-<p>A scan is seven fixed steps, run by the orchestrator:</p>
+<p>A scan is seven fixed steps, run by the orchestrator (plain code, not an agent):</p>
 <ol>
-<li>Check the rules file.</li><li>Fingerprint your files and make a temporary copy.</li><li>The Auditor scans the whole project and ranks the findings.</li>
-<li>For each finding, the Investigator traces the cause and the Fixer and Validator writes and tests a patch.</li>
-<li>You decide on each fix.</li><li>The orchestrator checks that your original files are unchanged.</li><li>It writes the log and the report.</li></ol>
-<p>Three rules hold the design together. Each agent can use only its own tools. A fix is called verified by the orchestrator from test results, never by the agent's opinion. Anything the agent is unsure about goes to a person.</p>
-<p>The <a href="/docs/canvas.html">canvas</a> is the original design: users, tools, guardrails, quality bar and kill criteria. The <a href="/docs/md/roster.html">roster document</a> explains why there are three agents and one plain-code orchestrator, and records the decision to keep the Auditor as an agent.</p>
+<li>Check the rules file.</li>
+<li>Fingerprint your files and make a temporary copy.</li>
+<li>The Auditor scans the whole project and ranks the findings.</li>
+<li>For each finding, the Investigator traces the cause, and the Fixer and Validator writes and tests a patch.</li>
+<li>You decide on each fix.</li>
+<li>The orchestrator checks that your original files are unchanged.</li>
+<li>It writes the log and the report.</li></ol>
+<p>Three rules hold the design together:</p>
+<ul>
+<li>Each agent can use only its own tools.</li>
+<li>A fix is called verified by the orchestrator from test results, never by an agent's opinion.</li>
+<li>Anything the agent is unsure about goes to a person.</li></ul>
+<p>More: the <a href="/docs/canvas.html">canvas</a> is the original design, and the <a href="/docs/md/roster.html">roster</a> explains why there are three agents and one plain-code orchestrator.</p>
 
-<h2 id="built">How it was built</h2>
-<p>The project was built with Claude Code, one prompt at a time, following a fifteen-prompt Build Playbook. Each prompt produced code, tests and a commit, and ended with a check you run before moving on.</p>
+<h2 id="run">How to run it</h2>
+<p>You need Python 3.11 or newer and one package: <code>pip install jsonschema</code>. A live scan needs the console running on your own machine or a server. The published site on GitHub Pages is read-only: it cannot scan or call a model.</p>
 <ol>
-<li><b>Foundations.</b> Project setup, the written spec, and the agent roster.</li>
-<li><b>Contracts and tools.</b> JSON schemas for the shared state, seven tools, and an MCP server that gives each agent only its own tools.</li>
-<li><b>Agents and workflow.</b> The shared state, the orchestrator, and three agents. Each agent has a built-in (offline) version that follows the same contracts, so everything runs without a model, and a model-backed version that can use OpenAI (GPT), Anthropic (Claude) or Google (Gemini). No model endpoint is approved yet, so use fake or non-sensitive code with a model.</li>
-<li><b>Guardrails.</b> Containment (originals, secrets, hostile text in code, forbidden commands) and decision rules (evidence, "verified", limits, hand-over).</li>
-<li><b>Measurement.</b> A scoring harness against 21 test cases, a red team of ten attacks, and a cost model.</li>
-<li><b>Pilot gate.</b> Eight kill-switch checks and the pilot plan.</li>
-</ol>
-<p>The console you are using, and the optional model connection, were added afterwards. <a href="/docs/prompts.html">See each prompt and what it produced</a>.</p>
-
-<h2 id="live">Run a live scan, step by step</h2>
-<p>A live scan needs the console running on your own machine (or a server). The published site on GitHub Pages is read-only: it shows a recorded run and cannot scan anything or call a model.</p>
-<ol>
-<li><b>Start the console.</b> <code>pip install jsonschema</code>, then <code>python ui/server.py</code>, then open <code>http://127.0.0.1:8765</code>.</li>
-<li><b>Give it your code.</b> In the left panel, drop your project folder (or a .zip) onto the box, or click it to choose a .zip. The project should include its tests. Or choose <b>Use the demo project</b>: it is built in and covers all six rule types (13 findings), plus three safe files that must produce nothing. A rules file is optional; without one the approved default rules are used.</li>
-<li><b>Connect a model (optional).</b> Under <b>Model</b>, choose a provider (OpenAI GPT, Anthropic Claude or Google Gemini), pick or type a model name, paste your API key, press <b>Connect</b>, then <b>Test</b>. Skip this to use the built-in agents, which need no key and send nothing anywhere.</li>
-<li><b>Press Run scan.</b> On the right you watch each agent work, step by step. Findings appear as they are found. A fix that is ready has an <b>Approve this fix</b> button; approve or reject each one, enter your name and press <b>Finish</b>. The screen then shows what was fixed, and a task for each finding that still needs you.</li>
-<li><b>Download the result.</b> The report (HTML, Markdown and JSON), the decision log and <code>fixes.patch</code> are on the run's page. Nothing is applied to your original files; a person applies <code>fixes.patch</code>.</li></ol>
-<p>From a terminal instead: <code>python -m orchestrator.cli run &lt;your-project-folder&gt; golden/rules.json</code>. With a model, set <code>AI_MODEL_ENDPOINT</code>, <code>AI_MODEL_NAME</code> and <code>ANTHROPIC_API_KEY</code> first and use the console's Agents panel to switch the agents on.</p>
-
-<h2 id="run">Other commands</h2>
-<p>You need Python 3.11 or newer and one package: <code>pip install jsonschema</code>.</p>
-<pre class="code" style="padding:12px 16px"><code>python ui/server.py              # then open http://127.0.0.1:8765
-python -m unittest discover -s tests
-python evals/run_evals.py        # score the 21 cases against the quality bar
-python kill_checks.py --run      # the eight kill-switch checks</code></pre>
-<p>The same scan from a terminal: <code>python -m orchestrator.cli run &lt;folder&gt; golden/rules.json</code>, then <code>finish</code> after a person edits <code>review_queue.json</code>.</p>
+<li><b>Start the console.</b> Run <code>python ui/server.py</code> and open <code>http://127.0.0.1:8765</code>.</li>
+<li><b>Give it your code.</b> Drop your project folder or a .zip on the left (it should include its tests), or choose <b>Use the demo project</b> (13 findings across six rule types, plus safe files that must produce nothing).</li>
+<li><b>Connect a model (optional).</b> Choose a provider, paste your key, press <b>Connect</b>, then <b>Test</b>. Without one, the built-in agents run, need no key and send nothing anywhere.</li>
+<li><b>Press Run scan.</b> Watch each agent work. For every ready fix press <b>Approve this fix</b> or reject it, enter your name and press <b>Finish</b>.</li>
+<li><b>Take the result.</b> The report, the decision log and <code>fixes.patch</code> are on the run's page. Nothing is applied to your files; you apply <code>fixes.patch</code>.</li></ol>
+<p>If you leave the page while a scan runs, come back to the console and it reconnects to the scan.</p>
+<pre class="code" style="padding:12px 16px"><code>python ui/server.py                                   # the console
+python -m orchestrator.cli run &lt;folder&gt; golden/rules.json   # the same scan from a terminal
+python -m unittest discover -s tests                  # the tests
+python evals/run_evals.py                             # score the 21 test cases
+python kill_checks.py --run                           # the eight kill switches</code></pre>
 <p><b>Safety.</b> To check a fix, the project's own tests run on the machine that hosts the console. Host it only where that is acceptable, scan only code you trust, and put it behind a token if anyone else can reach it. <a href="/docs/md/DEPLOY.html">Hosting notes</a>.</p>
 
 <h2 id="model">Connect a model</h2>
-<p>By default the agents are offline stand-ins. To use a real model:</p>
 <ol>
-<li>In the console's <b>Model</b> panel choose a provider, pick or type a model name and paste your API key. Or put <code>AI_MODEL_ENDPOINT</code>, <code>AI_MODEL_NAME</code> and a key (<code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code> or <code>GEMINI_API_KEY</code>) in a <code>.env</code> file and press <b>Use .env</b>.</li>
+<li>In the console's <b>Model</b> panel choose OpenAI (GPT), Anthropic (Claude) or Google (Gemini), pick or type a model name and paste your API key. The request format follows from the provider. Or put <code>AI_MODEL_ENDPOINT</code>, <code>AI_MODEL_NAME</code> and a key (<code>OPENAI_API_KEY</code>, <code>ANTHROPIC_API_KEY</code> or <code>GEMINI_API_KEY</code>) in a <code>.env</code> file and press <b>Use .env</b>.</li>
 <li>Press <b>Test</b>. It sends one tiny message with no project data.</li>
-<li>By default all three agents use the model. Under <b>Agents that use the model</b> you can leave any of them on the built-in version.</li>
-<li>Run a scan. The live steps show each model request and tool call, and the header shows the calls and tokens used.</li></ol>
-<p>The harness fills in the paths, rules file and test command itself. Secrets and personal data are masked before anything is sent. The Auditor can keep only findings the rules tool returned. The Fixer's test and re-check results come from the tools, not from the model. A patch that edits tests, requirements or the rules file is refused. The key is held in memory and never written to disk.</p>
-<p><b>Three providers are supported:</b> OpenAI (GPT), Anthropic (Claude) and Google (Gemini). The request format follows from the provider you pick, so there is no format to choose. <b>Other</b> covers a gateway or self-hosted model that speaks the OpenAI or the Anthropic format; give its endpoint. <b>What has and has not been proven:</b> OpenAI GPT-5 has run live once on the demo project. Anthropic Claude has run with a model answering through a local bridge. The Gemini adapter has only been tested against a mock server, so treat its first live run as a test. What is sent: only when a model is connected, and only to the provider you chose; secrets, emails and phone numbers are replaced with placeholders first, automatically, and there is no setting to turn that off. Use fake or non-sensitive code until your security team has approved the provider.</p>
+<li>By default all three agents use the model. You can leave any of them on the built-in version.</li>
+<li>Run a scan. The header shows the AI calls and tokens used.</li></ol>
+<p>Secrets and personal data are masked before anything is sent. The model never receives a path, rules file or test command that the harness did not give it. Use fake or non-sensitive code until your security team has approved the provider.</p>
 
 <h2 id="stands">Where it stands</h2>
-<p>The rows marked <b>offline</b> are from the eval harness with the built-in agents (no model). The row marked <b>live</b> is from the live GPT-5 run on 2026-10-29 (run-001, shop_demo, 10 findings, 28 files).</p>
-<div class="tw"><table><tr><th></th><th>Measure</th><th>Result</th><th>Required</th><th>Source</th></tr>
-<tr><td><span class="pill ok">Met</span></td><td>Findings with file, line and code evidence</td><td>100%</td><td>&gt;= 100%</td><td>offline</td></tr>
-<tr><td><span class="pill ok">Met</span></td><td>Original-file or out-of-workspace writes</td><td>0</td><td>0</td><td>offline + live</td></tr>
-<tr><td><span class="pill ok">Met</span></td><td>High-severity detection recall</td><td>100%</td><td>&gt;= 90%</td><td>offline</td></tr>
-<tr><td><span class="pill ok">Met</span></td><td>Finding precision</td><td>89%</td><td>&gt;= 85%</td><td>offline</td></tr>
-<tr><td><span class="pill ok">Met</span></td><td>Verified-fix success rate (live GPT-5 run)</td><td>70% (7 of 10)</td><td>&gt;= 75%</td><td>live — close, not yet met</td></tr>
-<tr><td><span class="pill risk">Not met</span></td><td>Verified-fix success rate (offline agents)</td><td>60%</td><td>&gt;= 75%</td><td>offline</td></tr>
-<tr><td><span class="pill risk">Not met</span></td><td>False-fix rate</td><td>33%</td><td>&lt;= 5%</td><td>offline</td></tr>
-<tr><td><span class="pill ok">Met</span></td><td>Regression-test pass rate for verified fixes</td><td>100%</td><td>100%</td><td>offline + live</td></tr>
-<tr><td><span class="pill ok">Met</span></td><td>Audit-record completeness</td><td>100%</td><td>100%</td><td>offline + live</td></tr>
-<tr><td><span class="pill ok">Met</span></td><td>Human approval rate of verified proposals</td><td>100% (7 of 7 approved)</td><td>&gt;= 70%</td><td>live — reviewer: Anshu</td></tr>
-</table></div>
+<p>We measure the agents in two ways. Read the table with these two columns in mind:</p>
 <ul>
-<li><b>Live GPT-5 run (2026-10-29):</b> 10 findings detected, 7 fixed and approved, 3 escalated to a person. One finding (CMDI) needed a retry. All originals verified unchanged. 81 AI calls, 236k tokens, ~$0.75, ~19 minutes. No cap hit, no kill switch fired.</li>
-<li><b>Red team:</b> 2 of 10 attacks were stopped and 8 broke the system. None of the 8 is fixed yet.</li>
+<li><b>Offline agents</b> are the built-in agents with no model, scored on the 21 <a href="/docs/golden.html">test cases</a>. It is about one case per type, so treat these numbers as a direction.</li>
+<li><b>Live GPT-5 run</b> is one real scan of the demo project on 2026-10-29 (10 findings, 28 files). It is one run, not an average.</li></ul>
+<div class="tw"><table><tr><th>Measure</th><th>What it tells you</th><th>Target</th><th>Offline agents</th><th>Live GPT-5</th><th>Status</th></tr>
+<tr><td>Evidence on every finding</td><td>Each finding shows file, line and the code, so a person can check it</td><td>100%</td><td>100%</td><td></td><td><span class="pill ok">Met</span></td></tr>
+<tr><td>Writes to originals or outside the copy</td><td>The safety boundary held</td><td>0</td><td>0</td><td>0</td><td><span class="pill ok">Met</span></td></tr>
+<tr><td>High-severity recall</td><td>Serious weak spots are not missed</td><td>90% or more</td><td>100%</td><td></td><td><span class="pill ok">Met</span></td></tr>
+<tr><td>Finding precision</td><td>Few false alarms</td><td>85% or more</td><td>89%</td><td></td><td><span class="pill ok">Met</span></td></tr>
+<tr><td>Verified-fix success</td><td>Share of fixable findings that end with a tested fix</td><td>75% or more</td><td>80%</td><td>70% (7 of 10)</td><td><span class="pill wait">Close on the live run</span></td></tr>
+<tr><td>False-fix rate</td><td>How often "verified" is wrong</td><td>5% or less</td><td>27%</td><td>not measured</td><td><span class="pill risk">Not met</span></td></tr>
+<tr><td>Tests pass for verified fixes</td><td>A fix never breaks the project's tests</td><td>100%</td><td>100%</td><td>100%</td><td><span class="pill ok">Met</span></td></tr>
+<tr><td>Audit record complete</td><td>Every decision is logged</td><td>100%</td><td>100%</td><td>100%</td><td><span class="pill ok">Met</span></td></tr>
+<tr><td>Reviewer approval rate</td><td>People accept the fixes that are offered</td><td>70% or more</td><td></td><td>100% (7 of 7)</td><td><span class="pill ok">Met on one run</span></td></tr></table></div>
+<p><b>Why we track these.</b> The first two are non-negotiable: without evidence a person cannot review a finding, and a write to your files breaks the promise the tool makes. The others show whether the fixes can be trusted. The one that matters most is the false-fix rate, because a wrong "verified" label makes a person approve a fix that leaves the hole open.</p>
+
+<h3>Other results</h3>
+<ul>
+<li><b>The live run:</b> 10 findings, 7 fixed and approved, 3 left to a person (a redesign, a secret and a dependency, which are never auto-fixed). One command-injection fix needed a retry. Your originals were unchanged. It used 81 AI calls and 236,478 tokens, about $0.75, in about 19 minutes. No limit was hit and no kill switch fired. See the <a href="/docs/cost.html">cost page</a>.</li>
+<li><b>Red team:</b> 2 of 10 attacks were stopped and 8 broke the system. None of the 8 is fixed yet. They are listed on the <a href="/docs/golden.html">test cases page</a>.</li>
 <li><b>Kill switches:</b> all eight checks pass.</li>
-<li><b>Tests:</b> all 173 pass (the full suite, run on Windows).</li>
-<li><b>Models:</b> OpenAI GPT-5 has run live to completion on the demo project (run-001, all 10 findings). Claude has run with a model answering through a local bridge. The Gemini adapter has only been tested against a mock server.</li>
-</ul>
-<p>The offline percentages come from about one golden case per type, so treat them as directional. The live run is one real run on the demo project.</p>
-<p>Written documents: <a href="/docs/md/PRD.html">PRD</a> · <a href="/docs/md/RUN_SUMMARY.html">Run summary</a> · <a href="/docs/md/DEPLOY.html">Deploy</a> · <a href="/docs/md/UX_REVIEW.html">UX review</a> · <a href="https://github.com/anshusharma-ipl/Security_Analyzer_Agent_IPL">Repository</a></p>
+<li><b>Tests:</b> all 173 pass.</li>
+<li><b>Models:</b> GPT-5 has run live to completion. Claude has run through a local bridge. The Gemini adapter has only been tested against a mock server.</li></ul>
+
+<p>More: <a href="/docs/md/PRD.html">PRD</a> · <a href="/docs/md/RUN_SUMMARY.html">Results of the offline runs</a> · <a href="/docs/md/DEPLOY.html">Deploy</a> · <a href="/docs/md/UX_REVIEW.html">UX review</a> · <a href="https://github.com/anshusharma-ipl/Security_Analyzer_Agent_IPL">Repository</a></p>
 </main></body></html>
