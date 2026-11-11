@@ -54,7 +54,7 @@ class ConsoleTest(unittest.TestCase):
     def test_guide_pages_are_served_and_nothing_outside_the_site_folders(self):
         s, body = self.call("/docs/summary.html")
         self.assertEqual(s, 200)
-        self.assertIn(b"Summary", body)
+        self.assertIn(b"Problem and idea", body)
         self.assertEqual(self.call("/static/app.css")[0], 200)
         for page in ("design", "behaves", "safe", "testing", "results", "cost", "pilot", "limits", "prompts", "canvas", "run"):
             self.assertEqual(self.call(f"/docs/{page}.html")[0], 200, page)

@@ -12,6 +12,7 @@ import json
 import os
 import re
 import sys
+import time
 from html import escape as e
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -27,25 +28,24 @@ import build_prompts as P  # noqa: E402
 REPO = "https://github.com/anshusharma-ipl/Security_Analyzer_Agent_IPL"
 # The pages, in the order of the tour, in groups. Each page is (key, title, file). The menu numbers them and every page links to the next.
 GROUPS = [
-    ("The idea", [("summary", "Summary", "summary.html"), ("canvas", "Canvas", "canvas.html"), ("design", "Agent design", "design.html")]),
-    ("How it works", [("behaves", "How a scan works", "behaves.html"), ("safe", "Guardrails and safety", "safe.html")]),
-    ("The proof", [("testing", "How we test it", "testing.html"), ("results", "Results", "results.html"), ("cost", "Cost", "cost.html")]),
-    ("Delivery", [("pilot", "Pilot and kill criteria", "pilot.html"), ("limits", "Limits and next steps", "limits.html"), ("prompts", "How it was built", "prompts.html")]),
+    ("The idea", [("summary", "Problem and idea", "summary.html"), ("design", "Agent design", "design.html"), ("prompts", "How we built", "prompts.html"), ("testing", "Evals and testing", "testing.html")]),
+    ("How it runs", [("behaves", "How a scan works", "behaves.html"), ("safe", "Guardrails", "safe.html"), ("kill", "Kill criteria and rollback", "kill.html"), ("cost", "Cost", "cost.html")]),
+    ("Results and plan", [("results", "Results", "results.html"), ("pilot", "Pilot plan", "pilot.html"), ("limits", "Limits and next steps", "limits.html")]),
 ]
 TOUR = [p for _, pages in GROUPS for p in pages]
 TRY = ("run", "Try it yourself", "run.html")
 QUESTION = {
-    "summary": "What is this, who is it for, and why?",
-    "canvas": "What was the original design and business case?",
+    "summary": "What is the problem, and what is the idea?",
     "design": "Why an agent, who does what, and which patterns are used?",
     "behaves": "What does a scan do, and what goes in and out?",
     "safe": "What can go wrong, and what stops it?",
-    "testing": "How do we score the agents, and on what?",
+    "kill": "When does a run stop at once, and when do we go back to the previous setup?",
+    "testing": "How is each agent evaluated, and on what?",
     "results": "What did the scores say, and what did a real run do?",
     "cost": "What does a scan cost?",
-    "pilot": "How does the pilot start, when do we stop, when do we roll back?",
+    "pilot": "How does the pilot start and who takes part?",
     "limits": "What is not done yet, and what comes next?",
-    "prompts": "Which prompts were used to build the agents?",
+    "prompts": "How was it built, and with which prompts?",
 }
 LOGO = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
         '<path d="M12 3l8 3v6c0 4.5-3.2 8-8 9-4.8-1-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5L15.5 10"/></svg>')
@@ -99,7 +99,7 @@ def page(key: str, title: str, body: str, wide: bool = False, extra_head: str = 
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css">{extra_head}</head><body>
-<header class="topbar"><div class="in"><a class="brand" href="/">{LOGO}Security Analyzer</a></div></header>
+<header class="topbar"><div class="in"><a class="brand" href="/">{LOGO}Security Analyzer</a><span class="team">IPL Neural Navigators<i>&middot;</i>Cohort ICAIPM2026F</span></div></header>
 <div class="shell"><aside class="side" aria-label="Pages">{side}</aside>
 <main class="doc{' wide' if wide else ''}">{body}{pager}</main></div>{script}</body></html>"""
 
@@ -107,8 +107,15 @@ def page(key: str, title: str, body: str, wide: bool = False, extra_head: str = 
 def write(name: str, html: str) -> None:
     path = os.path.join(OUT, name)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write(html)
+    for attempt in range(20):  # on Windows a page that is being served or viewed can be briefly unwritable
+        try:
+            with open(path, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write(html)
+            break
+        except OSError:
+            if attempt == 19:
+                raise
+            time.sleep(0.1)
     print("wrote", os.path.relpath(path, ROOT), f"{len(html) // 1024} KB")
 
 
@@ -254,6 +261,11 @@ def lead(title: str, lede: str) -> str:
     return f'<h1>{e(title)}</h1><p class="lede">{lede}</p>'
 
 
+def plain(text: str) -> str:
+    """A short plain-language box at the top of a page, for readers who want the idea before the detail."""
+    return f'<div class="plain"><b>In plain words</b><p>{text}</p></div>'
+
+
 def related(*slugs: tuple) -> str:
     links = " · ".join(f'<a href="/docs/md/{s}.html">{e(t)}</a>' for s, t in slugs)
     return f'<p class="small muted">Source documents: {links}</p>'
@@ -277,6 +289,42 @@ def live_data() -> dict | None:
         return json.load(handle)
 
 
+def attr_data() -> dict | None:
+    src = os.path.join(ROOT, "docs_html", "data", "attribution.json")
+    if not os.path.isfile(src):
+        return None
+    with open(src, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+STAGE = {"auditor": "Auditor", "investigator": "Investigator", "fixer_validator": "Fixer & Validator"}
+
+
+CAUSE_NOTE = {"15": " (the red-team notes trace the cause to the re-check scanning the whole file)"}
+
+
+def eval_block(key: str) -> str:
+    """'How it is evaluated', for the Agent design page. Built from evals/attribution.py and the last eval record."""
+    a = attr_data()
+    if not a:
+        return ""
+    stage = STAGE[key]
+    judged = "".join(f"<li>{e(t[0].upper() + t[1:])}</li>" for t in a["judged_on"][stage])
+    fails = a["failing"][stage]
+    n = len(a["cases_run"])
+    n_gold = sum(1 for c in a["cases_run"] if int(c.split("_")[1]) <= 11)
+    n_red_all = sum(1 for c in G.CASES if int(c["id"].split("_")[1]) >= 12)
+    where = (f"The {n} test cases that <code>python evals/run_evals.py</code> runs with the built-in agents (no AI model): the {n_gold} golden cases and {n - n_gold} of the {n_red_all} red-team attacks. "
+             "The other attacks test a guardrail that normal agents never trigger, so <code>evals/redteam.py</code> runs them with an agent that misbehaves on purpose.")
+    if fails:
+        result = f"<p>In those cases a failure first showed up at this agent in {len(fails)}:</p><ul>" + "".join(f"<li><b>Case {e(x['case'].split('_')[1])}</b>: {e(x['why'])}{e(CAUSE_NOTE.get(x['case'].split('_')[1], ''))}</li>" for x in fails) + "</ul>"
+    else:
+        result = "<p>In those cases no failure first showed up at this agent.</p>"
+    return (f'<h4 class="agentpart">How it is evaluated</h4><div class="md"><p>Every test case has an answer key. When a case fails, the failure is recorded at the first stage where it showed up, in pipeline order. This is a first-failure rule, not a root-cause finding.</p>'
+            f'<p><b>It is judged on:</b></p><ul>{judged}</ul><p><b>Latest result.</b> {where}</p>{result}'
+            f'<p class="small muted">All test cases and what happened in each: <a href="/docs/testing.html">Evals and testing</a>.</p></div>')
+
+
 def case_scores() -> tuple:
     n_pass = n_gold = n_held = n_red = 0
     for c in G.CASES:
@@ -292,45 +340,14 @@ def case_scores() -> tuple:
 
 
 def build_summary() -> str:
-    n_pass, n_gold, n_held, n_red = case_scores()
-    live = live_data()
-    tiles = f'<div class="tile"><b>{n_pass} of {n_gold}</b><span>golden cases pass</span></div><div class="tile"><b>{n_held} of {n_red}</b><span>red-team attacks held ({n_red - n_held} weaknesses found)</span></div>'
-    if live:
-        cost = live["tokens"]["input"] * 2 / 1e6 + live["tokens"]["output"] * 8 / 1e6
-        tiles += (f'<div class="tile"><b>{live["totals"]["fixed_and_verified"]} of {live["totals"]["found"]}</b><span>findings fixed in a live {e(live["model"].upper())} run</span></div>'
-                  f'<div class="tile"><b>about ${cost:.2f}</b><span>per scan of the demo project, at assumed rates</span></div>')
-    criteria = [
-        ("Problem and user", "summary", "Who has the problem, and why a scanner alone does not solve it"),
-        ("Why agentic, and the design", "design", "What the agents decide, the tools each has, and the patterns used"),
-        ("Orchestration and tool use", "behaves", "How a scan runs, step by step, with limits and hand-over"),
-        ("Guardrails and human oversight", "safe", "Failure modes, guardrails, and a person approving every fix"),
-        ("Evaluation", "testing", "The golden set, the red team and how each result is judged"),
-        ("Results and evidence", "results", "The quality scorecard and one real run with a model"),
-        ("Cost and feasibility", "cost", "What a scan costs and what it would cost at volume"),
-        ("Rollout and risk", "pilot", "The pilot plan, kill criteria and rollback"),
-        ("Honest limits", "limits", "What is not done, and what comes next"),
-        ("How it was built", "prompts", "The prompts used with Claude Code to build it"),
-    ]
-    pages = {k: (t, h) for k, t, h in TOUR}
-    crit = "".join(f'<tr><td>{c}</td><td><a href="/docs/{pages[k][1]}">{pages[k][0]}</a></td><td>{d}</td></tr>' for c, k, d in criteria)
-    body = lead("Summary", "It scans a Python project for weak spots, proposes a fix for each, tests the fix in a temporary copy, then waits for you to approve, edit or reject it. It never changes your files.") + f"""
-<div class="cards">
-<div class="card"><h3>Finds</h3><p>SQL injection, command injection and path traversal. It also reports hard-coded secrets, weak password hashes and unpinned packages, but never fixes those.</p></div>
-<div class="card"><h3>Proposes and tests</h3><p>Each fix is applied to a temporary copy, the project's own tests run, and the rules run again. A fix counts as verified only if both pass.</p></div>
-<div class="card"><h3>Asks you</h3><p>Every fix waits for a person. Approved fixes are written to <code>fixes.patch</code>. You apply them yourself.</p></div>
-</div>
-<h2>Proof at a glance</h2>
-<div class="tiles">{tiles}</div>
-<p class="small muted">Golden cases are realistic projects with a known answer. The red team is a set of attacks written to break the system, so finding weaknesses is its job. The live run is one real scan, not a benchmark. Details are on the <a href="/docs/results.html">Results</a> page.</p>
-<h2>The problem and the idea</h2>
+    body = lead("Problem and idea", "Security scanners list problems but leave the fixing to people. This agent team finds the weak spots, prepares a tested fix for each one, and lets a person decide.") + """
+<p><a class="canvasbtn" href="/docs/canvas.html" data-canvas>View the project canvas</a><span class="small muted">The one-page design this project started from.</span></p>
+""" + f"""
 {prd_html(1, skip=("Why an agent and not a script",))}
 <h2>The job and what success looks like</h2>
 {prd_html(2)}
-<h2>Where to find each capstone criterion</h2>
-<div class="tw"><table><tr><th>Criterion</th><th>Page</th><th>What you will find</th></tr>{crit}</table></div>
-<p class="small muted">Use the menu on the left, or the Next link at the bottom of each page, to follow the story in order. The source is in the <a href="{REPO}">repository</a>.</p>
 """
-    return page("summary", "Summary", body)
+    return page("summary", "Problem and idea", body, script='<dialog id="canvasdlg" class="canvasdlg"><div class="dlghead"><b>Project canvas</b><button type="button" id="canvasclose" aria-label="Close the canvas">&times;</button></div><iframe id="canvasframe" title="Project canvas"></iframe></dialog>\n<script>(function(){var d=document.getElementById("canvasdlg"),f=document.getElementById("canvasframe");\ndocument.querySelectorAll("[data-canvas]").forEach(function(a){a.addEventListener("click",function(ev){ev.preventDefault();if(f.getAttribute("data-ready")!=="1"){f.src=a.href;f.setAttribute("data-ready","1")}d.showModal()})});\ndocument.getElementById("canvasclose").onclick=function(){d.close()};\nd.addEventListener("click",function(ev){if(ev.target===d)d.close()})})();</script>')
 
 
 AGENT_ORDER = (("auditor", "Auditor"), ("investigator", "Investigator"), ("fixer_validator", "Fixer and Validator"))
@@ -350,49 +367,41 @@ def agent_instructions(key: str) -> tuple:
                 tools = line.split(":", 1)[1].strip().strip("[]")
         text = text[m.end():]
     text = re.sub(r"(?m)^# .*\n", "", text, count=1)
-    text = re.sub(r"(?m)^## ", "#### ", text)
+    text = re.sub(r"(?m)^## ", "##### ", text)
     return desc, tools, text.strip()
 
 
 def agent_section(key: str, title: str) -> str:
     desc, tools, body = agent_instructions(key)
-    html_body = re.sub(r'<h4 id="([^"]+)"', lambda m: f'<h4 id="{key}-{m.group(1)}"', render_md(body))
+    html_body = re.sub(r'<h5 id="([^"]+)"', lambda m: f'<h5 id="{key}-{m.group(1)}"', render_md(body))
     tool_list = ", ".join(f"<code>{e(t.strip())}</code>" for t in tools.split(",") if t.strip())
     return (f'<h3 class="agenthead" id="agent-{key}">{e(title)}</h3>'
             f'<div class="tw"><table><tr><td style="width:90px"><b>Decides</b></td><td>{e(desc)}</td></tr><tr><td><b>Tools</b></td><td>{tool_list}</td></tr></table></div>'
-            f'<p class="small muted">What the agent is told at run time, from <code>agents/{key}.md</code>.</p>'
-            f'<div class="md">{html_body}</div>')
+            f'<h4 class="agentpart">Instructions it is given</h4>'
+            f'<p class="small muted">Sent to the agent at run time, from <code>agents/{key}.md</code>.</p>'
+            f'<div class="md">{html_body}</div>' + eval_block(key))
 
 
 def build_design() -> str:
     toc = "".join(f'<a href="#agent-{k}">{t}</a>' for k, t in AGENT_ORDER)
     sections = "".join(agent_section(k, t) for k, t in AGENT_ORDER)
-    body = lead("Agent design", "The design decisions behind the agent team: why an agent, who does what, how they are connected, and which agentic patterns are used.") + f"""
-<h2>1. Why an agent and not a script</h2>
+    body = lead("Agent design", "Why this is an agent and not a script, who does what, how the agents are connected, and which agentic patterns are used.") + plain("Three small AI agents each do one job. The Auditor finds the problems, the Investigator works out the cause, and the Fixer and Validator writes and tests a fix. The orchestrator, a plain program and not an AI, runs them in a fixed order, and a person approves every fix.") + f"""
+<h2>Why an agent</h2>
 {prd_sub(1, "Why an agent and not a script")}
-<h2>2. The team and how it is connected</h2>
-<p>Three agents, each with one job and its own tools, and a plain-code orchestrator that is not a model.</p>
+<h2>The three agents and how they work</h2>
 {prd_sub(3, "Roles and tools")}
 <div class="figure">{ARCH}</div>
 <p>Every handoff goes through the orchestrator. The agents never call each other, and the original files are read only.</p>
-<h2>3. Agentic patterns used</h2>
-<div class="tw"><table><tr><th>Pattern</th><th>Used</th><th>How</th></tr>
-<tr><td>Multi-agent with an orchestrator</td><td>{pill("ok", "Yes")}</td><td>Three agents with separate jobs, coordinated by plain code.</td></tr>
-<tr><td>Pipeline</td><td>{pill("ok", "Yes")}</td><td>A scan is seven fixed steps, in a fixed order.</td></tr>
-<tr><td>Tool use with least privilege</td><td>{pill("ok", "Yes")}</td><td>Seven tools. Each agent gets only its own, through its own MCP profile.</td></tr>
-<tr><td>Routing and hand-over</td><td>{pill("ok", "Yes")}</td><td>Each finding is routed: fix, retry, or hand to a person.</td></tr>
-<tr><td>Reflection and retry</td><td>{pill("ok", "Yes")}</td><td>The rules run again on the fixed copy, and a failed fix gets one retry.</td></tr>
-<tr><td>Human in the loop</td><td>{pill("ok", "Yes")}</td><td>A person approves, edits or rejects every fix.</td></tr>
-<tr><td>Parallel agents</td><td>{pill("", "No")}</td><td>One handoff at a time, so every step is logged in order.</td></tr>
-<tr><td>Free-form planning</td><td>{pill("", "No")}</td><td>The order is fixed by the orchestrator, not chosen by a model.</td></tr>
-<tr><td>Retraining the model</td><td>{pill("", "No")}</td><td>The model is not retrained. The plan is to add failed and rejected fixes to the test set instead.</td></tr></table></div>
-<h2>4. State and contracts</h2>
-<div class="tw"><table><tr><th>Part</th><th>How it works</th></tr>
-<tr><td>Shared state</td><td>One document owned by the orchestrator. Each field has one writer, so an agent cannot overwrite what it does not own.</td></tr>
-<tr><td>Contracts</td><td>Every agent reply is checked against a JSON schema before the orchestrator accepts it.</td></tr>
-<tr><td>Decisions</td><td>The orchestrator, not an agent, sets the final status. "Verified" comes from test and re-check results.</td></tr></table></div>
-<h2>5. The agents in detail</h2>
-<p>Each agent below has its job, its tools, and the instructions it is given at run time. The instructions say what it may decide, which tools it may call, what it must write, and what it must never do.</p>
+<h2>Agentic patterns used</h2>
+<div class="tw"><table><tr><th>Pattern</th><th>How</th></tr>
+<tr><td>Multi-agent with an orchestrator</td><td>Three agents with separate jobs, coordinated by plain code.</td></tr>
+<tr><td>Pipeline</td><td>A scan is seven fixed steps, in a fixed order.</td></tr>
+<tr><td>Tool use with least privilege</td><td>Seven tools. Each agent gets only its own, through its own MCP profile.</td></tr>
+<tr><td>Routing and hand-over</td><td>Each finding is routed: fix, retry, or hand to a person.</td></tr>
+<tr><td>Reflection and retry</td><td>The rules run again on the fixed copy, and a failed fix gets one retry.</td></tr>
+<tr><td>Human in the loop</td><td>A person approves, edits or rejects every fix.</td></tr></table></div>
+<h2>The agents one by one</h2>
+<p>For each agent: what it decides, its tools, the instructions it is given, and how it is evaluated.</p>
 <div class="toc">{toc}</div>
 {sections}
 {related(("roster", "Roster: single or several agents"), ("AGENTS", "AGENTS.md: the team spec"))}
@@ -401,7 +410,7 @@ def build_design() -> str:
 
 
 def build_behaves() -> str:
-    body = lead("How a scan works", "How a scan runs, what goes in and what comes out, which limits apply, and when it hands a finding to a person.") + f"""
+    body = lead("How a scan works", "How a scan runs, its inputs and outputs, which limits apply, and when it hands a finding to a person.") + plain("You give it a project. It makes a safe copy, finds weak spots, tries a fix on the copy, runs your own tests, and waits for you. Your files are never changed.") + f"""
 <h2>A scan, step by step</h2>
 <div class="figure">{DIAGRAM}</div>
 <p>A scan is seven fixed steps, run by the orchestrator (plain code, not an agent):</p>
@@ -413,15 +422,50 @@ def build_behaves() -> str:
 <li>You decide on each fix.</li>
 <li>The orchestrator checks that your original files are unchanged.</li>
 <li>It writes the log and the report.</li></ol>
-<h2>The details</h2>
-{prd_html(3, skip=("Roles and tools",))}
+<h2>Inputs</h2>
+{prd_sub(3, "Inputs")}
+<h2>The limits that stop a scan</h2>
+{prd_sub(3, "Limits and default values")}
+<h2>Outputs</h2>
+{prd_sub(3, "Outputs")}
+<h2>What each finding contains</h2>
+{prd_sub(3, "What each finding carries")}
+<h2>When it hands a finding to a person</h2>
+{prd_sub(3, "When the agent hands over to a person")}
 {related(("AGENTS", "AGENTS.md: scope, limits and decisions"), ("DEMO", "Demo script"))}
 """
     return page("behaves", "How a scan works", body)
 
 
+def link_refs(html: str) -> str:
+    """Make the references on the Guardrails page clickable: files go to the repository, cases to the Evals and testing page. Statuses become pills."""
+    html = re.sub(r"<code>((?:tests|evals)/[\w./]+\.py|kill_checks\.py)</code>",
+                  lambda m: f'<a href="{REPO}/blob/master/{m.group(1)}" target="_blank" rel="noopener"><code>{m.group(1)}</code></a>', html)
+
+    html = re.sub(r"<td>No( \([^<]*\))?</td>", lambda m: f"<td>{pill('risk', 'No')}{m.group(1) or ''}</td>", html)
+    html = re.sub(r"<td>By hand( \([^<]*\))?</td>", lambda m: f"<td>{pill('wait', 'By hand')}{m.group(1) or ''}</td>", html)
+    html = html.replace("<td>Yes</td>", f"<td>{pill('ok', 'Yes')}</td>")
+
+    def cases(m):
+        return re.sub(r"\b(\d{2})\b", lambda n: f'<a href="/docs/testing.html#case-{n.group(1)}">{n.group(1)}</a>', m.group(0))
+
+    html = re.sub(r"(?:red-team )?cases? \d{2}(?: and \d{2})?", cases, html)
+    return html
+
+
 def build_safe() -> str:
-    return page("safe", "Guardrails and safety", lead("Guardrails and safety", "What can go wrong, and the guardrails that stop it.") + prd_html(4) + related(("AGENTS", "AGENTS.md: the never list")))
+    body = (lead("Guardrails", "What can go wrong, and the guardrails that stop it.")
+            + plain("An AI tool can invent things, obey instructions hidden in code, or break working code. Each risk below has a guard. The checks that stop a run at once are on the Kill criteria and rollback page.")
+            + link_refs(prd_html(4)))
+    return page("safe", "Guardrails", body)
+
+
+def build_kill() -> str:
+    body = (lead("Kill criteria and rollback", "When a run stops at once, and when the product owner decides to go back to the previous setup.")
+            + plain("There are two safety nets. A kill criterion stops a single run immediately, and it is checked automatically. Rollback is a decision by the product owner, not an automatic switch: if the results get worse, they go back to the previous setup.")
+            + "<h2>Kill criteria</h2>" + prd_sub(9, "Kill criteria: stop at once if the agent")
+            + "<h2>Rollback</h2><p>The product owner decides to go back to the previous rules, prompts, model or scan-only mode if any of these happens. Nothing switches back automatically.</p>" + prd_sub(9, "Rollback: the product owner decides to go back to the previous rules, prompts, model or scan-only mode if"))
+    return page("kill", "Kill criteria and rollback", body)
 
 
 def red_counts() -> tuple:
@@ -429,28 +473,72 @@ def red_counts() -> tuple:
     return sum(1 for r in rows if r[2] != "BROKE"), sum(1 for r in rows if r[2] == "BROKE")
 
 
+def situations() -> str:
+    """The 11 situations the canvas says the golden set must cover, taken from the cases' own categories."""
+    items = "".join(f"<li><b>{c['id'].split('_')[1]}</b> {e(c['expected']['category'])}</li>" for c in G.CASES if int(c["id"].split("_")[1]) <= 11)
+    return (f"<h3>The 11 golden situations</h3><p>The canvas lists 11 situations the test set must cover, and each golden case is one of them. "
+            f"The red-team attacks (12 to 21) were added later to try to break the system.</p><ul>{items}</ul>")
+
+
+def what_was_run() -> str:
+    """One table: the 21 cases in three groups (golden, red team run with them, red team run on its own) and what happened."""
+    a = attr_data()
+    ran = {c.split("_")[1] for c in a["cases_run"]} if a else None
+    groups = {"golden": [], "red_with": [], "red_alone": []}
+    for c in G.CASES:
+        num = c["id"].split("_")[1]
+        _, label, _ = G.verdict(c)
+        ok = label == "Matches" or label.startswith("Red-team: HELD")
+        if int(num) <= 11:
+            groups["golden"].append((num, ok))
+        elif ran is None or num in ran:
+            groups["red_with"].append((num, ok))
+        else:
+            groups["red_alone"].append((num, ok))
+
+    def nums(items):
+        return ", ".join(n for n, _ in items) or "-"
+
+    def red(items):
+        held = [n for n, ok in items if ok]
+        broke = [n for n, ok in items if not ok]
+        return f"{len(held)} held, {len(broke)} broke the system (broke: {', '.join(broke) or '-'})"
+
+    g = groups["golden"]
+    miss = [n for n, ok in g if not ok]
+    rows = (f"<tr><td><b>Golden dataset</b><br><span class=\"small muted\">Realistic small projects, one for each of 11 situations</span></td><td>{nums(g)}</td><td><code>evals/run_evals.py</code></td>"
+            f"<td>{len(g) - len(miss)} of {len(g)} pass (not passed: {', '.join(miss) or '-'})</td></tr>"
+            f"<tr><td><b>Red-team attacks, run with the golden set</b><br><span class=\"small muted\">Cases written to break the system</span></td><td>{nums(groups['red_with'])}</td><td><code>evals/run_evals.py</code></td><td>{red(groups['red_with'])}</td></tr>"
+            f"<tr><td><b>Red-team attacks, run on their own</b><br><span class=\"small muted\">They test a guardrail, so a misbehaving agent is swapped in</span></td><td>{nums(groups['red_alone'])}</td><td><code>evals/redteam.py</code></td><td>{red(groups['red_alone'])}</td></tr>")
+    n_with = len(g) + len(groups["red_with"])
+    return f"""<h2>What was run</h2>
+<p>There are {len(G.CASES)} test cases, each with an answer key. {n_with} of them run together in <code>evals/run_evals.py</code>. The other {len(groups['red_alone'])} run on their own in <code>evals/redteam.py</code>, which swaps in an agent that does the bad thing on purpose, because the normal agents never would.</p>
+<div class="tw"><table><tr><th>Set</th><th>Cases</th><th>Run with</th><th>What happened</th></tr>{rows}</table></div>
+{situations()}
+<p class="small muted">Both scripts were run by hand with the built-in agents (no AI model); there is no automatic pipeline yet. Ordinary code tests are separate: <code>python -m unittest discover -s tests</code> (176 tests). The per-agent view is on the <a href="/docs/design.html">Agent design</a> page.</p>
+"""
+
+
 def build_testing() -> str:
-    body = lead("How we test it", "We score the agents against small projects with known right answers, and repeat it whenever something changes.") + f"""
-{prd_html(6)}
-<h2>The test cases</h2>
+    body = lead("Evals and testing", "The test cases the agents are scored on, which ones ran, and what happened.") + f"""
+{what_was_run()}
+<h2>Each test case</h2>
 {demote(strip_head(build_golden(inner=True)))}
 {related(("RUN_SUMMARY", "Results of every check run"))}
 """
-    return page("testing", "How we test it", body)
+    return page("testing", "Evals and testing", body)
 
 
 def build_results() -> str:
     held, broke = red_counts()
     live = demote(strip_head(build_live(inner=True))) if live_data() else ""
     body = lead("Results", "Where the agents stand against the quality bar, and what one real run with a model did.") + f"""
-<h2>Quality standards</h2>
-{prd_html(5)}
-<h3>In short</h3>
+<h2>In short</h2>
 <div class="tw"><table><tr><th>Status</th><th>What</th></tr>
 <tr><td>{pill("ok", "Works")}</td><td>A scan runs end to end, the safety gates hold (no write to your files, evidence on every finding, all eight kill switches pass), and one live GPT-5 run fixed 7 of 10 findings for about $0.75 in about 19 minutes.</td></tr>
-<tr><td>{pill("risk", "Not yet")}</td><td>The false-fix rate is 27% against a limit of 5%, and {broke} of 10 red-team attacks still break the system ({held} are stopped).</td></tr></table></div>
-<h3>Why we track these</h3>
-<p>The first two are non-negotiable: without evidence a person cannot review a finding, and a write to your files breaks the promise the tool makes. The others show whether the fixes can be trusted. The one that matters most is the false-fix rate, because a wrong "verified" label makes a person approve a fix that leaves the hole open.</p>
+<tr><td>{pill("risk", "Not yet")}</td><td>The false-fix rate is 27% against a limit of 5%. This one matters most, because a wrong "verified" label can lead a person to approve a fix that leaves the hole open. Also, {broke} of 10 red-team attacks still break the system ({held} are stopped).</td></tr></table></div>
+<h2>Quality standards</h2>
+{prd_html(5)}
 <h2>The live GPT-5 run</h2>
 {live}
 {related(("RUN_SUMMARY", "Results of every check run"))}
@@ -459,40 +547,34 @@ def build_results() -> str:
 
 
 def build_pilot() -> str:
-    body = lead("Pilot and kill criteria", "How the pilot starts, when we stop at once, and when we go back to the previous setup.") + f"""
-<h2>Rollout</h2>
+    body = lead("Pilot plan", "How the pilot starts and who takes part. The kill criteria and the rollback are on their own page.") + plain("A small trial with named reviewers, not a launch. It does not start until a model endpoint is approved and the false-fix check passes (see Limits and next steps).") + f"""
 {prd_html(8)}
-<h2>Kill criteria and rollback</h2>
-{prd_html(9)}
 {related(("PILOT", "Pilot plan: setup, time comparison and rollback table"))}
 """
-    return page("pilot", "Pilot and kill criteria", body)
+    return page("pilot", "Pilot plan", body)
 
 
 def build_limits() -> str:
     held, broke = red_counts()
-    body = lead("Limits and next steps", "What is not done yet, stated plainly, and what we would do next.") + f"""
+    body = lead("Limits and next steps", "What is not done yet, stated plainly, and what we would do next.") + plain("What is not done yet, and the order we would fix it in.") + f"""
 <h2>What is not done yet</h2>
 <div class="tw"><table><tr><th>Area</th><th>Where it stands</th></tr>
-<tr><td>Red team</td><td>{broke} of 10 attacks still break the system. None of the weaknesses is fixed yet.</td></tr>
-<tr><td>False-fix rate</td><td>27% with the built-in agents against a limit of 5%. Not measured on the live run, because nobody independently checked the approved fixes. One example of why that check matters: the accepted fix for the command-injection finding replaced the command with a plain string, which the project's tests cannot tell apart from the original.</td></tr>
-<tr><td>Model coverage</td><td>One full scan with GPT-5. Claude has run through a local bridge. The Gemini adapter has only been tested against a mock server.</td></tr>
-<tr><td>Sample size</td><td>About one test case per type and one live run, so the scores are a direction, not a proof.</td></tr>
-<tr><td>Time saved</td><td>Not measured. Reviewer time per fix, and the manual comparison, need real reviewers.</td></tr>
-<tr><td>Cost baseline</td><td>The price rates need checking against a real price card, and today's engineer hours per finding are not measured.</td></tr>
-<tr><td>Judge model</td><td>Built and tested with a stub, but no judge model is set up, so there is no live result. Before it is relied on, its answers must be compared with a person on at least 20 findings.</td></tr>
-<tr><td>Tracing service</td><td>A tracing integration sends model requests to a third-party service. It must be approved, or switched off, before any pilot.</td></tr>
-<tr><td>Pilot setup</td><td>Participants, the repository and the rules owner are still to be named.</td></tr></table></div>
+<tr><td>Red team</td><td>{broke} of 10 attacks still break the system. None is fixed yet.</td></tr>
+<tr><td>Models and sample size</td><td>Only GPT-5 ran a full scan, and there is about one test case per type, so the scores show a direction, not a proof.</td></tr>
+<tr><td>False-fix rate</td><td>27% against a limit of 5%. Not measured on the live run.</td></tr>
+<tr><td>Time saved</td><td>Not measured. It needs real reviewers.</td></tr>
+<tr><td>Judge model</td><td>Built, but only tested with a stub.</td></tr>
+<tr><td>Cost and data handling</td><td>The price rates are unchecked, and tracing sends requests to a third-party service.</td></tr>
+<tr><td>Pilot setup</td><td>The participants, repository and rules owner are not named.</td></tr></table></div>
 <h2>Next steps, in order</h2>
-<div class="tw"><table><tr><th>#</th><th>Step</th><th>Why it comes now</th></tr>
-<tr><td>1</td><td>Fix the four most serious red-team failures (secrets reaching run files, patches that edit tests, false fixes, missing usage counts) and re-run.</td><td>They break guardrails a pilot depends on.</td></tr>
-<tr><td>2</td><td>Score a model-backed run on all 21 cases.</td><td>It shows whether a model closes the gaps of the built-in agents.</td></tr>
-<tr><td>3</td><td>Have a person label every approved fix as right or wrong.</td><td>It gives a real false-fix rate on a live run.</td></tr>
-<tr><td>4</td><td>Record reviewer time and compare it with manual work on the same examples.</td><td>It is the only way to claim time saved.</td></tr>
-<tr><td>5</td><td>Set up the judge model and compare it with a person on at least 20 findings.</td><td>It adds a check on explanation and patch quality.</td></tr>
-<tr><td>6</td><td>Confirm the price card, and approve the model provider and the tracing service.</td><td>They fix the cost figure and the data-handling policy.</td></tr>
-<tr><td>7</td><td>Name the pilot participants, repository and rules owner, then start.</td><td>The pilot cannot begin without them.</td></tr></table></div>
-{related(("PILOT", "Pilot plan"), ("RUN_SUMMARY", "Results of every check run"))}
+<ol>
+<li>Fix the four most serious red-team failures (secrets in run files, patches that edit tests, false fixes, missing usage counts) and run them again.</li>
+<li>Score a model-backed run on all 21 cases.</li>
+<li>Have a person label every approved fix as right or wrong, to get a real false-fix rate.</li>
+<li>Record reviewer time and compare it with manual work.</li>
+<li>Set up the judge model and check it against a person on at least 20 findings.</li>
+<li>Confirm the price card, and approve the model provider and the tracing service.</li>
+<li>Name the pilot participants, repository and rules owner, then start.</li></ol>
 """
     return page("limits", "Limits and next steps", body)
 
@@ -524,18 +606,17 @@ PHASES = [("Foundations", ["0", "1", "2"]), ("Contracts and tools", ["3", "4A", 
           ("Guardrails", ["6A", "6B"]), ("Measurement", ["7A", "7B", "8", "9"]), ("Pilot gate", ["10"])]
 
 
-def short(text: str, n: int = 190) -> str:
-    text = text.strip()
-    cut = text.split(". ")[0].rstrip(".") + "."
-    return cut if len(cut) <= n else text[: n].rsplit(" ", 1)[0].rstrip(",;:") + "…"
+NUM = {sid: n for n, sid in enumerate([i for _, ids in PHASES for i in ids], 1)}  # shown as 1 to 15, in order
 
 
 def prompt_item(sid: str, s: dict) -> str:
+    """One step: its number and title, what it does (always visible), and the prompt itself behind a click."""
     n = P.NOTES[sid]
     title = re.sub(r"^(Step \d+|Prompt \d[A-C]) · ", "", s["heading"])
     prompt = "\n".join(l for l in s["prompt"] if not l.startswith("Using an existing repo instead"))
-    return (f'<details class="item" id="step-{sid}"><summary><span class="num">{sid}</span><div class="sum"><b>{e(title)}</b><span>{e(short(n["plain"]))}</span></div></summary>'
-            f'<div class="body"><h4>The prompt</h4><pre>{e(prompt)}</pre></div></details>')
+    plain_text = n["plain"].replace(" Section B of this page shows exactly what each agent prompt says and the real output each one produced.", "")
+    return (f'<div class="step" id="step-{sid}"><div class="stephead"><span class="num">{NUM[sid]}</span><b>{e(title)}</b></div>'
+            f'<p>{e(plain_text)}</p><details class="prompt"><summary>Show the prompt</summary><pre>{e(prompt)}</pre></details></div>')
 
 
 def build_prompts() -> str:
@@ -547,18 +628,29 @@ def build_prompts() -> str:
     parts = []
     for name, ids in PHASES:
         parts.append(f'<div class="phase">{e(name)}</div>' + "".join(prompt_item(i, by_id[i]) for i in ids))
-    body = f"""<h1>How it was built</h1>
-<p class="lede">These are the fifteen prompts used with Claude Code to build the agents, in the order they were run. Open one to read it.</p>
+    body = f"""<h1>How we built</h1>
+<p class="lede">What it does, and the fifteen prompts used with Claude Code to build it, in the order they were run.</p>
+<h2>What it does</h2>
+<p>It scans a Python project for weak spots, proposes a fix for each, tests the fix in a temporary copy, then waits for you to approve, edit or reject it. It never changes your files.</p>
+<div class="cards">
+<div class="card"><h3>Finds</h3><p>SQL injection, command injection and path traversal. It also reports hard-coded secrets, weak password hashes and unpinned packages, but never fixes those.</p></div>
+<div class="card"><h3>Proposes and tests</h3><p>Each fix is applied to a temporary copy, the project's own tests run, and the rules run again. A fix counts as verified only if both pass.</p></div>
+<div class="card"><h3>Asks you</h3><p>Every fix waits for a person. Approved fixes are written to <code>fixes.patch</code>. You apply them yourself.</p></div>
+</div>
+<h2>The prompts</h2>
+<p>Each step says what it does. Open <b>Show the prompt</b> to read the prompt itself.</p>
 <p class="small muted">Each prompt produced code, tests and a commit. How well the result scores is on the <a href="/docs/results.html">Results</a> page, and the agents' instructions are on the <a href="/docs/design.html">Agent design</a> page.</p>
 {"".join(parts)}
 """
-    return page("prompts", "How it was built", body)
+    return page("prompts", "How we built", body)
 
 
 # --------------------------------------------------------------------------- golden dataset
 def build_golden(inner: bool = False) -> str:
-    gold, red = [], []
+    gold, red_with, red_alone = [], [], []
     n_pass = n_held = 0
+    att = attr_data()
+    ran = {c.split("_")[1] for c in att["cases_run"]} if att else None
     for c in G.CASES:
         cls, label, why = G.verdict(c)
         passed = label == "Matches" or label.startswith("Red-team: HELD")
@@ -571,33 +663,41 @@ def build_golden(inner: bool = False) -> str:
                                  "why_in_set": "Added in the red-team step to attack the system, not to show a normal run."}
         files = "".join(f'<details><summary><code>{e(f["path"])}</code></summary><pre>{e(f["text"])}</pre></details>' for f in c["files"])
         word = ("Held" if passed else "Broke it") if is_red else ("Pass" if passed else "Fail")
-        row = (f'<details class="item"><summary><span class="num">{num}</span><div class="sum"><b>{e(idx["category"])}</b><span>{e(idx["input"])}</span></div>{pill("ok" if passed else "risk", word)}</summary><div class="body">'
+        row = (f'<details class="item" id="case-{num}"><summary><span class="num">{num}</span><div class="sum"><b>{e(idx["category"])}</b><span>{e(idx["input"])}</span></div>{pill("ok" if passed else "risk", word)}</summary><div class="body">'
                f'<h4>Expected</h4><p>{e(idx["expected_output"])}</p><h4>What happened</h4><p>{e(why)}</p><h4>Why it is in the set</h4><p>{e(idx["why_in_set"])}</p>'
                f'<h4>Code</h4>{files}<p class="small faint mono">{e(c["id"])}</p></div></details>')
         if is_red:
-            red.append(row)
+            (red_alone if ran is not None and num not in ran else red_with).append((num, row))
             n_held += passed
         else:
             gold.append(row)
             n_pass += passed
-    n_gold, n_red = len(gold), len(red)
-    attacks = "".join(
-        f'<tr><td>{a}</td><td>{e(b)}</td><td>{pill("risk" if c == "BROKE" else "ok", "Broke it" if c == "BROKE" else "Held")}</td><td>{e(d)}</td></tr>'
-        for a, b, c, d in P.REDTEAM_ROWS)
-    body = f"""<h1>The 21 test cases</h1>
-<p class="lede">The test cases are small projects with a known right answer. After each run we compare what the agents did with that answer. They come in two sets with two different purposes, scored separately.</p>
-<div class="tw"><table><tr><th>Set</th><th>Cases</th><th>Purpose</th><th>Result</th></tr>
-<tr><td><b>Golden cases</b></td><td>1 to 11</td><td>Realistic projects, one per type the canvas asks for. They show whether the agents do the job.</td><td><b>{n_pass} of {n_gold} pass</b></td></tr>
-<tr><td><b>Red-team cases</b></td><td>12 to 21</td><td>Hostile inputs written on purpose to break the system. They find weaknesses before an attacker or a pilot does.</td><td><b>{n_held} of {n_red} held</b>, {n_red - n_held} weaknesses found</td></tr></table></div>
+    n_gold, n_red = len(gold), len(red_with) + len(red_alone)
 
-<h2>Golden cases (1 to 11)</h2>
+    def attack_table(nums: list) -> str:
+        rows = "".join(
+            f'<tr><td>{a}</td><td>{e(b)}</td><td>{pill("risk" if c == "BROKE" else "ok", "Broke it" if c == "BROKE" else "Held")}</td><td>{e(d)}</td></tr>'
+            for a, b, c, d in P.REDTEAM_ROWS if a in nums)
+        return f'<div class="tw"><table><tr><th>Case</th><th>Attack</th><th>Result</th><th>What went wrong</th></tr>{rows}</table></div>'
+
+    with_nums, alone_nums = [n for n, _ in red_with], [n for n, _ in red_alone]
+    alone_block = ""
+    if red_alone:
+        alone_block = (f"<h2>Red-team cases run on their own ({', '.join(alone_nums)})</h2>"
+                       "<p>These three test a guardrail, and the normal agents never do the bad thing that would trigger it. So <code>python evals/redteam.py</code> swaps in an agent that does it on purpose, to see whether the system stops it.</p>"
+                       + attack_table(alone_nums) + "".join(r for _, r in red_alone))
+    body = f"""<h1>The {n_gold + n_red} test cases</h1>
+<p class="lede">The test cases are small projects with a known right answer. After each run we compare what the agents did with that answer.</p>
+
+<h2>Golden cases (1 to {n_gold})</h2>
 <p>Each one is graded against its answer key. <b>Pass</b> means the system found the expected problem and ended in the expected state: a fix ready for approval, handed to a person, or nothing reported for safe code. <b>Fail</b> means it did something else. Open a case to see what happened. The failures come from the built-in agents, which only handle some fix shapes; a model-backed agent is meant to close them.</p>
 {"".join(gold)}
 
-<h2>Red-team cases (12 to 21)</h2>
-<p>These are attacks, so finding weaknesses is their job. <b>Held</b> means the system stopped the attack. <b>Broke it</b> means the attack got through a guardrail. Each weakness is recorded with the smallest fix we propose, and none is fixed yet. Run them with <code>python evals/redteam.py</code>.</p>
-<div class="tw"><table><tr><th>Case</th><th>Attack</th><th>Result</th><th>What went wrong</th></tr>{attacks}</table></div>
-{"".join(red)}
+<h2>Red-team cases run with the golden set ({', '.join(with_nums)})</h2>
+<p>These are attacks, so finding weaknesses is their job. <b>Held</b> means the system stopped the attack. <b>Broke it</b> means the attack got through a guardrail. Each weakness is recorded with the smallest fix we propose, and none is fixed yet. They run with <code>python evals/run_evals.py</code>.</p>
+{attack_table(with_nums)}
+{"".join(r for _, r in red_with)}
+{alone_block}
 <p class="small muted">The score summary for all runs is in the <a href="/docs/md/RUN_SUMMARY.html">results document</a>.</p>
 """
     return body if inner else page("golden", "Test cases", body)
@@ -630,9 +730,7 @@ def build_live(inner: bool = False) -> str:
     rows, details = [], []
     for f in run["findings"]:
         att = f["attempts"]
-        tries = f"{len(att)}" if att else "none"
-        tests = (f["tests"] or {}).get("after") or "not run"
-        rows.append(f'<tr><td>{e(f["id"])}</td><td>{e(f["rule"])}</td><td><code>{e(f["file"])}:{f["line"]}</code></td><td>{pill(*outcome(f))}</td><td>{tries}</td><td>{e(tests)}</td><td>{e((f.get("recheck") or "not run").replace("_", " "))}</td></tr>')
+        rows.append(f'<tr><td>{e(f["id"])}</td><td>{e(f["rule"])}</td><td><code>{e(f["file"])}:{f["line"]}</code></td><td>{pill(*outcome(f))}</td></tr>')
         parts = [f'<h4>Evidence</h4><pre>{e(f["quoted_code"] or "")}</pre>']
         tc = f.get("traced_cause") or {}
         if tc.get("explanation"):
@@ -671,8 +769,8 @@ def build_live(inner: bool = False) -> str:
 <p class="small muted">Run <code>{e(run["run_id"])}</code> on {e(run["date"])}. {run["tokens"]["input"]:,} input and {run["tokens"]["output"]:,} output tokens. What this costs is on the <a href="/docs/cost.html">Cost</a> page.</p>
 
 <h2>1. What it found and did</h2>
-<p>Each row is one finding. "Attempts" counts fix attempts: the Fixer may try once more if its first fix fails the tests. "Tests" and "Re-check" are the results after the final fix.</p>
-<div class="tw"><table><tr><th>Finding</th><th>Rule</th><th>Where</th><th>Outcome</th><th>Attempts</th><th>Tests</th><th>Re-check</th></tr>{"".join(rows)}</table></div>
+<p>Each row is one finding. Open a finding below to see its fix attempts, test results and re-check.</p>
+<div class="tw"><table><tr><th>Finding</th><th>Rule</th><th>Where</th><th>Outcome</th></tr>{"".join(rows)}</table></div>
 
 <h2>2. The detail of each finding</h2>
 <p>Open one to see the evidence, the traced cause, the fix as a diff, and who decided.</p>
@@ -719,7 +817,7 @@ def build_canvas() -> str:
         toc.append(f'<a class="{"part" if level == 2 else ""}" href="#{sid}">{e(re.sub(r"[`*]", "", title))}</a>')
     body = f"""<div class="canvas"><nav class="ctoc" aria-label="Canvas sections"><b>The original canvas</b>{"".join(toc)}</nav>
 <article class="md">{html}</article></div>"""
-    return page("canvas", "Canvas", body, wide=True)
+    return page("canvas", "Canvas", body, wide=True, extra_head='<script>if(window.self!==window.top)document.documentElement.classList.add("embed")</script>')
 
 
 COST_PAGE = r"""<h1>What a scan costs</h1>
@@ -739,33 +837,19 @@ COST_PAGE = r"""<h1>What a scan costs</h1>
 <tr><td>Input (what the model reads)</td><td>190,198</td><td>$2.00</td><td>$0.38</td></tr>
 <tr><td>Output (what the model writes, including reasoning)</td><td>46,280</td><td>$8.00</td><td>$0.37</td></tr>
 <tr><td><b>Total</b></td><td><b>236,478</b></td><td></td><td><b>$0.75</b></td></tr></table></div>
-<p class="small muted">The rates are the ones used for this report. They are assumed rates, not a quote: tokens and calls are measured, money is calculated from them. Replace the rates with your own price card before planning a budget.</p>
-
-<h2>2. What it costs at your volume</h2>
+<h2>2. What the same tokens would cost on other models</h2>
+<p>This takes the tokens the real run used (190,198 in, 46,280 out) and prices them at each provider's published rate. It is a price comparison, not a run: only GPT-5 was actually run.</p>
+<div class="tw"><table><tr><th>Provider</th><th>Model</th><th>Input per 1M tokens</th><th>Output per 1M tokens</th><th>Cost of this run's tokens</th></tr>
+<tr><td>OpenAI</td><td>gpt-5 (the model used in this run)</td><td>$1.25</td><td>$10.00</td><td><b>$0.70</b></td></tr>
+<tr><td>Anthropic</td><td>Claude Sonnet 5.5</td><td>$2.00</td><td>$10.00</td><td><b>$0.84</b></td></tr>
+<tr><td>Google</td><td>Gemini 3.8 Flash</td><td>$0.75, then $1.50 from 1 Jan 2027</td><td>$3.75, then $7.50 from 1 Jan 2027</td><td><b>$0.32</b>, then <b>$0.63</b></td></tr></table></div>
+<h2>3. What it would cost at volume</h2>
 <p>The same scan, repeated. Assumes 22 working days a month and the cost of this run for every scan (the run already includes the model re-reading its context and retrying, so no extra multiplier is added).</p>
 <div class="tw"><table><tr><th>Scans per day</th><th>Scans per month</th><th>Tokens per month</th><th>Cost per month</th></tr>
 <tr><td>5</td><td>110</td><td>26 million</td><td>about $83</td></tr>
 <tr><td>20</td><td>440</td><td>104 million</td><td>about $330</td></tr>
 <tr><td>100</td><td>2,200</td><td>520 million</td><td>about $1,650</td></tr></table></div>
 <p class="small muted">A larger project, or one with more findings, costs more: on this run each finding used about 23,600 tokens.</p>
-
-<h2>3. Work done by each agent</h2>
-<p>The run recorded token totals only, not tokens per agent or per finding, so no cost split by agent or finding is shown. What it did record is how many times each agent was called.</p>
-<div class="tw"><table><tr><th>Agent</th><th>What it did</th><th>Handoffs</th></tr>
-<tr><td>Auditor</td><td>1 scan and 8 re-checks</td><td>9</td></tr>
-<tr><td>Investigator</td><td>10 investigations, one per finding</td><td>10</td></tr>
-<tr><td>Fixer and Validator</td><td>1 baseline test run and 8 fix attempts</td><td>9</td></tr>
-<tr><td><b>Total</b></td><td></td><td><b>28</b></td></tr></table></div>
-<p class="small muted">On average a finding cost about $0.075 in tokens ($0.75 over 10 findings), and a verified fix about $0.107 ($0.75 over 7 fixes). Findings left to a person still cost the investigation.</p>
-
-<h2>4. Efficiency</h2>
-<div class="tw"><table><tr><th>Measure</th><th>Value</th></tr>
-<tr><td>Cost per verified fix</td><td>$0.107 ($0.75 for 7 fixes)</td></tr>
-<tr><td>Cost per AI call</td><td>$0.009 (81 calls)</td></tr>
-<tr><td>Cost per file scanned</td><td>$0.027 (28 files)</td></tr>
-<tr><td>Tokens per finding</td><td>23,648 (10 findings)</td></tr>
-<tr><td>Output tokens against the cap</td><td>77% used (46,280 of 60,000)</td></tr>
-<tr><td>Time against the cap</td><td>48% used (1,143 of 2,400 seconds)</td></tr></table></div>
 """
 
 
@@ -792,11 +876,11 @@ def build_documents() -> None:
         with open(full, encoding="utf-8") as handle:
             text = handle.read()
         title = re.sub(r"[`*]", "", (re.search(r"^#\s+(.*)", text, re.M) or [None, slug_])[1])
-        write(f"md/{slug_}.html", page("documents", title, f'<p class="small"><a href="/docs/summary.html">Summary</a> · <span class="faint">{e(path)}</span></p>{doc_body(text)}', wide=True))
+        write(f"md/{slug_}.html", page("documents", title, f'<p class="small"><a href="/docs/summary.html">Problem and idea</a> · <span class="faint">{e(path)}</span></p>{doc_body(text)}', wide=True))
 
 
 def main() -> int:
-    for name in ("guide.html", "measure.html", "quality.html", "live.html", "golden.html", "rollout.html", "kill.html", "documents.html", os.path.join("md", "PRD.html"),
+    for name in ("guide.html", "measure.html", "quality.html", "live.html", "golden.html", "rollout.html", "rollback.html", "documents.html", os.path.join("md", "PRD.html"),
                  os.path.join("md", "auditor.html"), os.path.join("md", "investigator.html"), os.path.join("md", "fixer_validator.html"), os.path.join("md", "status.html")):
         old = os.path.join(OUT, name)                                    # pages that no longer exist
         if os.path.isfile(old):
@@ -805,6 +889,7 @@ def main() -> int:
     write("design.html", build_design())
     write("behaves.html", build_behaves())
     write("safe.html", build_safe())
+    write("kill.html", build_kill())
     write("testing.html", build_testing())
     write("results.html", build_results())
     write("pilot.html", build_pilot())

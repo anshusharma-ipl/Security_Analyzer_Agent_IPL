@@ -1,6 +1,6 @@
 """Data the guide pages are built from. site_build.py imports this module.
 
-  steps          the fifteen playbook prompts (data/playbook_steps.json), shown on the "How it was built" page
+  steps          the fifteen playbook prompts (data/playbook_steps.json), shown on the "How we built" page
   NOTES          one plain-language line per prompt
   AGENT_TEXT     one plain-language line per agent, for the three agent cards
   REDTEAM_ROWS   the ten red-team attacks and their results, shown on the "Test cases" page
@@ -20,9 +20,9 @@ steps = json.load(open(os.path.join(D, "playbook_steps.json"), encoding="utf-8")
 
 NOTES: dict[str, dict] = {'0': {'plain': 'Creates the project folder with the canvas and golden dataset, starts git, and runs the golden check once, so every later '
                 'failure is yours to find, not inherited.'},
- '1': {'plain': 'Turns the canvas into AGENTS.md, a short rulebook the coding agent re-reads before every later prompt: goal, scope, '
-                'roster, tool permissions, the NEVER list, the per-finding decision order, run limits, quality bar and resolved '
-                'decisions.'},
+ '1': {'plain': 'Reads the whole canvas, which stays the single source of truth, and writes AGENTS.md from it: a short rulebook (120 lines at '
+                'most) that the coding agent re-reads before every later prompt. It holds the goal, scope, roster, tool permissions, the '
+                'NEVER list, the per-finding decision order, run limits, quality bar and resolved decisions.'},
  '2': {'plain': 'Makes the coding agent argue the design again: the single-agent version and where it fails the canvas, a roster table, '
                 'the three-sentence test for each agent, a recommendation on whether the Auditor should stay an agent, and a Mermaid '
                 'diagram.'},
