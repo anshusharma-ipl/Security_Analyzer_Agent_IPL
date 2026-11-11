@@ -1,3 +1,0 @@
-### python3 evals/cost_model.py
-out/cost/measured.json is missing. Run: python evals/measure_handoffs.py
-exit=2

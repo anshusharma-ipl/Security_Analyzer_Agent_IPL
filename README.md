@@ -17,7 +17,7 @@ Requires Python 3.11+ and the standard library only; `jsonschema` is the one app
 - `evals/`: `run_evals.py` (the quality bar), `redteam.py` (ten hostile inputs), the judge, cost and token measurements.
 - `kill_checks.py`: the eight automatic kill switches.
 - `ui/`: the console and the guide pages served at `/docs`. The static site is published by `.github/workflows/pages.yml`; see `docs/DEPLOY.md`.
-- `docs/`: `RUN_SUMMARY.md` (results of every run), `cost.md`, `roster.md`, `UX_REVIEW.md`, `status.md`.
+- `docs/`: `RUN_SUMMARY.md` (results of every run), `cost.md`, `roster.md`, `UX_REVIEW.md`.
 
 ## Checks
 - `python -m unittest discover -s tests`: the full test suite.

@@ -3,7 +3,7 @@
     python ui/site_build.py
 
 Pages: guide, prompts (how it was built), golden (the 21 test cases), documents (project documents, rendered from markdown).
-Inputs: docs_html/data (the parsed playbook, status.md, commits, captured outputs, case results) and the repository's own .md files.
+Inputs: docs_html/data (the parsed playbook, status.md, two captured outputs, case results) and the repository's own .md files.
 Re-run docs_html/collect_cases.py first if the code changed and you want fresh case results.
 """
 from __future__ import annotations
@@ -146,15 +146,6 @@ DIAGRAM = """<svg viewBox="0 0 920 334" role="img" aria-label="A person reviews 
 
 
 # --------------------------------------------------------------------------- guide
-def metrics_rows() -> str:
-    ev = P.read(P.D, "captured", "s7_run_evals.txt")
-    rows = []
-    for l in ev.split("\n"):
-        m = re.match(r"^\s+(PASS|FAIL|not measured)\s+(.*?)\s{2,}(\S+)\s+threshold (.*)$", l)
-        if m:
-            cls = {"PASS": "ok", "FAIL": "risk"}.get(m.group(1), "")
-            rows.append(f"<tr><td>{pill(cls, {'PASS': 'Met', 'FAIL': 'Not met'}.get(m.group(1), 'Not measured'))}</td><td>{e(m.group(2))}</td><td>{e(m.group(3))}</td><td>{e(m.group(4))}</td></tr>")
-    return "".join(rows)
 
 
 def build_guide() -> str:
@@ -266,48 +257,12 @@ def short(text: str, n: int = 190) -> str:
     return cut if len(cut) <= n else text[: n].rsplit(" ", 1)[0].rstrip(",;:") + "…"
 
 
-def lines(text: str, n: int) -> str:
-    rows = text.strip().split("\n")
-    return "\n".join(rows[:n]) + (f"\n… ({len(rows) - n} more lines)" if len(rows) > n else "")
-
-
-def run_summary() -> tuple[str, dict]:
-    """docs/RUN_SUMMARY.md (your Claude Code runs): the intro text, and its sections keyed by number or subsection name."""
-    path = os.path.join(ROOT, "docs", "RUN_SUMMARY.md")
-    if not os.path.isfile(path):
-        return "", {}
-    text = open(path, encoding="utf-8").read()
-    parts = re.split(r"(?m)^## ", text)
-    intro = re.sub(r"(?m)^# .*\n", "", parts[0]).strip()
-    secs = {}
-    for part in parts[1:]:
-        title, _, body = part.partition("\n")
-        num = re.match(r"(\d+)\.", title)
-        if num:
-            secs[int(num.group(1))] = f"### {title}\n{body}".strip()
-        for sub in re.split(r"(?m)^### ", body)[1:]:
-            st, _, sb = sub.partition("\n")
-            secs[st.strip()] = f"### {st}\n{sb}".strip()
-    return intro, secs
-
-
-SUMMARY_INTRO, SUMMARY = run_summary()
-SUMMARY_MAP = {"4A": [1], "7A": [3], "7B": ["Consistency and judge"], "8": [4], "9": [5, 6], "10": [2]}
-
-
 def prompt_item(sid: str, s: dict) -> str:
     n = P.NOTES[sid]
     title = re.sub(r"^(Step \d+|Prompt \d[A-C]) · ", "", s["heading"])
     prompt = "\n".join(l for l in s["prompt"] if not l.startswith("Using an existing repo instead"))
     return (f'<details class="item" id="step-{sid}"><summary><span class="num">{sid}</span><div class="sum"><b>{e(title)}</b><span>{e(short(n["plain"]))}</span></div></summary>'
             f'<div class="body"><h4>The prompt</h4><pre>{e(prompt)}</pre></div></details>')
-
-
-def run_block() -> str:
-    if not SUMMARY_INTRO:
-        return ""
-    return ('<section class="panel" style="margin:18px 0 8px"><div class="hd"><h3>Results from your Claude Code runs</h3><a class="small" href="/docs/md/RUN_SUMMARY.html">Full run summary</a></div>'
-            f'<div class="bd md">{render_md(SUMMARY_INTRO)}</div></section>')
 
 
 def build_prompts() -> str:
