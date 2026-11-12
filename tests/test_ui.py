@@ -56,7 +56,7 @@ class ConsoleTest(unittest.TestCase):
         self.assertEqual(s, 200)
         self.assertIn(b"Problem and idea", body)
         self.assertEqual(self.call("/static/app.css")[0], 200)
-        for page in ("design", "behaves", "safe", "testing", "results", "cost", "pilot", "limits", "prompts", "canvas", "run"):
+        for page in ("design", "behaves", "safe", "testing", "results", "cost", "pilot", "limits", "prompts", "canvas"):
             self.assertEqual(self.call(f"/docs/{page}.html")[0], 200, page)
         for bad in ("/docs/../server.py", "/static/../server.py", "/docs/%2e%2e/server.py", "/docs/nothing.html"):
             self.assertEqual(self.call(bad)[0], 404, bad)

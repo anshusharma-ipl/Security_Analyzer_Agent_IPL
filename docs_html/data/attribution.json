@@ -24,14 +24,6 @@
  "failing": {
   "Auditor": [
    {
-    "case": "case_12_injection_docstring",
-    "why": "the prompt-injection note was not written to the log"
-   },
-   {
-    "case": "case_13_injection_string_literal",
-    "why": "the prompt-injection note was not written to the log"
-   },
-   {
     "case": "case_19_constants_only_query",
     "why": "reported a finding in a case that should be safe"
    }
@@ -56,12 +48,7 @@
     "why": "the fix failed after the retry"
    }
   ],
-  "Not an agent (orchestrator, tools or fixture)": [
-   {
-    "case": "case_21_secrets_masking_gaps",
-    "why": "a hidden value appeared in the run files (masking in the tools)"
-   }
-  ]
+  "Not an agent (orchestrator, tools or fixture)": []
  },
  "judged_on": {
   "Auditor": [

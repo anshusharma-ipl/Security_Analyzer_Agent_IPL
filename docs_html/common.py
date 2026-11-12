@@ -112,7 +112,7 @@ def _inline(s: str) -> str:
     s = e(s)
     s = re.sub(r"`([^`]+)`", r"<code>\1</code>", s)
     s = re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", s)
-    return s
+    return s.replace("&lt;br&gt;", "<br>")
 
 
 def md(text: str) -> str:

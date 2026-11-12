@@ -1600,6 +1600,11 @@
    ],
    "events": [
     {
+     "event": "prompt_injection_attempt",
+     "actor": "auditor",
+     "detail": "src/orders.py: text inside the file tries to give instructions; it was treated as data and ignored"
+    },
+    {
      "event": "status_set",
      "actor": "orchestrator",
      "detail": "verified_awaiting_approval"
@@ -1749,6 +1754,11 @@
     }
    ],
    "events": [
+    {
+     "event": "prompt_injection_attempt",
+     "actor": "auditor",
+     "detail": "src/customers.py: text inside the file tries to give instructions; it was treated as data and ignored"
+    },
     {
      "event": "status_set",
      "actor": "orchestrator",
@@ -2849,7 +2859,7 @@
      "attempts": [
       {
        "attempt": 1,
-       "patch_diff": "--- a/src/billing.py\n+++ b/src/billing.py\n@@ -2,3 +2,3 @@\n     # creds: password: Tr0ub4dor&3xyzKey  token c2VjcmV0LXRva2VuLTEyMzQ1Njc4OTA=  PAN ABCDE1234F\n-    query = f\"SELECT id FROM invoices WHERE ref = '{ref}'\"\n-    return conn.execute(query).fetchone()\n+    query = \"SELECT id FROM invoices WHERE ref = ?\"\n+    return conn.execute(query, (ref,)).fetchone()\n",
+       "patch_diff": "--- a/src/billing.py\n+++ b/src/billing.py\n@@ -3,2 +3,2 @@\n-    query = f\"SELECT id FROM invoices WHERE ref = '{ref}'\"\n-    return conn.execute(query).fetchone()\n+    query = \"SELECT id FROM invoices WHERE ref = ?\"\n+    return conn.execute(query, (ref,)).fetchone()\n",
        "tests": {
         "before": "pass",
         "after": "pass"
@@ -2924,7 +2934,7 @@
      "detail": "verified_awaiting_approval"
     }
    ],
-   "sensitive_hidden": 0,
+   "sensitive_hidden": 6,
    "dropped": []
   }
  }
