@@ -25,6 +25,19 @@ _SECRET_SHAPES = [re.compile(p) for p in (
 )]
 _PLACEHOLDER_VALUES = {"changeme", "change-me", "change_me", "your-api-key", "your_api_key", "xxxxxxxx", "password"}
 
+# More shapes, used only to HIDE text before it leaves a tool. They are kept apart from secret_spans on purpose: the SECRET
+# rule and the leak check use secret_spans, so widening it would add findings and false leak alarms.
+# A credential name, then ':' or '=', then an unquoted value that is not a plain word (it holds a digit or a symbol).
+_UNQUOTED_ASSIGN = re.compile(
+    r"""(?ix)
+    (?:api[_-]?key|secret|passw(?:or)?d|pwd|token|private[_-]?key|access[_-]?key|auth[_-]?key)
+    \w*["']?\s*[:=]\s*(?P<value>[^\s"'#,;()\[\]{}]{8,})""")
+_MASK_SHAPES = [re.compile(p) for p in (
+    r"(?<![A-Za-z0-9_])(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Za-z])[A-Za-z0-9]{20,}={0,2}(?![A-Za-z0-9_=])",   # a base64-looking run
+    r"(?<![A-Za-z0-9])[A-Z]{5}[0-9]{4}[A-Z](?![A-Za-z0-9])",                                                 # a PAN
+    r"(?<!\d)\d{4}[ -]\d{4}[ -]\d{4}(?!\d)",                                                               # an Aadhaar number
+)]
+
 
 def secret_spans(line: str) -> list[tuple[int, int]]:
     """(start, end) spans of secret values on one line. Empty when the line holds none."""
@@ -36,6 +49,18 @@ def secret_spans(line: str) -> list[tuple[int, int]]:
             continue
         spans.append(m.span("value"))
     for pattern in _SECRET_SHAPES:
+        spans += [m.span() for m in pattern.finditer(line)]
+    return spans
+
+
+def mask_spans(line: str) -> list[tuple[int, int]]:
+    """Spans to hide on one line: everything secret_spans finds, plus unquoted credentials, base64-looking runs, PAN and Aadhaar."""
+    spans = secret_spans(line)
+    for m in _UNQUOTED_ASSIGN.finditer(line):
+        value = m.group("value")
+        if re.search(r"[0-9&$@!%^*+/=~]", value) and value.lower() not in _PLACEHOLDER_VALUES and not value.startswith(("<", "$")):
+            spans.append(m.span("value"))
+    for pattern in _MASK_SHAPES:
         spans += [m.span() for m in pattern.finditer(line)]
     return spans
 
@@ -54,7 +79,7 @@ class Masker:
 
     def line(self, text: str) -> str:
         """Hide secrets, then emails and phone numbers, in one piece of text."""
-        spans = sorted(set(secret_spans(text)))
+        spans = sorted(set(mask_spans(text)))
         merged: list[list[int]] = []
         for start, end in spans:  # overlapping spans become one secret
             if merged and start < merged[-1][1]:

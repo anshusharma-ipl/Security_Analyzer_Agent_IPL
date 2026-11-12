@@ -8,6 +8,8 @@ Rules, all enforced in code:
     links that leave the copy are refused;
   - only existing .py files may change: no new files, no deletes, no renames, and nothing
     that changes packages (requirements.txt and the like);
+  - a test file may never change (anything under tests/ or test/, test_*.py, *_test.py, conftest.py):
+    the project's own tests are what decides whether a fix is verified;
   - the whole diff is applied in memory first and must match the file text exactly;
   - after writing, every changed file must parse as Python; if any does not, or anything
     fails while writing, every file is restored byte for byte and an error is returned.
@@ -28,6 +30,12 @@ from ._workspace import require_temp_copy
 TOOL = "apply_patch"
 HANDLING = "undo_change"
 _HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+
+
+def _is_test_file(path: str) -> bool:
+    parts = path.replace("\\", "/").split("/")
+    name = parts[-1]
+    return "tests" in parts[:-1] or "test" in parts[:-1] or name.startswith("test_") or name.endswith("_test.py") or name == "conftest.py"
 
 
 class PatchError(ValueError):
@@ -152,6 +160,8 @@ def apply_patch(workspace: str, patch_diff: str) -> dict:
             if not patch.path.endswith(".py"):
                 raise PatchError(f"{patch.path!r} is not a .py file; only Python source may be patched "
                                  "(package files such as requirements.txt are never changed)")
+            if _is_test_file(patch.path):
+                raise PatchError(f"{patch.path!r} is a test file; a fix may never change the project's own tests")
             try:
                 full = resolve_inside(workspace, patch.path)
             except SafetyError as exc:

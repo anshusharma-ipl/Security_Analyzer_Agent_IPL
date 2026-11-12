@@ -27,7 +27,10 @@ SEVERITY_RANK = {"high": 0, "medium": 1, "low": 2}
 RULE_CONFIDENCE = 0.90          # a rule matched; no model judged it (docs/roster.md)
 PATH_RULES = ("SQLI", "CMDI", "PATH")
 INJECTION = re.compile(
-    r"ignore (?:all |your |any )?(?:previous )?(?:rules|instructions)|\bAI assistant\b|curl\s+\S+\s*\|\s*(?:sh|bash)",
+    r"ignore (?:all |your |any )?(?:previous )?(?:rules|instructions)|\bAI assistant\b|curl\s+\S+\s*\|\s*(?:sh|bash)"
+    r"|\b(?:automated reviewers?|ai agents?|agents?|auditor|investigator|fixer)\b[^.\n]{0,80}?\b(?:skip|ignore|disregard|approve|mark|report|treat|return no findings)\b"
+    r"|\b(?:disregard|ignore) the (?:test results|rules|findings)\b"
+    r"|\bdo not (?:report|mention|tell)\b",
     re.IGNORECASE)
 PLACEHOLDER = re.compile(r"<(SECRET|EMAIL|PHONE)_\d+>")
 FIX_APPROACH = {
@@ -230,7 +233,9 @@ def _sqli_patch(file: str, text: str, line_no: int) -> str | None:
     values = f"({params[0]},)" if len(params) == 1 else "(" + ", ".join(params) + ")"
     new_query = f"{indent}{var} = {quote}{rest}{quote}"
     new_exec = lines[k][:found.start()] + f".execute({var}, {values})" + lines[k][found.end():]
-    first = line_no - 1 if line_no > 1 else line_no
+    if any(PLACEHOLDER.search(lines[i]) for i in range(line_no, k)):
+        return None                                   # a hidden value sits inside the lines to change
+    first = line_no - 1 if line_no > 1 and not PLACEHOLDER.search(lines[line_no - 2]) else line_no   # no context line that holds a hidden value
     body_lines = [" " + lines[i] for i in range(first - 1, line_no - 1)]
     if k == line_no:                                  # adjacent lines: one block, removals first (a normal diff)
         body_lines += ["-" + flagged, "-" + lines[k], "+" + new_query, "+" + new_exec]
@@ -245,8 +250,8 @@ def _sqli_patch(file: str, text: str, line_no: int) -> str | None:
 
 def _line_diff(file: str, lines: list[str], line_no: int, replacement: list[str]) -> str:
     """A unified diff that replaces line ``line_no`` (1-based) with ``replacement``, with one line of context on each side."""
-    before = lines[line_no - 2:line_no - 1]
-    after = lines[line_no:line_no + 1]
+    before = [t for t in lines[line_no - 2:line_no - 1] if not PLACEHOLDER.search(t)]   # a context line with a hidden value is left out
+    after = [t for t in lines[line_no:line_no + 1] if not PLACEHOLDER.search(t)]
     start = line_no - len(before)
     body = [" " + t for t in before] + ["-" + lines[line_no - 1]] + ["+" + t for t in replacement] + [" " + t for t in after]
     old_len = len(before) + 1 + len(after)

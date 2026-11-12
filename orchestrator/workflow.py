@@ -485,6 +485,10 @@ class Workflow:
         and only after every check passed, so a rejected output leaves no trace in the state."""
         if not isinstance(output, dict):
             return "the output is not a JSON object"
+        usage = output.get("usage")
+        if not (isinstance(usage, dict) and all(type(usage.get(k)) is int and usage[k] >= 0
+                                                for k in ("ai_calls", "tokens_in", "tokens_out", "sensitive_items_hidden"))):
+            return "usage must hold four whole numbers that are not negative (ai_calls, tokens_in, tokens_out, sensitive_items_hidden)"
         owned = {n for n, s in validate.SCHEMAS["state"]["properties"].items() if s["x-owner"] == agent}
         fields = {k: v for k, v in output.items() if k not in ("notes", "usage")}
         foreign = sorted(set(fields) - owned)
