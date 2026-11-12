@@ -289,6 +289,14 @@ a.card{text-decoration:none;color:inherit}a.card:hover{border-color:var(--brand)
 .step details.prompt{margin-left:40px}
 .step details.prompt summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--brand)}
 .step details.prompt pre{margin-top:8px}
+.parts .md h3{font-size:14px;letter-spacing:.09em;margin:46px 0 12px;padding-top:26px;border-top:1px solid var(--line)}
+.parts .md:first-of-type>h3:first-child{margin-top:26px;padding-top:0;border-top:0}
+/* every documentation page: section headings are small uppercase labels with a divider; sub-headings are plain bold */
+.doc>h2,.doc .labels>h2{font-size:14px;text-transform:uppercase;letter-spacing:.09em;color:var(--brand);font-weight:700;margin:46px 0 12px;padding-top:26px;border-top:1px solid var(--line)}
+.doc>.lede+h2,.doc>.plain+h2,.doc .labels>h2:first-child{margin-top:26px;padding-top:0;border-top:0}
+.doc>h3{font-size:16.5px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:700;margin:30px 0 10px}
+.agentblock .md h5{font-size:14.5px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:700;margin:22px 0 6px;padding-left:10px;border-left:3px solid var(--line)}
+.agentblock .agentpart{margin-top:30px}
 
 
 #srcTabs,#tab-zip,#tab-dir,#modelDet,#mUse,.side details.plain,#idle .small{display:none}
@@ -310,7 +318,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
   <span class="mode" id="modeLabel" hidden></span>
 </div></header>
 
-<div class="shell"><aside class="side" aria-label="Pages"><!--side--><a class="scan" href="#top" aria-current="page"><span class="n">&#9654;</span><span>Scan</span></a><a href="docs/run.html"><span>Try it yourself</span></a><div class="sgrp">The idea</div><a href="docs/summary.html"><span class="n">1</span><span>Problem and idea</span></a><a href="docs/design.html"><span class="n">2</span><span>Agent design</span></a><a href="docs/prompts.html"><span class="n">3</span><span>How we built</span></a><a href="docs/testing.html"><span class="n">4</span><span>Evals and testing</span></a><div class="sgrp">How it runs</div><a href="docs/behaves.html"><span class="n">5</span><span>How a scan works</span></a><a href="docs/safe.html"><span class="n">6</span><span>Guardrails</span></a><a href="docs/kill.html"><span class="n">7</span><span>Kill criteria and rollback</span></a><a href="docs/cost.html"><span class="n">8</span><span>Cost</span></a><div class="sgrp">Results and plan</div><a href="docs/results.html"><span class="n">9</span><span>Results</span></a><a href="docs/pilot.html"><span class="n">10</span><span>Pilot plan</span></a><a href="docs/limits.html"><span class="n">11</span><span>Limits and next steps</span></a><!--/side--></aside><div class="shell-main">
+<div class="shell"><aside class="side" aria-label="Pages"><!--side--><a class="scan" href="#top" aria-current="page"><span class="n">&#9654;</span><span>Scan</span></a><div class="sgrp">The idea</div><a href="docs/summary.html"><span class="n">1</span><span>Problem and idea</span></a><a href="docs/design.html"><span class="n">2</span><span>Agent design</span></a><a href="docs/prompts.html"><span class="n">3</span><span>How we built</span></a><a href="docs/testing.html"><span class="n">4</span><span>Evals and testing</span></a><div class="sgrp">How it runs</div><a href="docs/behaves.html"><span class="n">5</span><span>How a scan works</span></a><a href="docs/safe.html"><span class="n">6</span><span>Guardrails</span></a><a href="docs/kill.html"><span class="n">7</span><span>Kill criteria and rollback</span></a><a href="docs/cost.html"><span class="n">8</span><span>Cost</span></a><div class="sgrp">Results and plan</div><a href="docs/results.html"><span class="n">9</span><span>Results</span></a><a href="docs/pilot.html"><span class="n">10</span><span>Pilot plan</span></a><a href="docs/limits.html"><span class="n">11</span><span>Limits and next steps</span></a><!--/side--></aside><div class="shell-main">
 <div class="cx">
   <!-- ============ left: project and model ============ -->
   <aside class="cx-side" aria-label="Scan settings">
