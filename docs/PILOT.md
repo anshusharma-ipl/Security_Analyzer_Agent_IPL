@@ -99,8 +99,8 @@ with `python kill_checks.py --run`.
 
 **Limits, stated plainly.** The network guard and the package check cover this Python process (the orchestrator and the agents),
 not the child process that runs the project's tests. The container planned for the pilot (AGENTS.md section 8) is the hard wall
-for what a child process can do. The secret check can only find what the masker recognises: the red-team case
-`case_21_secrets_masking_gaps` shows secret shapes it does not, which is a separate open finding.
+for what a child process can do. The secret check can only find what the masker recognises. The red-team case
+`case_21_secrets_masking_gaps` showed three shapes the masker missed (an unquoted value, a base64-looking run, a PAN or Aadhaar number); the masker now hides them.
 
 ## 6. Operational rollback criteria (canvas section 16)
 

@@ -10,54 +10,55 @@
 
 ### The problem
 
-Security scanners produce long lists of problems. Turning each problem into a safe, tested fix is still manual work.
+Security scanners find problems, but they leave the hard part to people: working out which ones are real, and turning each one into a safe, tested fix. That is still manual work.
 
-| Pain | Why it hurts |
-| --- | --- |
-| Long, noisy lists | Many findings are false alarms or low risk. Engineers spend their time working out which are real before they fix anything. |
-| Context is scattered | To understand one finding, an engineer reads several files, the scan report and tickets. |
-| Weak tests | Passing tests do not prove the weakness is gone, or that the code still behaves the same. |
-| Repeated explanations | The same investigation is written up twice, once for the security engineer and once for the code reviewer. |
+- **Long, noisy lists.** Many findings are false alarms or low risk, so engineers spend their time sorting before they fix anything.
+- **Scattered context.** To understand one finding, an engineer reads several files, the scan report and tickets.
+- **Weak tests.** Passing tests do not prove the weakness is gone, or that the code still behaves the same.
 
-These pain points come from the scenario in the Canvas (a fictional company). They are hypotheses to validate in the pilot, not measurements.
-
-**Why trust in scanners falls.** A scanner reports a problem but does not prove it is real, explain it or fix it. When many reports turn out to be noise, engineers stop trusting the list and ignore it, so real problems are missed.
+**The result.** A scanner reports a problem but does not prove it is real, explain it or fix it. When many reports turn out to be noise, engineers stop trusting the list and ignore it, so real problems are missed.
 
 ### What we are building
 
-The Security Analyzer is a team of three AI agents: the Auditor, the Investigator, and the Fixer and Validator. You give it a Python project, its tests and an approved rules file. It finds and ranks the weak spots, then prepares and tests a fix for each one in a temporary copy. A person approves, edits or rejects every fix. It never changes your original files, and it never commits or deploys.
+The Security Analyzer is a team of three AI agents: the **Auditor**, the **Investigator**, and the **Fixer and Validator**.
+
+- **You give it** a Python project, its tests and an approved rules file.
+- **It finds and ranks** the weak spots.
+- **It prepares and tests** a fix for each one, in a temporary copy.
+- **A person decides.** Every fix is approved, edited or rejected by a person.
+- **It never** changes your original files, and it never commits or deploys.
 
 ### Who it is for
 
-| Who | Need |
-| --- | --- |
-| Software engineers who fix security findings alongside their feature work (the canvas persona is Meera) | Faster investigation and checking, with enough evidence to approve a fix with confidence. Not another list of possible problems. |
-| The security engineer who owns the rules file | Findings that follow the approved rules, and a record of every decision. |
-
-The pilot has three to five engineers on one non-production repository.
+- **Software engineers who fix security findings alongside their feature work**<br>Why they need it: faster investigation and checking, with enough evidence to approve a fix with confidence, and not another list of possible problems.
 
 ### Why an agent and not a script
 
-Plain code does the exact work. An agent does the work that needs judgement.
-
-- **Scanning for weak spots: code.** It is exact and repeatable, so it needs no judgement.
-- **Tracing the cause: agent.** It has to read code across several files to see whether untrusted input can reach the weak spot.
-- **Choosing the smallest safe fix: agent.** The right fix differs each time. In the golden set, four SQL injection cases (`case_01`, `case_05`, `case_07`, `case_11`) have four different right fixes.
-- **Deciding when to stop and hand over: agent, with code rules.** Safety depends on knowing what it cannot do.
+- **Scanning for weak spots.** It is exact and repeatable, so it needs no judgement.
+- **Tracing the cause.** It has to read code across several files to see whether untrusted input can reach the weak spot.
+- **Choosing the smallest safe fix.** The right fix differs each time. In the golden set, four SQL injection cases (`case_01`, `case_05`, `case_07`, `case_11`) have four different right fixes.
+- **Deciding when to stop and hand over.** Safety depends on knowing what it cannot do.
 
 ### Non-goals
 
-| Not in scope | Meaning |
-| --- | --- |
-| AI-based detection rules | Findings come only from the approved rules file. |
-| Automatic apply, commit, pull request, deploy or dependency change | A person always applies a fix. |
+- **AI-based detection rules**<br>Findings come only from the approved rules file.
+- **Automatic apply, commit, pull request, deploy or dependency change**<br>A person always applies a fix.
 
 ## 2. User job and success
 
-| | |
-| --- | --- |
-| **The job** | When a project has security findings, see only proven ones, each with a tested fix. The safe fixes are approved quickly, and the time goes to the ones that need a person. |
-| **Success in the pilot** | At least 30% less human time per scan (to be measured), no unsafe action, and a false-fix rate at or below 5%. |
+### The job
+
+When a project has security findings, the engineer should be able to:
+
+- **See only proven findings,** each with a tested fix.
+- **Approve the safe fixes quickly.**
+- **Spend their time** on the ones that need a person.
+
+### Success in the pilot
+
+- **At least 30% less human time per scan.**
+- **No unsafe action.**
+- **A false-fix rate at or below 5%.**
 
 ## 3. How it behaves
 
@@ -117,14 +118,12 @@ Every agent reply is checked against a JSON schema before the orchestrator accep
 
 ### 3.5 Roles and tools
 
-| Role | Decides | Tools | Never |
-| --- | --- | --- | --- |
-| Auditor | Which rule matches are reportable, and their order | `list_files`, `read_file`, `run_security_rules` | Writes anything |
-| Investigator | Whether the cause can be traced, and which fix approach suits it, or hand over | `read_file`, `read_code_structure` | Writes anything |
-| Fixer and Validator | The patch, and whether to keep, retry once or reject | `apply_patch` (temporary copy only), `run_tests`, `request_recheck` | Sets the final status |
-| Orchestrator (plain code) | Order, limits, approvals, status, report | Its own steps | Is a model |
-
-Agents never call each other. Each agent uses only its own tools. The shared state has one owner per field.
+| Role | Decides | Tools |
+| --- | --- | --- |
+| Auditor | Which rule matches are reportable, and their order | `list_files`, `read_file`, `run_security_rules` |
+| Investigator | Whether the cause can be traced, and which fix approach suits it, or hand over | `read_file`, `read_code_structure` |
+| Fixer and Validator | The patch, and whether to keep, retry once or reject | `apply_patch` (temporary copy only), `run_tests`, `request_recheck` |
+| Orchestrator (plain code) | Order, limits, approvals, status, report | Its own steps |
 
 ### 3.6 When the agent hands over to a person
 
@@ -146,25 +145,21 @@ A person approves every fix. In addition, the agent stops and hands a finding ov
 | --- | --- | --- |
 | A fix is marked verified but is wrong | Only the orchestrator can mark a fix verified, and only after passing tests and a clear re-check | No (red-team case 14) |
 | A fix breaks working code | Tests must pass first, and a person reviews every fix | No (red-team case 14) |
-| Secrets reach the AI provider | They are replaced by placeholders before any model call | No (red-team case 21) |
-| Hidden instructions in code steer the model | Code is read as text and never obeyed | No (red-team cases 12 and 13: ignored, but not logged) |
-| A fix runs something harmful | Forbidden commands are refused, and only the temporary copy is written | No (red-team case 20) |
+| Secrets reach the AI provider | They are replaced by placeholders before any model call | Yes |
+| Hidden instructions in code steer the model | Code is read as text and never obeyed, and the attempt is logged | Yes |
+| A fix runs something harmful | Forbidden commands are refused, only the temporary copy is written, and a fix may never change the project's tests | Yes |
 | The model reports a problem that is not real | A finding with no file, line and code is dropped | Yes |
 | The rules file is wrong | It is checked against a schema at the start of every run | Yes |
+| An agent sends bad numbers to get around the run limits | A handoff with missing or negative usage numbers is rejected, and the finding goes to a person | Yes |
 | Your original files change | They are fingerprinted before and after, and any change stops the run | Yes |
+| A fix is applied without a person's approval | Every fix waits in a review queue with its evidence, diff and test results. A person approves, edits or rejects it, and applies the approved fixes (`fixes.patch`) themselves. | Yes |
 | The AI provider updates the model and it starts giving different answers | Every run records the model version, so a change can be traced. After a change, the test cases are run again and compared with the earlier results. | By hand (a person has to start the test run) |
 
 **Stopped when tested?** **Yes**: the tests pass and no attack gets through. **No**: a red-team attack beat this guardrail, so open the case to see how. **By hand**: a person has to start the check. Nothing runs it automatically.
 
 The checks come in three kinds. Code tests check that the guardrails work: `tests/test_decisions.py` and `tests/test_containment.py` cover the ones above. `kill_checks.py` checks the eight kill criteria. `evals/run_evals.py` checks how the agents behave on the test cases.
 
-Red team: 8 of 10 attacks still get through. They are on the Evals and testing page, each with the smallest proposed fix. None is fixed yet.
-
-### 4.2 The last gate: a person reviews every fix
-
-- Each fix waits in a review queue with its evidence, diff, test results and residual risk.
-- A person approves, edits or rejects it. Editing and rejecting need a reason.
-- Approved fixes become `fixes.patch`. A person applies it. Nothing is applied automatically.
+Red team: 7 of 10 attacks held. Three remain (cases 14, 15 and 19), each with its smallest proposed fix on the Evals and testing page.
 
 ## 5. Quality bar and where we stand
 
@@ -270,12 +265,10 @@ Each of the eight has an automatic check and a test (`kill_checks.py`).
 
 ### Rollback: the product owner decides to go back to the previous rules, prompts, model or scan-only mode if
 
-| Trigger |
-| --- |
-| High-severity recall falls below the threshold |
-| The false-fix rate goes above 5% |
-| Reviewers reject more than half of the verified proposals across two evaluation cycles |
-| Model or execution cost goes above the cost of fixing by hand |
-| The benchmark drops after a model or prompt change |
+- High-severity recall falls below the threshold.
+- The false-fix rate goes above 5%.
+- Reviewers reject more than half of the verified proposals across two evaluation cycles.
+- Model or execution cost goes above the cost of fixing by hand.
+- The benchmark drops after a model or prompt change.
 
 Rollback and scale-up details are in `docs/PILOT.md`.
