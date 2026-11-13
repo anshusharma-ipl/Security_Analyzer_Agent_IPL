@@ -6,6 +6,7 @@ Requires Python 3.11+ and the standard library only; `jsonschema` is the one app
 
 ## Try it
 - `python ui/server.py` (or double-click `start.bat`, or run `start.sh`) opens the console at http://127.0.0.1:8765. Choose **Use the demo project** and **Run scan**: no key and no model needed. Needs `pip install jsonschema`.
+- A console runs one scan at a time. To run the offline demo while another scan is busy (for example one with a model), double-click `start_offline.bat` (or run `start_offline.sh`): it opens a second console at http://127.0.0.1:8766.
 - To use a model, pick OpenAI (GPT), Anthropic (Claude) or Google (Gemini) in the console and paste a key. Use fake or non-sensitive code until your security team has approved the provider. See `ui/README.md`.
 - From a terminal: `python -m orchestrator.cli run <folder> golden/rules.json`, then `finish` after a person edits `review_queue.json`.
 

@@ -629,7 +629,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _create_job(self, payload: dict) -> None:
         if any(j.get("busy") for j in JOBS.values()):
-            return self._fail(409, "another run is in progress; wait for it to finish")
+            return self._fail(409, "another run is in progress in this console; wait for it to finish. To run the offline demo meanwhile, start start_offline.bat and open http://127.0.0.1:8766")
         # the project: a golden case or an upload
         if payload.get("case"):
             name = str(payload["case"])
