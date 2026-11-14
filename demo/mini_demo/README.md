@@ -1,12 +1,10 @@
-# Mini demo: a four-finding project for a live demo
+# Mini demo: two findings for a live demo
 
-A tiny project with four SQL injection findings. Three can be fixed automatically. One needs a person. All data is fake.
+A tiny project with two SQL injection findings. One can be fixed automatically. One needs a person. All data is fake.
 
 | File | What it shows |
 | --- | --- |
-| `src/customers.py` | a fix with one value |
-| `src/invoices.py` | a fix with two values |
-| `src/products.py` | a fix where the query runs a line later |
+| `src/customers.py` | gets a fix: the value goes in through a placeholder |
 | `src/reports.py` | needs a person: the caller sends part of the SQL itself, so a placeholder cannot replace it |
 
 In the console, drop this folder or `mini_demo.zip` on the Project panel and press **Run scan**.
